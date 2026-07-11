@@ -32,6 +32,7 @@ credentials; mutations happen only bot-side, behind the write contract).
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import urllib.parse
@@ -59,6 +60,9 @@ MAX_ACTION_BODY_BYTES = 64 * 1024
 AUTH_LOGIN = "/auth/login"
 AUTH_CALLBACK = "/auth/callback"
 AUTH_LOGOUT = "/auth/logout"
+
+# GET-only API routes — any other verb on these answers 405 + Allow.
+GET_ONLY_API_ROUTES = frozenset({API_SNAPSHOT, API_VIEWS, API_ME})
 
 
 class MineverseHandler(SimpleHTTPRequestHandler):
@@ -103,6 +107,10 @@ class MineverseHandler(SimpleHTTPRequestHandler):
             self._serve_callback(query)
         elif route == AUTH_LOGOUT:
             self._serve_logout()
+        elif route == API_ACTION:
+            # Known route, wrong verb: 405 + Allow, not a lying 404.
+            self._send_json(405, {"error": "method not allowed"},
+                            headers={"Allow": "POST"})
         elif route.startswith("/api/"):
             self._send_json(404, {"error": "unknown API route"})
         else:
@@ -112,10 +120,32 @@ class MineverseHandler(SimpleHTTPRequestHandler):
         route, _, _ = self.path.partition("?")
         if route == API_ACTION:
             self._serve_action()
-        elif route.startswith("/api/"):
-            self._send_json(404, {"error": "unknown API route"})
         else:
-            self._send_json(405, {"error": "method not allowed"})
+            self._reject_unsupported_method()
+
+    def do_PUT(self):  # noqa: N802 (http.server API name)
+        self._reject_unsupported_method()
+
+    do_DELETE = do_PUT  # noqa: N815 (http.server API names)
+    do_PATCH = do_PUT  # noqa: N815
+
+    def _reject_unsupported_method(self) -> None:
+        """405 with an honest Allow header — 404 only for unknown routes.
+
+        Everything the server exposes besides ``POST /api/action`` is
+        read-only: GET (plus the HEAD that ``SimpleHTTPRequestHandler``
+        derives from it for static files) is the only verb.
+        """
+        route, _, _ = self.path.partition("?")
+        if route == API_ACTION:  # POST is handled before this is reached
+            self._send_json(405, {"error": "method not allowed"},
+                            headers={"Allow": "POST"})
+            return
+        if route.startswith("/api/") and route not in GET_ONLY_API_ROUTES:
+            self._send_json(404, {"error": "unknown API route"})
+            return
+        self._send_json(405, {"error": "method not allowed"},
+                        headers={"Allow": "GET, HEAD"})
 
     # --- write proposals (stage c — TEST GUILD ONLY, degraded by default) --
 
@@ -204,7 +234,9 @@ class MineverseHandler(SimpleHTTPRequestHandler):
 
         Read-only, no state: the same snapshot ``/api/snapshot`` relays
         verbatim, shaped for the frontend's deepened views.  Missing or
-        corrupt snapshot answers the same honest 503.
+        corrupt snapshot answers the same honest 503; a snapshot that is
+        valid JSON but malformed beyond what the shaper tolerates answers
+        an honest 500 instead of crashing the request.
         """
         try:
             snapshot = json.loads(self.snapshot_path.read_bytes())
@@ -213,21 +245,58 @@ class MineverseHandler(SimpleHTTPRequestHandler):
         except (OSError, ValueError):
             self._send_json(503, {"error": "snapshot unavailable"})
             return
-        self._send_json(200, views.build_views(snapshot))
+        try:
+            document = views.build_views(snapshot)
+        except Exception:  # noqa: BLE001 — any shaping failure is data-shaped
+            self._send_json(500, {"error": "snapshot malformed"})
+            return
+        self._serve_cacheable_json(json.dumps(document).encode("utf-8"))
 
     def _serve_snapshot(self) -> None:
         try:
             payload = self.snapshot_path.read_bytes()
-            json.loads(payload)  # never serve a corrupt snapshot as a 200
+            snapshot = json.loads(payload)  # never serve corrupt bytes as 200
+            if not isinstance(snapshot, dict):
+                # The contract's envelope is an object — anything else is
+                # a corrupt snapshot, not servable data.
+                raise ValueError("snapshot is not a JSON object")
         except (OSError, ValueError):
             self._send_json(503, {"error": "snapshot unavailable"})
+            return
+        self._serve_cacheable_json(payload)
+
+    # --- conditional caching (committed data — a content hash is honest) --
+
+    def _serve_cacheable_json(self, payload: bytes) -> None:
+        """200 with a content-hash ETag, or 304 when the client has it.
+
+        The snapshot is committed repo data, so a strong sha256 ETag is
+        cheap and exact.  ``Cache-Control: no-cache`` means "revalidate
+        every time", which the ETag makes a near-free 304 round-trip.
+        """
+        etag = f'"{hashlib.sha256(payload).hexdigest()}"'
+        if self._if_none_match_hits(etag):
+            self.send_response(304)
+            self.send_header("ETag", etag)
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
             return
         self.send_response(200)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(payload)))
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("ETag", etag)
+        self.send_header("Cache-Control", "no-cache")
         self.end_headers()
         self.wfile.write(payload)
+
+    def _if_none_match_hits(self, etag: str) -> bool:
+        header = self.headers.get("If-None-Match")
+        if not header:
+            return False
+        candidates = {tag.strip() for tag in header.split(",")}
+        # RFC 9110: If-None-Match compares weakly — a W/-prefixed copy of
+        # our strong tag (and the * wildcard) still hits.
+        return bool(candidates & {etag, f"W/{etag}", "*"})
 
     # --- Discord OAuth (stage b — read personalization only) -------------
 
@@ -348,14 +417,38 @@ class MineverseHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-Length", "0")
         self.end_headers()
 
-    def _send_json(self, status: int, body: dict) -> None:
+    def _send_json(
+        self, status: int, body: dict, *, headers: dict[str, str] | None = None
+    ) -> None:
         payload = json.dumps(body).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(payload)))
         self.send_header("Cache-Control", "no-store")
+        for name, value in (headers or {}).items():
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(payload)
+
+    def guess_type(self, path):  # noqa: A002 (http.server API name)
+        """Static-file Content-Type, always WITH a charset for text.
+
+        ``SimpleHTTPRequestHandler`` guesses ``text/html`` etc. bare; the
+        frontend files are UTF-8, so every text-ish type gets an explicit
+        ``charset=utf-8`` (binary types pass through untouched).
+        """
+        ctype = super().guess_type(path)
+        if "charset=" in ctype:
+            return ctype
+        if ctype.startswith("text/") or ctype in (
+            "application/javascript",
+            "application/json",
+            "application/manifest+json",
+            "application/xml",
+            "image/svg+xml",
+        ):
+            return f"{ctype}; charset=utf-8"
+        return ctype
 
     def log_message(self, format: str, *args) -> None:  # noqa: A002
         pass  # keep test output clean; stage 1 needs no access log
