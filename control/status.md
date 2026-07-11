@@ -1,25 +1,23 @@
 # superbot-mineverse · status
-updated: 2026-07-11T03:58:00Z
-phase: DEEPENING — read-views slice 2 (PR #21) MERGED: EVERY required miner field now renders; micro-polish slice in flight; ladder PREPARED through (d) — live-prod remains OWNER-FLAG-GATED; test-guild read-write waits on bot lanes + owner env vars
+updated: 2026-07-11T04:14:00Z
+phase: DEEPENING — micro-polish (PR #23) MERGED: read side now renders the ENTIRE v1 contract, the deepening well is dry; no in-flight lanes — all remaining work externally blocked (bot-lane FLAGs 1+2, owner env vars, pytest ruleset edit); loop cadence slows ~15→~60 min while blocked
 health: green
 kit: v1.8.0 · check: green · engaged: yes   # check --strict GREEN; engaged = no unrendered banners + live CI gate (substrate-gate required context on main ruleset) + session loop engaged — all met
-last-shipped: READ-VIEWS DEEPENING SLICE 2 MERGED — PR #21 (a2672dc) 2026-07-11T03:40Z: skills panel + structures panel, per-depth-band position mini-map, snapshot-staleness UX with 180s threshold, energy meter; tests 163→187, all green; all shaping schema-derived. COVERAGE MILESTONE: every required miner field of mining_snapshot.v1 now renders in the web views. Prior: PR #20 (heartbeat), #19 (conformance seam), #18 (deepening slice 1), #17 (heartbeat), #16 (stage d prep), #15, #13/#14 (stage c), #12, #11 (stage b), #10/#8/#7 (stage a), #9, #6, #5, #4, #3, #2, #1.
+last-shipped: MICRO-POLISH MERGED — PR #23 2026-07-11T04:04Z: suid identity line, guild_id in the header, xp.game on the card face, additive-keys defensive tests; pytest 187→191 (+1 conformance skip), all green. MILESTONE: the read side now renders the ENTIRE v1 contract — every required miner field of mining_snapshot.v1 is painted somewhere in the web views; the deepening well is dry. Prior: PR #21 (deepening slice 2, full required-field coverage), #20 (heartbeat), #19 (conformance seam), #18 (deepening slice 1), #17 (heartbeat), #16 (stage d prep), #15, #13/#14 (stage c), #12, #11 (stage b), #10/#8/#7 (stage a), #9, #6, #5, #4, #3, #2, #1.
 blockers: none
 orders: acked= done=
 ⚑ needs-owner: 2 items — (1) provision the six env vars to switch sign-in on (and, for test-guild write mode, the write-endpoint pair); (2) make pytest a required (blocking) status check on main. Structured OWNER-ACTION blocks below. Bot-lane FLAGs below stay informational until the manager picks them up.
-notes: coordinator heartbeat, boot session cse_017yrng4qx2LcLNqKb5AGoe8 — deepening slice 2 MERGED record (full required-field coverage), remaining micro view gaps + micro-polish dispatch, ladder prepared, owner-action blocks + both bot-lane FLAGs carried verbatim, in-flight + backlog + routine/chain verbatim records below (this Project is this file's SOLE writer; overwritten whole, never appended). Housekeeping this heartbeat: removed released claim control/claims/claude-slice2-deep-views.md (rode PR #21; deletion deferred to this control-lane PR per pattern).
+notes: coordinator heartbeat, boot session cse_017yrng4qx2LcLNqKb5AGoe8 — HONEST STATE: no in-flight lanes; all remaining work is externally blocked: (1) Builder-lane FLAG 1 (READ relay projection) + FLAG 2 (WRITE endpoint) — specs on main; (2) owner env vars (six names) + pytest required-check ruleset edit; (3) audit-trail e2e + real-endpoint conformance run once (1)/(2) exist. LOOP CADENCE: chain link moving from ~15 min to ~60 min while blocked (failsafe cron unchanged, every 2h at :20); inbox checked each wake; new orders resume full pace. Ladder line, both OWNER-ACTION blocks, and both bot-lane ⚑ FLAGs carried verbatim below (this Project is this file's SOLE writer; overwritten whole, never appended). Housekeeping this heartbeat: removed released claim control/claims/claude-micro-polish-identity-xp.md (rode PR #23; deletion rides this control-lane PR per pattern).
 
-## Deepening slice 2 — MERGED (PR #21 a2672dc 2026-07-11T03:40Z)
+## Micro-polish — MERGED (PR #23 2026-07-11T04:04Z)
 
-- Skills panel + structures panel; per-depth-band position mini-map;
-  snapshot-staleness UX with 180s threshold; energy meter. Tests 163 → 187,
-  all green; all view shaping schema-derived (no hand-listed fields).
-- COVERAGE MILESTONE: every required miner field in
-  schemas/mining_snapshot.v1.schema.json now renders somewhere in the web
-  views.
-- Remaining view gaps (micro): suid and guild_id are fetched but unpainted;
-  xp.game is not on the card face. Micro-polish slice dispatched — see IN
-  FLIGHT.
+- suid identity line, guild_id in the header, xp.game on the card face,
+  additive-keys defensive tests; pytest 187 → 191 plus 1 conformance skip,
+  all green.
+- MILESTONE: the read side now renders the ENTIRE v1 contract — with PR #21's
+  full required-field coverage plus this slice's identity/xp paint, nothing
+  in schemas/mining_snapshot.v1.schema.json is fetched-but-unpainted. The
+  deepening well is dry.
 - LADDER: 0 ✓ · (a) ✓ · (b) ✓ · (c) ✓ web-side · (d) PREPARED ✓ — live-prod
   remains OWNER-FLAG-GATED (never agent-decided). Test-guild read-write still
   waits on: Builder lane WRITE endpoint (FLAG 2) + READ relay projection
@@ -80,8 +78,8 @@ endpoint.
 
 ## IN FLIGHT
 
-- Micro-polish slice (paint suid + guild_id, surface xp.game on the card
-  face) — dispatched 2026-07-11T03:56Z, session cse_014zpnwjGjP4ETFJ3wiZcVEv.
+- (none) — no in-flight lanes; every remaining backlog item is externally
+  blocked on the bot-lane FLAGs and/or the OWNER-ACTION items above.
 
 ## Ladder + deepening backlog
 
@@ -97,7 +95,9 @@ endpoint.
 
 ## Routine + chain (verbatim record)
 
-Failsafe: trig_01K8xmAKYS5S2HLy1HPANM7j cron 20 */2 * * * (next 04:20Z).
+Failsafe: trig_01K8xmAKYS5S2HLy1HPANM7j cron 20 */2 * * * (unchanged, every
+2h at :20).
 Chain link: re-armed each wake as run_once triggers from worker seats —
-current link fires ~04:11Z (id in coordinator log); send_later is
-self-session-only on worker seats (no target param).
+re-armed this wake ~60 min out while externally blocked (id in coordinator
+log); cadence returns to ~15 min when new orders or unblocked work appear;
+send_later is self-session-only on worker seats (no target param).
