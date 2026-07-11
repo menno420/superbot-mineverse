@@ -1,6 +1,6 @@
 # Session 2026-07-11 — PNG share card + fun-lane nits
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 
 ## Plan
 
