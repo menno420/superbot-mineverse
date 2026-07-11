@@ -10,62 +10,65 @@
   <header>
     <div class="header-row">
       <h1>⛏️ Mineverse <span id="test-economy-badge" class="badge" hidden>TEST ECONOMY</span></h1>
-      <div id="auth-controls" class="auth"></div>
+      <nav id="auth-controls" class="auth" aria-label="Account"></nav>
     </div>
     <p class="subtitle">Read-only view over the superbot mining economy — committed sample data + optional Discord sign-in for a personal view</p>
     <p id="snapshot-meta" class="meta"></p>
-    <p id="snapshot-staleness" class="staleness" hidden></p>
+    <p id="snapshot-staleness" class="staleness" role="status" hidden></p>
   </header>
 
   <main>
-    <p id="status-banner" class="banner" hidden></p>
+    <p id="status-banner" class="banner" role="status" hidden></p>
 
-    <section id="my-miner-section" hidden>
-      <h2>My miner</h2>
+    <section id="my-miner-section" aria-labelledby="my-miner-heading" hidden>
+      <h2 id="my-miner-heading">My miner</h2>
       <p id="my-miner-note" class="meta" hidden></p>
       <div id="my-miner-card" class="cards"></div>
       <div id="action-panel" hidden>
-        <h3>Actions</h3>
+        <h3 id="action-heading">Actions</h3>
         <p id="action-note" class="meta" hidden></p>
         <div id="action-buttons"></div>
-        <p id="action-result" class="meta" hidden></p>
+        <p id="action-result" class="meta" role="status" hidden></p>
       </div>
     </section>
 
-    <section id="depth-ladder-section" hidden>
-      <h2>Depth ladder</h2>
+    <section id="depth-ladder-section" aria-labelledby="depth-ladder-heading" hidden>
+      <h2 id="depth-ladder-heading">Depth ladder</h2>
       <p class="meta">Biome bands 0–3 · solid chips are miners currently at the band, dashed chips mark a record depth</p>
       <div id="depth-ladder"></div>
     </section>
 
-    <section id="depth-race-section" hidden>
-      <h2>Depth race</h2>
+    <section id="depth-race-section" aria-labelledby="depth-race-heading" hidden>
+      <h2 id="depth-race-heading">Depth race</h2>
       <div id="depth-race"></div>
     </section>
 
-    <section id="minimap-section" hidden>
-      <h2>Mini-map</h2>
+    <section id="minimap-section" aria-labelledby="minimap-heading" hidden>
+      <h2 id="minimap-heading">Mini-map</h2>
       <p class="meta">Miner positions (x, y) per depth band, as of the snapshot — miners whose position is unknown are listed, never guessed</p>
       <div id="minimap"></div>
     </section>
 
-    <section id="leaderboard-section" hidden>
-      <h2>Leaderboards</h2>
-      <div id="board-tabs" class="board-tabs"></div>
-      <table id="leaderboard">
-        <thead></thead>
-        <tbody></tbody>
-      </table>
+    <section id="leaderboard-section" aria-labelledby="leaderboard-heading" hidden>
+      <h2 id="leaderboard-heading">Leaderboards</h2>
+      <div id="board-tabs" class="board-tabs" role="tablist" aria-label="Leaderboard type"></div>
+      <div id="leaderboard-panel" class="table-scroll" role="tabpanel" tabindex="0" aria-labelledby="leaderboard-heading">
+        <table id="leaderboard">
+          <caption id="leaderboard-caption" class="visually-hidden">Leaderboard</caption>
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </section>
 
-    <section id="inventory-browser-section" hidden>
-      <h2>Inventory browser</h2>
+    <section id="inventory-browser-section" aria-labelledby="inventory-browser-heading" hidden>
+      <h2 id="inventory-browser-heading">Inventory browser</h2>
       <p class="meta">Everything carried underground, per miner — ore tiers stone → diamond first, then the rest</p>
       <div id="inventory-browser" class="table-scroll"></div>
     </section>
 
-    <section id="miners-section" hidden>
-      <h2>Miners</h2>
+    <section id="miners-section" aria-labelledby="miners-heading" hidden>
+      <h2 id="miners-heading">Miners</h2>
       <div id="miner-cards" class="cards"></div>
     </section>
   </main>
