@@ -8,13 +8,22 @@
 </head>
 <body>
   <header>
-    <h1>⛏️ Mineverse</h1>
-    <p class="subtitle">Read-only view over the superbot mining economy — stage-1 walking skeleton (committed sample data)</p>
+    <div class="header-row">
+      <h1>⛏️ Mineverse</h1>
+      <div id="auth-controls" class="auth"></div>
+    </div>
+    <p class="subtitle">Read-only view over the superbot mining economy — committed sample data + optional Discord sign-in for a personal view</p>
     <p id="snapshot-meta" class="meta"></p>
   </header>
 
   <main>
     <p id="status-banner" class="banner" hidden></p>
+
+    <section id="my-miner-section" hidden>
+      <h2>My miner</h2>
+      <p id="my-miner-note" class="meta" hidden></p>
+      <div id="my-miner-card" class="cards"></div>
+    </section>
 
     <section id="depth-race-section" hidden>
       <h2>Depth race</h2>
@@ -38,7 +47,7 @@
   </main>
 
   <footer>
-    <p>Stage 1: no auth, no database, no live data — everything renders from <code>data/sample_snapshot.json</code>.</p>
+    <p>No database, no live data — everything renders from <code>data/sample_snapshot.json</code>. Discord sign-in (when the host configures it) only personalizes this read-only view.</p>
   </footer>
 
   <script src="app.js"></script>

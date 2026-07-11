@@ -1,0 +1,1 @@
+- `claude/discord-oauth` · **stage (b) Discord OAuth** — OAuth2 `identify` sign-in + signed session cookie + `/api/me` my-miner view + degraded mode · server/ web/ tests/ docs/ README · 2026-07-11
