@@ -34,7 +34,12 @@ The planted doc set (this router reaches every live doc — keep it that way):
 Data contracts: `docs/mining-data-contract.md` (READ contract v1 — the
 bot→web snapshot envelope) with its machine twin
 `schemas/mining_snapshot.v1.schema.json`, enforced by
-`tests/test_schema_gate.py` in CI (`.github/workflows/schema-gate.yml`).
+`tests/test_schema_gate.py` in CI (`.github/workflows/schema-gate.yml`);
+and `docs/mining-write-contract.md` (WRITE contract v1 — the web→bot
+action-proposal envelope, TEST GUILD ONLY) with machine twins
+`schemas/mining_action.v1.schema.json` +
+`schemas/mining_action_response.v1.schema.json`, enforced by
+`tests/test_write_schema_gate.py` in the same CI.
 
 Auth: `docs/auth.md` (stage b — Discord OAuth sign-in with `identify` scope
 only: flow, the four host env vars, degraded mode, threat notes). Behavior
