@@ -430,6 +430,34 @@ class MineverseHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
+    def send_error(self, code, message=None, explain=None):
+        """Cave-art 404 page for unknown NON-API paths — nothing else.
+
+        ``SimpleHTTPRequestHandler`` answers missing static files via
+        ``send_error(404)``; that one case gets ``web/404.html`` ("you
+        dug too deep") instead of the stock error page. Every other
+        status — and every ``/api/*`` route, whose JSON 404/405 bodies
+        never pass through here anyway — keeps stock behavior. If the
+        page itself is missing, fall back to the stock error honestly.
+        """
+        # path may be unset when a request fails before parsing completes
+        # (e.g. an overlong request line) — those keep stock errors too.
+        route, _, _ = getattr(self, "path", "").partition("?")
+        if code == 404 and route and not route.startswith("/api/"):
+            try:
+                payload = (Path(self.directory) / "404.html").read_bytes()
+            except OSError:
+                payload = None
+            if payload is not None:
+                self.send_response(404)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                if self.command != "HEAD":
+                    self.wfile.write(payload)
+                return
+        super().send_error(code, message, explain)
+
     def guess_type(self, path):  # noqa: A002 (http.server API name)
         """Static-file Content-Type, always WITH a charset for text.
 

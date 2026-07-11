@@ -210,3 +210,43 @@ def test_missing_snapshot_stays_an_honest_503_on_views(serve, tmp_path):
     status, _, body = request(addr, "GET", "/api/views")
     assert status == 503
     assert json.loads(body) == {"error": "snapshot unavailable"}
+
+
+# --- cave-art 404 page (unknown non-API GET paths only) ----------------------
+
+
+def test_unknown_static_path_serves_the_cave_404_page(serve):
+    status, headers, body = request(serve(), "GET", "/no/such/tunnel")
+    assert status == 404
+    assert headers["content-type"] == "text/html; charset=utf-8"
+    text = body.decode("utf-8")
+    assert "you dug too deep" in text  # the cave-art page, not the stock one
+    assert "404" in text
+    assert 'href="/"' in text  # the way back up is a real link
+
+
+def test_head_on_unknown_static_path_is_404_with_no_body(serve):
+    status, headers, body = request(serve(), "HEAD", "/no/such/tunnel")
+    assert status == 404
+    assert headers["content-type"] == "text/html; charset=utf-8"
+    assert body == b""
+
+
+def test_api_json_404_is_untouched_by_the_404_page(serve):
+    # The /api/* error contract stays byte-identical: JSON body, JSON
+    # content type, no HTML — on every method (405s pinned above).
+    for method in ("GET", "POST", "PUT", "DELETE", "PATCH"):
+        status, headers, body = request(serve(), method, "/api/unknown")
+        assert status == 404, method
+        assert headers["content-type"] == "application/json; charset=utf-8"
+        assert json.loads(body) == {"error": "unknown API route"}, method
+
+
+def test_missing_404_page_falls_back_to_the_stock_error(serve, tmp_path):
+    # An empty web root has no 404.html — the server answers the stock
+    # http.server error page honestly instead of a blank or a crash.
+    addr = serve(web_root=tmp_path)
+    status, headers, body = request(addr, "GET", "/nope")
+    assert status == 404
+    assert headers["content-type"].startswith("text/html")
+    assert b"404" in body
