@@ -1,22 +1,40 @@
 # superbot-mineverse · status
-updated: 2026-07-11T02:01:36Z
-phase: stage (a) READ CONTRACT v1 merged (PR #7); stage (b) DISCORD OAUTH dispatched; stage (a) lane on close-out + pytest-enforcement follow-up
+updated: 2026-07-11T02:19:30Z
+phase: stage (b) DISCORD OAUTH merged (PR #11); stage (c) WRITE CONTRACT v1 (test guild only) dispatched; owner flips env vars to switch sign-in on
 health: green
-kit: v1.8.0 · check: green · engaged: yes   # check --strict GREEN (0 findings) since PR #6 (slots rendered, UNRENDERED banner gone); engaged = no unrendered banners + live CI gate (substrate-gate required context on main ruleset) + session loop engaged — all met
-last-shipped: Stage (a) READ CONTRACT v1 — PR #7 MERGED 2026-07-11T01:57Z (substrate-gate ✓ + pytest workflow ✓ on head, 25 tests). Prior: PR #6 (slots+README, strict RED→GREEN), PR #5 (gitignore fix), #4 (heartbeat), #3 (close-out), #2 (ORDER 000 skeleton), #1 (heartbeat).
+kit: v1.8.0 · check: green · engaged: yes   # check --strict GREEN; engaged = no unrendered banners + live CI gate (substrate-gate required context on main ruleset) + session loop engaged — all met
+last-shipped: Stage (b) DISCORD OAUTH — PR #11 MERGED 2026-07-11T02:13Z (substrate-gate ✓ + pytest ✓ on head 3131f87; 50 tests). Stage (a) arc closed earlier (PRs #7/#8/#10). Prior: PR #9 (heartbeat), #6 (slots+README), #5 (gitignore), #4, #3, #2, #1.
 blockers: none
 orders: acked= done=
-⚑ needs-owner: none blocking (bot-lane FLAG below is informational until the manager picks it up)
-notes: coordinator heartbeat, boot session cse_017yrng4qx2LcLNqKb5AGoe8 — stage (a) DONE record, bot-lane FLAG, gate-audit note, in-flight + staged queue, and routine/chain verbatim records below (this Project is this file's SOLE writer; overwritten whole, never appended).
+⚑ needs-owner: 2 items — (1) provision the four Discord OAuth env vars to switch sign-in on; (2) make pytest a required (blocking) status check on main. Structured OWNER-ACTION blocks below. Bot-lane FLAG below stays informational until the manager picks it up.
+notes: coordinator heartbeat, boot session cse_017yrng4qx2LcLNqKb5AGoe8 — stage (b) DONE record, owner-action blocks, bot-lane FLAG (carried verbatim), in-flight + staged queue, and routine/chain verbatim records below (this Project is this file's SOLE writer; overwritten whole, never appended).
 
-## Stage (a) READ CONTRACT v1 — DONE (PR #7, merged 2026-07-11T01:57Z)
+## Stage (b) DISCORD OAUTH — DONE (PR #11, merged 2026-07-11T02:13Z)
 
-- docs/mining-data-contract.md + schemas/mining_snapshot.v1.schema.json —
-  single source of truth; tests derive REQUIRED_MINER_FIELDS from the schema.
-- pytest schema gate (tests/test_schema_gate.py, Draft202012Validator).
-- Enveloped sample payload: schema_version "1", generated_at, guild_id string,
-  miners[]; suid is a STRING — snowflakes exceed double precision.
-- Frontend shows contract version + generated_at timestamp.
+- stdlib OAuth2 identify flow: /auth/login → CSRF state → /auth/callback →
+  HMAC-signed HttpOnly cookie; /auth/logout; /api/me maps Discord id →
+  miners[].suid.
+- Degraded mode is the default (no env vars = sign-in off, read view intact).
+- My-miner view in the frontend; prose in docs/auth.md.
+- Verified on head 3131f87: substrate-gate ✓ + pytest ✓ (50 tests).
+
+## ⚑ OWNER-ACTION 1 — switch sign-in on
+
+WHAT: provision host env vars to switch sign-in on: DISCORD_OAUTH_CLIENT_ID, DISCORD_OAUTH_CLIENT_SECRET, OAUTH_REDIRECT_URI, WEB_SESSION_SIGNING_KEY.
+WHERE: the host environment that runs the web server (wherever you launch server/ from), plus the Discord Developer Portal for the client id/secret and redirect URI.
+HOW: set the four variables above in the server's environment; OAUTH_REDIRECT_URI must exactly match the redirect URI registered in the Discord app; WEB_SESSION_SIGNING_KEY is any long random secret you generate.
+WHY-IT-MATTERS: until these exist, players cannot sign in — the site runs in degraded (read-only, anonymous) mode by design.
+UNBLOCKS: the My-miner signed-in view goes live the moment the server restarts with the vars set.
+VERIFIED-NEEDED: agent sessions have no access to the host environment or the Discord Developer Portal — only the owner can provision secrets; the code path was verified in degraded mode plus tests (50 passing on 3131f87).
+
+## ⚑ OWNER-ACTION 2 — make pytest blocking
+
+WHAT: make pytest blocking: add the pytest workflow as a required status check on main.
+WHERE: Settings → Rules → Rulesets → main ruleset (already requires substrate-gate) → "Require status checks to pass".
+HOW: add context exactly `pytest`.
+WHY-IT-MATTERS: today a PR whose tests fail can still merge; substrate-gate is required but pytest is advisory.
+UNBLOCKS: every future merge is test-gated with zero coordinator babysitting.
+VERIFIED-NEEDED: coordinator's one ruleset-modification attempt was classifier-denied (recorded in the gate-audit history); ruleset edits are an owner-only surface. Proof once flipped: next PR's merged_at ≥ pytest check-run completed_at.
 
 ## ⚑ FLAG — superbot manager / bot lane (carry verbatim)
 
@@ -32,34 +50,22 @@ skills, structures). Additive-only within v1; suggested cadence ~60s push +
 on-demand. Done = relay payload validates against the v1 schema
 (Draft202012Validator, same as tests/test_schema_gate.py).
 
-## Gate-audit note
-
-Earlier "substrate-gate advisory" suspicion DISPROVED — main ruleset requires
-context ["substrate-gate"] (read via enable-auto-merge job of PR #5). Open
-enforcement item: pytest workflow is NOT a required context; repo-side fix
-under investigation by the stage (a) lane, else owner ask follows.
-Coordinator's one ruleset-modification attempt was classifier-denied
-(recorded; moot).
-
 ## IN FLIGHT
 
-- Stage (b) DISCORD OAUTH — dispatched 2026-07-11T02:00Z to session
-  cse_013ferJBGveGH6u1edbBicFB: per-player read view; env vars
-  DISCORD_OAUTH_CLIENT_ID / DISCORD_OAUTH_CLIENT_SECRET / OAUTH_REDIRECT_URI /
-  WEB_SESSION_SIGNING_KEY — owner ⚑ when it lands; degraded mode required.
-- Stage (a) lane — close-out + pytest-enforcement follow-up (make pytest a
-  required context, or produce the owner ask).
+- Stage (c) WRITE CONTRACT v1 — TEST GUILD ONLY — dispatched
+  2026-07-11T02:18Z to session cse_01J3QL7kEddgSu5zzGtGMAkN. Safety lines
+  restated: proposals-only endpoint; every web action audited
+  (mining_workflow emits no audit today — the handler layer must add it);
+  never live prod; live cutover = owner flag (stage d).
 
 ## Staged queue
 
-- [c] WRITE CONTRACT v1 — TEST GUILD ONLY; must spec the audit emission
-  (mining_workflow makes zero emit_audit_action calls today).
 - [d] LIVE-PROD PREP — owner-flag-gated cutover checklist; never crossed early.
 
 ## Routine + chain (verbatim record)
 
-Failsafe: trig_01K8xmAKYS5S2HLy1HPANM7j cron 20 */2 * * *, next run
-2026-07-11T02:20:00Z. Chain link: trig_01A9Zh2vh47V8fXwPtKYMSpk fires
-2026-07-11T02:02:57Z, re-armed each wake as run_once triggers from worker
-seats. send_later is self-session-only on worker seats (no target param) —
-chain links are armed as run_once triggers from worker seats.
+Failsafe: trig_01K8xmAKYS5S2HLy1HPANM7j cron 20 */2 * * *. Chain link:
+re-armed each wake as run_once triggers from worker seats — current
+trig_01VeAj5ugXkVZ3mFk2VdfJNK fires 2026-07-11T02:19Z. send_later is
+self-session-only on worker seats (no target param) — chain links are armed
+as run_once triggers from worker seats.
