@@ -128,8 +128,12 @@ def test_leaderboard_table_has_visually_hidden_caption(html, js):
 
 def test_inventory_table_gets_caption_and_scoped_headers(js):
     assert '"Inventory browser — quantity of each item carried, per miner"' in js
-    # Column headers on both tables + row headers on the inventory matrix.
-    assert js.count('scope = "col"') >= 2
+    # Column headers now route through the ONE shared tableHeadRow helper
+    # (definition + leaderboard/inventory/VS call sites — so the tables
+    # cannot drift apart on scope); row headers stay per-table.
+    assert 'scope = "col"' in js
+    assert "function tableHeadRow" in js
+    assert js.count("tableHeadRow(") >= 4
     assert 'scope = "row"' in js
 
 
