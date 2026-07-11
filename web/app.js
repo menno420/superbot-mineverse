@@ -164,6 +164,9 @@ function section(card, title, nodes) {
 function renderMinerCard(miner, world) {
   const card = el("article", "card");
   card.appendChild(el("h3", null, miner.display_name));
+  // Subtle identity line: the superbot user id (suid) the card is keyed
+  // on — snapshot data shown verbatim, also serves the my-miner view.
+  card.appendChild(el("p", "identity-line", `suid ${miner.suid ?? "unknown"}`));
   card.appendChild(
     el("p", "depth-line",
       `Depth ${miner.depth}/${world.max_depth} — ` +
@@ -174,7 +177,9 @@ function renderMinerCard(miner, world) {
   const xp = miner.xp || {};
   card.appendChild(
     el("p", "xp-line",
-      `Level ${xp.level ?? "?"} · ${xp.game_total ?? 0} mining XP · ` +
+      // xp.game names which game the XP belongs to (contract field, "?"
+      // when absent) — no more hardcoded "mining" label.
+      `Level ${xp.level ?? "?"} · ${xp.game_total ?? 0} ${xp.game ?? "?"} XP · ` +
       `${miner.coins ?? 0} 🪙`),
   );
   card.appendChild(energyMeter(miner.energy));
@@ -377,7 +382,8 @@ function render(views) {
   const meta = document.getElementById("snapshot-meta");
   meta.textContent =
     `snapshot v${views.schema_version ?? "?"} · ` +
-    `generated ${views.generated_at || "unknown"}`;
+    `generated ${views.generated_at || "unknown"} · ` +
+    `guild ${views.guild_id || "unknown"}`;
   renderStaleness(views.staleness);
 
   const miners = views.miners || [];
