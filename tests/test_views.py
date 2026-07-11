@@ -180,6 +180,44 @@ def test_shape_energy_tolerates_missing_meter():
     )
 
 
+def test_shape_energy_ignores_extra_open_fields():
+    # The contract keeps energy OPEN beyond current/updated_at — additive
+    # regen fields must never leak into (or break) the shaped meter.
+    miner = {
+        "energy": {"current": 30, "updated_at": 1783728000, "regen_rate": 2}
+    }
+    energy = views.shape_energy(miner)
+    assert set(energy) == set(views.energy_fields()) | {"max"}
+    assert energy["current"] == 30
+
+
+# --- identity + xp.game (card-face fields) ---------------------------------
+
+
+def test_shaped_miner_carries_suid_and_xp_game(snapshot, built):
+    # suid and xp.game paint on the card face — pin the passthrough.
+    for raw, shaped in zip(snapshot["miners"], built["miners"]):
+        assert shaped["suid"] == raw["suid"]
+        assert shaped["xp"]["game"] == raw["xp"]["game"]
+
+
+def test_shaped_miner_xp_ignores_extra_open_fields():
+    # xp is PERMISSIVE beyond the required quartet — additive extras must
+    # never leak into (or break) the shaped projection.
+    miner = {
+        "xp": {
+            "game": "mining",
+            "game_total": 5,
+            "shared_total": 9,
+            "level": 1,
+            "prestige": 3,
+        }
+    }
+    shaped = views.shape_miner(miner)
+    assert set(shaped["xp"]) == set(views.xp_fields())
+    assert shaped["xp"]["game"] == "mining"
+
+
 # --- position mini-map ------------------------------------------------------
 
 
@@ -582,3 +620,14 @@ def test_frontend_wires_the_slice2_sections(serve):
                    b"Skills", b"Structures", b"stale_after_seconds",
                    b"generated_at_epoch"):
         assert anchor in js, f"app.js missing {anchor}"
+
+
+def test_frontend_paints_identity_and_xp_game(serve):
+    """Smoke: suid identity line, header guild id, xp.game on the card."""
+    base = serve()
+    _, _, js = fetch(base + "/app.js")
+    for anchor in (b"identity-line", b"miner.suid", b"views.guild_id",
+                   b"xp.game"):
+        assert anchor in js, f"app.js missing {anchor}"
+    _, _, css = fetch(base + "/style.css")
+    assert b"identity-line" in css, "style.css missing identity-line"
