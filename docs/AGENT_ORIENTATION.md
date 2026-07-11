@@ -36,6 +36,11 @@ bot→web snapshot envelope) with its machine twin
 `schemas/mining_snapshot.v1.schema.json`, enforced by
 `tests/test_schema_gate.py` in CI (`.github/workflows/schema-gate.yml`).
 
+Auth: `docs/auth.md` (stage b — Discord OAuth sign-in with `identify` scope
+only: flow, the four host env vars, degraded mode, threat notes). Behavior
+lives in `server/auth.py` + `server/app.py`; tests in `tests/test_auth.py`.
+Config is host-env-only — no secrets in this repo, ever.
+
 ## Verifying any change
 
 ```

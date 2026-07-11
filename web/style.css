@@ -21,6 +21,35 @@ body {
 }
 
 h1 { margin: 0; }
+
+/* auth (Discord sign-in) */
+.header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.auth { display: flex; align-items: center; gap: 0.6rem; }
+.auth-user { color: var(--muted); font-size: 0.9rem; }
+a.auth-button, button.auth-button {
+  display: inline-block;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--edge);
+  border-radius: 0.5rem;
+  background: var(--panel);
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.9rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+a.auth-button:hover { border-color: var(--accent); }
+button.auth-button:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  font-style: italic;
+}
 h2 { border-bottom: 1px solid var(--edge); padding-bottom: 0.3rem; }
 .subtitle, .meta, footer { color: var(--muted); font-size: 0.9rem; }
 

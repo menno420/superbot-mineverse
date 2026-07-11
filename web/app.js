@@ -134,14 +134,69 @@ function render(snapshot) {
   }
 }
 
+/* --- Discord sign-in (stage b): /api/me drives the personal view. ------- */
+
+function renderAuthControls(me) {
+  const box = document.getElementById("auth-controls");
+  box.replaceChildren();
+  if (!me) return; // /api/me unreachable — public views stand on their own
+  if (me.signed_in) {
+    box.appendChild(el("span", "auth-user", `Signed in as ${me.user_id}`));
+    const signOut = el("a", "auth-button", "Sign out");
+    signOut.href = "/auth/logout";
+    box.appendChild(signOut);
+  } else if (me.auth_configured === false) {
+    const disabled = el("button", "auth-button", "sign-in not configured");
+    disabled.disabled = true;
+    disabled.title =
+      "The host has not provided Discord OAuth credentials — public views still work.";
+    box.appendChild(disabled);
+  } else {
+    const signIn = el("a", "auth-button", "Sign in with Discord");
+    signIn.href = "/auth/login";
+    box.appendChild(signIn);
+  }
+}
+
+function renderMyMiner(me, snapshot) {
+  if (!me || !me.signed_in) return;
+  const section = document.getElementById("my-miner-section");
+  const note = document.getElementById("my-miner-note");
+  const holder = document.getElementById("my-miner-card");
+  section.hidden = false;
+  if (me.miner) {
+    const maxDepth = snapshot?.max_depth ?? FALLBACK_BIOMES.length - 1;
+    holder.replaceChildren(renderMinerCard(me.miner, maxDepth, snapshot?.biomes));
+  } else {
+    note.textContent =
+      `Signed in as ${me.user_id} — no miner found in this snapshot.`;
+    note.hidden = false;
+  }
+}
+
+async function fetchMe() {
+  try {
+    const res = await fetch("/api/me");
+    if (!res.ok) throw new Error(`API responded ${res.status}`);
+    return await res.json();
+  } catch {
+    return null; // auth endpoint down ≠ snapshot down — stay public
+  }
+}
+
 async function boot() {
+  let snapshot = null;
   try {
     const res = await fetch("/api/snapshot");
     if (!res.ok) throw new Error(`API responded ${res.status}`);
-    render(await res.json());
+    snapshot = await res.json();
+    render(snapshot);
   } catch (err) {
     showBanner(`Snapshot unavailable — ${err.message}. Nothing to render.`, true);
   }
+  const me = await fetchMe();
+  renderAuthControls(me);
+  renderMyMiner(me, snapshot);
 }
 
 boot();
