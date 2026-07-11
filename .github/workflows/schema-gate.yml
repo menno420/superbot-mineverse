@@ -1,0 +1,22 @@
+# Test + schema gate for superbot-mineverse (host-owned — NOT the kit-owned
+# substrate-gate.yml, which must never be hand-edited).
+# Runs the full pytest suite, including tests/test_schema_gate.py which
+# validates data/sample_snapshot.json against the versioned READ contract
+# (schemas/mining_snapshot.v1.schema.json · docs/mining-data-contract.md).
+name: schema-gate
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Install dev dependencies (pinned)
+        run: python3 -m pip install -r requirements-dev.txt
+      - name: Run the test suite (schema gate included)
+        run: python3 -m pytest -q

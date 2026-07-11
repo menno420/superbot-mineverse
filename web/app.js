@@ -108,10 +108,13 @@ function renderLeaderboard(miners) {
 }
 
 function render(snapshot) {
+  // READ contract v1 envelope (docs/mining-data-contract.md):
+  // schema_version, generated_at, guild_id, miners[] (+ optional
+  // max_depth/biomes world-shape hints, fallbacks below).
   const meta = document.getElementById("snapshot-meta");
   meta.textContent =
-    `snapshot ${snapshot.schema || "?"} v${snapshot.schema_version ?? "?"} · ` +
-    `generated ${snapshot.generated_at || "unknown"} · ${snapshot.source || ""}`;
+    `snapshot v${snapshot.schema_version ?? "?"} · ` +
+    `generated ${snapshot.generated_at || "unknown"}`;
 
   const miners = snapshot.miners || [];
   if (!miners.length) {
