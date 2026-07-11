@@ -97,4 +97,4 @@ race ordering assertion. One friction found here: the sample snapshot's
 `generated_at` (12:00Z) — harmless, but a fixture regeneration should
 align them so "as of" strings read plausibly next to the snapshot age.
 
-- **📊 Model:** Claude Fable 5 · standard effort · task-class: read-view deepening slice 2 (server shaping + frontend render + tests) (build)
+- **📊 Model:** fable-5 · standard effort · task-class: read-view deepening slice 2 (server shaping + frontend render + tests) (build)

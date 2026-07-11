@@ -91,4 +91,4 @@ inline JS shaping that pytest cannot see — worth migrating onto
 `tests/test_views.py::test_views_route_serves_shaped_document` with the
 race's ordering assertion.
 
-- **📊 Model:** Claude Fable 5 · standard effort · task-class: read-view deepening (server shaping + frontend render + tests) (build)
+- **📊 Model:** fable-5 · standard effort · task-class: read-view deepening (server shaping + frontend render + tests) (build)

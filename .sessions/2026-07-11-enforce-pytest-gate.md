@@ -76,4 +76,4 @@ to the owner; an unenforced gate discovered mid-session should become a
 ⚑ needs-owner item in the SAME session's status overwrite, not just a card
 footnote.
 
-- **📊 Model:** Claude Fable 5 · standard effort · task-class: CI-enforcement investigation + owner ask (ops)
+- **📊 Model:** fable-5 · standard effort · task-class: CI-enforcement investigation + owner ask (ops)

@@ -52,4 +52,4 @@ made every later local `check --strict` red on someone else's card; workflow
 improvement — a session that inherits a dirty sibling card should revert it
 and note the revert, never complete another session's judgment slots.
 
-- **📊 Model:** claude-fable-5 · standard effort · task-class: docs+config (interview/render/README)
+- **📊 Model:** fable-5 · standard effort · task-class: docs+config (interview/render/README)

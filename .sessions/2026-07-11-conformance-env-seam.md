@@ -88,4 +88,4 @@ absolute-value economy assertions could never go green against any
 persistent target because earlier tests in the same sweep move the same
 miner's coins/energy (see Close-out).
 
-- **📊 Model:** Claude Fable 5 · standard effort · task-class: test seam + procedure docs (tests+docs, hermetic default preserved)
+- **📊 Model:** fable-5 · standard effort · task-class: test seam + procedure docs (tests+docs, hermetic default preserved)

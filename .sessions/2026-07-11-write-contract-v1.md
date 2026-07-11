@@ -85,4 +85,4 @@ staleness-indicator test idea remains open; the write contract now adds a
 second consumer for it (`snapshot_generated_at` freshness pointer), which
 raises its value.
 
-- **📊 Model:** Claude Fable 5 · standard effort · task-class: contract-formalization + schema-gate (build)
+- **📊 Model:** fable-5 · standard effort · task-class: contract-formalization + schema-gate (build)
