@@ -1,0 +1,52 @@
+[
+  {
+    "id": "R-0003",
+    "lesson": "Recurring attention on control/inbox.md",
+    "evidence": "2026-07-11-web-a11y-responsive.md:L34, 2026-07-11-write-contract-v1.md:L36, 2026-07-11-write-ui-shim-v1.md:L30",
+    "tags": [
+      "recurring-path"
+    ],
+    "status": "provisional",
+    "date": "2026-07-11"
+  },
+  {
+    "id": "R-0004",
+    "lesson": "Recurring attention on control/status.md",
+    "evidence": "2026-07-11-web-a11y-responsive.md:L34, 2026-07-11-wrap-up-archive-prep.md:L57, 2026-07-11-write-contract-v1.md:L36, 2026-07-11-write-ui-shim-v1.md:L30",
+    "tags": [
+      "recurring-path"
+    ],
+    "status": "provisional",
+    "date": "2026-07-11"
+  },
+  {
+    "id": "R-0005",
+    "lesson": "Recurring attention on data/sample_snapshot.json",
+    "evidence": "2026-07-11-share-card-nits.md:L8, 2026-07-11-web-a11y-responsive.md:L81",
+    "tags": [
+      "recurring-path"
+    ],
+    "status": "provisional",
+    "date": "2026-07-11"
+  },
+  {
+    "id": "R-0006",
+    "lesson": "Recurring attention on tests/test_web_a11y.py",
+    "evidence": "2026-07-11-share-card-nits.md:L65, 2026-07-11-web-a11y-responsive.md:L28",
+    "tags": [
+      "recurring-path"
+    ],
+    "status": "provisional",
+    "date": "2026-07-11"
+  },
+  {
+    "id": "R-0007",
+    "lesson": "Recurring attention on web/app.js",
+    "evidence": "2026-07-11-share-card-nits.md:L46, 2026-07-11-web-a11y-responsive.md:L44",
+    "tags": [
+      "recurring-path"
+    ],
+    "status": "provisional",
+    "date": "2026-07-11"
+  }
+]

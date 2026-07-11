@@ -43,3 +43,10 @@ frontmatter keeps the score.
 ## Backlog
 
 (Captured ideas, each with a state and a next destination — none left at `raw`.)
+
+- [`founding-day-groomed-backlog-2026-07-11.md`](founding-day-groomed-backlog-2026-07-11.md)
+  — `captured` — the 8-item groomed backlog parked by the 2026-07-11
+  wrap-up session: 2 externally blocked (audit-trail e2e + conformance run;
+  JS-test harness), 2 recorded skip-rules (buildTable, tablist), 4 fun-layer
+  candidates (WebAudio toggle, seasonal decorations, cosmetic hats,
+  multi-guild UI).

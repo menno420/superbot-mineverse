@@ -1,28 +1,13 @@
 # superbot-mineverse · status
-updated: 2026-07-11T19:11:00Z
-phase: FUN PASS SHIPPED (owner-requested) — PRs #36 (cave visual theme) / #37 (fun layer) merged on green on top of the earlier same-day #32–#35 batch; one in-flight lane: fun mop-up slice dispatched 19:09Z; everything else externally blocked (bot-lane FLAGs 1+2, owner env vars)
+updated: 2026-07-11T19:45:00Z
+phase: WRAPPED / ARCHIVED — founding day closed out by owner order; coordinator chat archived; coordinator Routines disarmed; full close-out in docs/retro/archive-ready-2026-07-11.md; everything remaining is externally blocked (Builder-lane FLAGs 1+2, owner env vars, stage-5 owner flag)
 health: green
 kit: v1.8.0 · check: green · engaged: yes   # check --strict GREEN; engaged = no unrendered banners + live CI gate (substrate-gate + pytest both required contexts on main ruleset) + session loop engaged — all met
-last-shipped: FUN PASS (owner-requested) 2026-07-11 — PR #36 cave visual theme: mine-shaft cross-section with pixel avatars + record flags, biome strata, ore rarity SVG icons, vault chest / energy lantern / durability bars, podium + count-up animation, all JS effects gated behind prefersReducedMotion. PR #37 fun layer: server-derived achievements in build_views under an additive key, Konami-code diamond rain, 10-click easter-egg toast, stale-snapshot 💤 idle state, console ASCII art, miner VS comparison view, cave-art HTML 404 page with JSON API behavior byte-identical. Test suite 242 → 314 passed + 1 conformance skip; strict check green. Earlier same day: PRs #32 (housekeeping) / #33 (a11y+responsive) / #34 (server robustness) / #35 (heartbeat) — pytest gate verified blocking on every one of these merges. Prior: #29 (self-review), #28, #27 (ORDER 001), #26, #23 (micro-polish — read side renders the ENTIRE v1 contract), #21, #20, #19, #18, #17, #16, #15, #13/#14, #12, #11, #10/#8/#7, #9, #6, #5, #4, #3, #2, #1.
-blockers: none
+last-shipped: wrap-up/archive-prep PR 2026-07-11 — founding-day retro (docs/retro/2026-07-11-founding-day-retro.md), archive-ready note (docs/retro/archive-ready-2026-07-11.md), 6 CAPABILITIES append-log findings, current-state refresh through PR #40, groomed backlog parked (docs/ideas/founding-day-groomed-backlog-2026-07-11.md), coordinator Routines disarmed. Day ledger: PRs #1–#40, 39 merged on green, 1 open (#31 — the OWNER's Codex security-report PR, owner-side); suite 327 passed + 1 conditional skip; strict check green.
+blockers: none agent-side — all remaining work externally blocked (see ⚑ and the FLAGs below)
 orders: acked=001,002 done=001,002
-⚑ needs-owner: 1 item — provision the six env vars to switch sign-in on (and, for test-guild write mode, the write-endpoint pair). Structured OWNER-ACTION block below. The pytest-required-check ask is RESOLVED/VERIFIED (owner did it 2026-07-11 — see the resolved block below). Bot-lane FLAGs below stay informational until the manager picks them up.
-notes: coordinator heartbeat, session cse_017yrng4qx2LcLNqKb5AGoe8 — HONEST STATE: one in-flight lane (fun mop-up slice, see IN FLIGHT); all other remaining work is externally blocked: (1) Builder-lane FLAG 1 (READ relay projection) + FLAG 2 (WRITE endpoint) — specs on main; (2) owner env vars (six names); (3) stage-5 live-prod owner flag; (4) audit-trail e2e + real-endpoint conformance run once (1)/(2) exist. LOOP CADENCE: active pace while the mop-up lane runs — chain link ~19:15Z (trigger ids recorded in the coordinator log), failsafe cron every 2h unchanged; inbox checked each wake. OWNER-ACTION 1 and both bot-lane ⚑ FLAGs carried verbatim below (this Project is this file's SOLE writer; overwritten whole, never appended). Housekeeping this heartbeat: verified control/claims/ contains only README.md — the fun-lane claims were already retired; no deletions needed. ORDER 002 self-review (window 2026-07-10 20:00Z → 2026-07-11 10:20Z) lives in git history of this file (PR #29 / commit 2f2d33a) — summary: 24 PRs merged on green in ~3h, one classifier denial recorded+complied, one false alarm corrected, gitignore regression fixed in PR #5, nothing shipped red.
-
-## PYTEST GATE — RESOLVED/VERIFIED 2026-07-11 (was OWNER-ACTION 2)
-
-RESOLVED: the owner made pytest a required (blocking) status check on the
-main ruleset on 2026-07-11. VERIFIED with merge-timing evidence — merges now
-wait for pytest: PR #32 merged 2s AFTER its pytest check-run completed;
-PR #33 merged 2s after; PR #34 merged 3s after. (Contrast the pre-fix gap:
-PR #16 merged 28s BEFORE pytest finished.) Every future merge is test-gated
-with zero coordinator babysitting. Original ask preserved for the record:
-WHAT: make pytest blocking: add the pytest workflow as a required status check on main. — DONE by owner 2026-07-11.
-WHERE: Settings → Rules → Rulesets → main ruleset → "Require status checks to pass" (context `pytest`). — DONE.
-HOW: add context exactly `pytest`. — DONE.
-WHY-IT-MATTERS: previously a PR whose tests fail could still merge; now it cannot.
-UNBLOCKS: unblocked — every merge is test-gated (evidence above).
-VERIFIED-NEEDED: verified done — PRs #32/#33/#34 each merged only seconds after pytest completed (2s/2s/3s), never before.
+⚑ needs-owner: 1 item — provision the six env vars to switch sign-in on (and, for test-guild write mode, the write-endpoint pair). Structured OWNER-ACTION block below. Also owner-side, informational: review/merge your own open PR #31 (Codex security report); Builder-lane FLAGs 1+2 below stay informational until the manager picks them up; stage-5 live-prod flag remains owner-only.
+notes: FINAL heartbeat of the founding-day coordinator (session cse_017yrng4qx2LcLNqKb5AGoe8 — chat archived after this). Resume path for any fresh session: README → docs/current-state.md → this file (+ control/inbox.md for new orders) → docs/retro/. ROUTINES DISARMED 2026-07-11T19:39Z: failsafe cron trig_01K8xmAKYS5S2HLy1HPANM7j deleted (tool output verbatim: `deleted trigger trig_01K8xmAKYS5S2HLy1HPANM7j`); zero pending chain-link run_once triggers remained (all ended_reason=run_once_fired) — nothing will wake the archived coordinator. The ORDER 002 self-review substance now lives in docs/retro/2026-07-11-founding-day-retro.md (full original text: commit 4be012e, PR #30's squash of this file — the pointer previously carried here named PR #29/2f2d33a, which is the inbox append, corrected in the retro). Groomed backlog parked on record in docs/ideas/founding-day-groomed-backlog-2026-07-11.md — nothing in it approved or in flight. control/claims/ contains only its README.
 
 ## ⚑ OWNER-ACTION 1 — switch sign-in on (and test-guild write mode)
 
@@ -31,7 +16,7 @@ WHERE: the host environment that runs the web server (wherever you launch server
 HOW: set the variables above in the server's environment; OAUTH_REDIRECT_URI must exactly match the redirect URI registered in the Discord app; WEB_SESSION_SIGNING_KEY is any long random secret you generate; MINING_WRITE_SHARED_SECRET must match the bot endpoint's HMAC key.
 WHY-IT-MATTERS: until the OAuth four exist, players cannot sign in — the site runs in degraded (read-only, anonymous) mode by design; until the write pair exists, the action UI stays in TEST ECONOMY degraded mode with no live write path.
 UNBLOCKS: the My-miner signed-in view goes live on server restart with the OAuth vars; test-guild write mode goes live once the write pair is set and the bot endpoint (FLAG 2) ships.
-VERIFIED-NEEDED: agent sessions have no access to the host environment or the Discord Developer Portal — only the owner can provision secrets; code paths verified in degraded mode plus tests (130 passing with zero env vars).
+VERIFIED-NEEDED: agent sessions have no access to the host environment or the Discord Developer Portal — only the owner can provision secrets; code paths verified in degraded mode plus tests (full suite passes with zero env vars).
 
 ## ⚑ FLAG 1 — superbot manager / bot lane — READ relay (carry verbatim)
 
@@ -70,10 +55,9 @@ endpoint.
 
 ## IN FLIGHT
 
-- Fun mop-up slice — dispatched 2026-07-11T19:09Z, worker session
-  cse_018MdQSKkNJSCinYbwL7Fw9W. Scope: sample-data enrichment so some miners
-  actually earn badges, PNG share card, Konami-code prefix-input fix, small
-  JS helper extractions.
+- (none) — the founding day is wrapped; the coordinator chat is archived
+  and its Routines are disarmed. Every remaining item is externally
+  blocked on the bot-lane FLAGs and/or the OWNER-ACTION above.
 
 ## Externally pending (unchanged)
 
@@ -81,25 +65,27 @@ endpoint.
   specs above, on main.
 - Owner env vars — the six names in OWNER-ACTION 1.
 - Stage-5 live-prod owner flag — untouched, owner-only, never agent-decided.
+- PR #31 — the owner's own Codex security-report PR, open, owner-side.
 - Once the real endpoint exists: audit-trail e2e verification (3-step
   procedure in docs/live-prod-cutover.md) + conformance run of
   tests/test_actions.py via SHIM_CONFORMANCE_BASE_URL.
 
-## Ladder + deepening backlog
+## Ladder + backlog
 
 - Ladder: 0 ✓ · (a) ✓ · (b) ✓ · (c) ✓ web-side · (d) PREPARED ✓ — live-prod
   is OWNER-FLAG-GATED, never agent-decided; test-guild read-write pending
   FLAG 1 + FLAG 2 + owner env vars.
-- Backlog (never-idle): audit-trail end-to-end verification and the
-  real-endpoint conformance run (both wait on the Builder lane); more
-  contract fields, views, and tests as they surface.
+- Groomed backlog parked on record:
+  docs/ideas/founding-day-groomed-backlog-2026-07-11.md (8 items — nothing
+  approved or in flight).
 
 ## Routine + chain (verbatim record)
 
-Failsafe: trig_01K8xmAKYS5S2HLy1HPANM7j cron 20 */2 * * * (unchanged, every
-2h at :20).
-Chain link: re-armed each wake as run_once triggers from worker seats —
-current link fires ~19:15Z at active pace (trigger ids recorded in the
-coordinator log); cadence returns to blocked ~60 min if the mop-up lane
-closes with nothing unblocked; send_later is self-session-only on worker
-seats (no target param).
+DISARMED 2026-07-11T19:39Z by the wrap-up session:
+- Failsafe cron trig_01K8xmAKYS5S2HLy1HPANM7j ("superbot-mineverse
+  failsafe wake", 20 */2 * * *) — delete_trigger output verbatim:
+  `deleted trigger trig_01K8xmAKYS5S2HLy1HPANM7j`.
+- Pending "superbot-mineverse chain link" run_once triggers bound to
+  session_017yrng4qx2LcLNqKb5AGoe8: none existed (all
+  ended_reason=run_once_fired; newest trig_016avdSjADLLCyPMLsn6uQeX fired
+  19:31Z). No Routine will wake the archived coordinator.

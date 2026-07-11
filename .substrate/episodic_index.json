@@ -1,0 +1,394 @@
+[
+  {
+    "slug": "conformance-env-seam",
+    "date": "2026-07-11",
+    "tags": [
+      "session",
+      "2026-07-11",
+      "conformance",
+      "env",
+      "seam",
+      "shim_conformance_base_url",
+      "opt-in",
+      "switch",
+      "tests",
+      "docs",
+      "only",
+      "\ud83d\udca1",
+      "\u27f2",
+      "\ud83d\udcca"
+    ],
+    "summary": "> **Status:** `complete`"
+  },
+  {
+    "slug": "deep-views-slice2",
+    "date": "2026-07-11",
+    "tags": [
+      "session",
+      "2026-07-11",
+      "read-views",
+      "deepening",
+      "slice",
+      "2",
+      "skills",
+      "structures",
+      "mini-map",
+      "staleness",
+      "energy",
+      "\ud83d\udca1",
+      "\u27f2",
+      "\ud83d\udcca"
+    ],
+    "summary": "> **Status:** `complete`"
+  },
+  {
+    "slug": "discord-oauth",
+    "date": "2026-07-11",
+    "tags": [
+      "session",
+      "2026-07-11",
+      "stage",
+      "b",
+      "discord",
+      "oauth",
+      "sign-in",
+      "\ud83d\udca1",
+      "\u27f2",
+      "\ud83d\udcca"
+    ],
+    "summary": "> **Status:** `complete`"
+  },
+  {
+    "slug": "enforce-pytest-gate",
+    "date": "2026-07-11",
+    "tags": [
+      "session",
+      "2026-07-11",
+      "pytest",
+      "into",
+      "enforced",
+      "merge",
+      "path",
+      "investigation",
+      "owner",
+      "ask",
+      "\ud83d\udca1",
+      "\u2691",
+      "\u27f2",
+      "\ud83d\udcca"
+    ],
+    "summary": "> **Status:** `complete` *(single-PR session: the card is added and closed in"
+  },
+  {
+    "slug": "fun-layer",
+    "date": "2026-07-11",
+    "tags": [
+      "session",
+      "2026-07-11",
+      "fun",
+      "layer",
+      "visuals",
+      "pr",
+      "2",
+      "final",
+      "\ud83d\udca1",
+      "\u27f2",
+      "\ud83d\udcca"
+    ],
+    "summary": "> **Status:** `complete`"
+  },
+  {
+    "slug": "fun-visual-theme",
+    "date": "2026-07-11",
+    "tags": [
+      "session",
+      "2026-07-11",
+      "cave",
+      "visual",
+      "theme",
+      "fun",
+      "visuals",
+      "pr",
+      "1",
+      "\ud83d\udca1",
+      "\u27f2",
+      "\ud83d\udcca"
+    ],
+    "summary": "> **Status:** `complete`"
+  },
+  {
+    "slug": "housekeeping-model-names-current-state",
+    "date": "2026-07-11",
+    "tags": [
+      "session",
+      "2026-07-11",
+      "housekeeping",
+      "model-name",
+      "normalization",
+      "current-state",
+      "refresh",
+      "\ud83d\udca1",
+      "\u27f2",
+      "\ud83d\udcca"
+    ],
+    "summary": "> **Status:** `complete`"
+  },
+  {
+    "slug": "interview-slots-readme",
+    "date": "2026-07-11",
+    "tags": [
+      "session",
+      "2026-07-11",
+      "interview",
+      "slots",
+      "readme",
+      "\ud83d\udca1",
+      "\u27f2",
+      "\ud83d\udcca"
+    ],
+    "summary": "> **Status:** `complete`"
+  },
+  {
+    "slug": "live-prod-cutover",
+    "date": "2026-07-11",
+    "tags": [
+      "session",
+      "2026-07-11",
+      "stage",
+      "d",
+      "prep",
+      "live-prod",
+      "cutover",
+      "checklist",
+      "readiness",
+      "check",
+      "owner-gated",
+      "\ud83d\udca1",
+      "\u27f2",
+      "\ud83d\udcca"
+    ],
+    "summary": "> **Status:** `complete`"
+  },
+  {
+    "slug": "micro-polish-identity-xp",
+    "date": "2026-07-11",
+    "tags": [
+      "session",
+      "2026-07-11",
+      "micro-polish",
+      "suid",
+      "guild",
+      "id",
+      "xp",
+      "game",
+      "read",
+      "views",
+      "\ud83d\udca1",
+      "\u27f2",
+      "\ud83d\udcca"
+    ],
+    "summary": "> **Status:** `complete`"
+  },
+  {
+    "slug": "model-attribution-order-001",
+    "date": "2026-07-11",
+    "tags": [
+      "session",
+      "2026-07-11",
+      "order",
+      "001",
+      "model-attribution",
+      "line",
+      "cards",
+      "\ud83d\udca1",
+      "\u27f2",
+      "\ud83d\udcca"
+    ],
+    "summary": "> **Status:** `complete`"
+  },
+  {
+    "slug": "read-contract-v1",
+    "date": "2026-07-11",
+    "tags": [
+      "session",
+      "2026-07-11",
+      "stage",
+      "read",
+      "contract",
+      "v1",
+      "\ud83d\udca1",
+      "\u27f2",
+      "\ud83d\udcca"
+    ],
+    "summary": "> **Status:** `complete`"
+  },
+  {
+    "slug": "read-views-deepening",
+    "date": "2026-07-11",
+    "tags": [
+      "session",
+      "2026-07-11",
+      "read-views",
+      "deepening",
+      "vault",
+      "inventory",
+      "ladder",
+      "boards",
+      "gear",
+      "\ud83d\udca1",
+      "\u27f2",
+      "\ud83d\udcca"
+    ],
+    "summary": "> **Status:** `complete`"
+  },
+  {
+    "slug": "sample-data-achievement-earners",
+    "date": "2026-07-11",
+    "tags": [
+      "session",
+      "2026-07-11",
+      "sample",
+      "data",
+      "every",
+      "achievement",
+      "gets",
+      "earner",
+      "\ud83d\udca1",
+      "\u27f2",
+      "\ud83d\udcca"
+    ],
+    "summary": "> **Status:** `complete`"
+  },
+  {
+    "slug": "server-robustness",
+    "date": "2026-07-11",
+    "tags": [
+      "session",
+      "2026-07-11",
+      "server",
+      "robustness",
+      "charsets",
+      "conditional",
+      "caching",
+      "honest",
+      "404",
+      "405",
+      "malformed-snapshot",
+      "guard",
+      "\ud83d\udca1",
+      "\u27f2",
+      "\ud83d\udcca"
+    ],
+    "summary": "> **Status:** `complete`"
+  },
+  {
+    "slug": "session",
+    "date": "2026-07-11",
+    "tags": [
+      "session",
+      "2026-07-11",
+      "order",
+      "000",
+      "stage-1",
+      "walking",
+      "skeleton",
+      "\ud83d\udca1",
+      "\u27f2",
+      "\ud83d\udcca"
+    ],
+    "summary": "> **Status:** `complete`"
+  },
+  {
+    "slug": "share-card-nits",
+    "date": "2026-07-11",
+    "tags": [
+      "session",
+      "2026-07-11",
+      "png",
+      "share",
+      "card",
+      "fun-lane",
+      "nits",
+      "\ud83d\udca1",
+      "\u27f2",
+      "\ud83d\udcca"
+    ],
+    "summary": "> **Status:** `complete`"
+  },
+  {
+    "slug": "web-a11y-responsive",
+    "date": "2026-07-11",
+    "tags": [
+      "session",
+      "2026-07-11",
+      "frontend",
+      "accessibility",
+      "responsive",
+      "polish",
+      "\ud83d\udca1",
+      "\u27f2",
+      "\ud83d\udcca"
+    ],
+    "summary": "> **Status:** `complete`"
+  },
+  {
+    "slug": "wrap-up-archive-prep",
+    "date": "2026-07-11",
+    "tags": [
+      "session",
+      "2026-07-11",
+      "wrap-up",
+      "archive",
+      "prep",
+      "founding-day",
+      "close-out",
+      "\ud83d\udca1",
+      "\u2691",
+      "\u27f2",
+      "\ud83d\udcca"
+    ],
+    "summary": "> **Status:** `complete`"
+  },
+  {
+    "slug": "write-contract-v1",
+    "date": "2026-07-11",
+    "tags": [
+      "session",
+      "2026-07-11",
+      "stage",
+      "c",
+      "write",
+      "contract",
+      "v1",
+      "part",
+      "1",
+      "schemas",
+      "\ud83d\udca1",
+      "\u27f2",
+      "\ud83d\udcca"
+    ],
+    "summary": "> **Status:** `complete`"
+  },
+  {
+    "slug": "write-ui-shim-v1",
+    "date": "2026-07-11",
+    "tags": [
+      "session",
+      "2026-07-11",
+      "stage",
+      "c",
+      "write",
+      "contract",
+      "v1",
+      "part",
+      "2",
+      "shim",
+      "action",
+      "ui",
+      "\ud83d\udca1",
+      "\u27f2",
+      "\ud83d\udcca"
+    ],
+    "summary": "> **Status:** `complete`"
+  }
+]
