@@ -19,19 +19,35 @@ unchecked box anywhere on this list means stage d does not start.
 - [ ] **The real bot-side endpoint exists and passes the contract fixtures
   against the TEST guild.** The done-criterion from
   docs/mining-write-contract.md § "Enforcement": the shim's contract tests
-  validate against the real endpoint's behavior. `tests/test_actions.py`
-  boots the shim via its `shim` fixture (`make_shim_server` → base URL,
-  secret `TEST_SECRET`); that fixture boundary is the only seam to touch —
-  point it at the real endpoint's base URL and its test secret, rerun, and
-  every shim-conformance test must pass unchanged.
-  *Evidence:* edit the `shim` fixture in `tests/test_actions.py` to yield
-  `(state_stub, "https://<real-endpoint-host>")` with `TEST_SECRET` set to
-  the real test-guild secret, then `python3 -m pytest -q
-  tests/test_actions.py` — the conformance block (everything above the
-  degraded-mode section, which needs the in-memory `state`) must be green.
-  There is deliberately no env-var override for this swap today; wiring one
-  (e.g. an opt-in `SHIM_CONFORMANCE_BASE_URL` fixture switch) is a
-  follow-up for the session that runs the real-endpoint conformance pass.
+  validate against the real endpoint's behavior. The seam is an opt-in
+  env-var switch inside `tests/test_actions.py` — no hand-edit, ever: when
+  `SHIM_CONFORMANCE_BASE_URL` is set, the `shim` fixture yields that base
+  URL instead of booting the in-process shim, and the SAME contract
+  fixtures run against the real endpoint. The signing secret comes from
+  `MINING_WRITE_SHARED_SECRET` (the contract's canonical env name — the
+  same value the executor verifies with), overridable with
+  `SHIM_CONFORMANCE_SECRET` when the shell already carries a web-host
+  secret that differs from the conformance target's. Values are exported
+  in the shell only — never files, never printed.
+  *Evidence:*
+
+  ```
+  SHIM_CONFORMANCE_BASE_URL=https://<real-endpoint-host> \
+  MINING_WRITE_SHARED_SECRET=<the test-guild secret> \
+  python3 -m pytest tests/test_actions.py -q
+  ```
+
+  run against a test guild freshly loaded with `data/sample_snapshot.json`
+  — the conformance sweep must be green. Fine print: the base URL is
+  scheme + host(+port) only (the tests append `/relay/mining/action`);
+  assertions on the shim's in-memory `state` (audit rows, executed-once
+  evidence) guard or skip themselves in this mode — audit verification
+  against the real endpoint stays the manual checklist item below; the
+  deterministic-delta assertions assume the committed snapshot's starting
+  values, so reload the fixture data between passes. With the env vars
+  unset (CI, fresh clones) the suite is hermetic and the
+  conformance-vs-real-endpoint smoke test skips with an honest reason —
+  CI never needs a secret.
 - [ ] **pytest is a required (blocking) status check on main's ruleset.**
   This is an OPEN OWNER ASK — carried in `control/status.md` as
   ⚑ OWNER-ACTION 2 since stage b. Today only `substrate-gate` is required;
