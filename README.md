@@ -23,7 +23,7 @@ real data.
 | 0 | Walking skeleton: sample snapshot → stdlib server → static frontend | **done** (merged PR #2) |
 | a | Read contract v1: versioned mining data contract, bot-side projection | **done** (merged PR #7) |
 | b | Discord OAuth per-player read | **done** (this stage — see [Discord sign-in](#discord-sign-in-stage-b)) |
-| c | Write contract v1 — test-guild only, via the bot's audited action endpoint | planned |
+| c | Write contract v1 — test-guild only, via the bot's audited action endpoint | **done** (contract merged PR #13; shim + action UI — see [Web actions](#web-actions-stage-c--test-economy-only); the real bot-side endpoint is built in the superbot repo against `docs/mining-write-contract.md`) |
 | d | Live-prod prep, owner-flag-gated | planned |
 
 Stage 0 (current code) is read-only end to end: everything renders from a
@@ -72,6 +72,30 @@ runs exactly as before — all public views work, `GET /api/me` reports
 `auth_configured: false`, `/auth/login` answers an honest 503, and the
 frontend shows a disabled "sign-in not configured" button. The full test
 suite passes with no secrets present.
+
+## Web actions (stage c) — TEST ECONOMY only
+
+Signed-in players get action buttons (mine, descend, ascend, sell, vault
+deposit/withdraw, equip) on the "My miner" view. A click never writes
+anything from here: the browser sends `{action_id, action, params}` to
+`POST /api/action`, and this server derives the actor from the verified
+session cookie, signs the PROPOSAL with a secret the browser never sees,
+and relays it to the bot-side executor — full contract:
+[`docs/mining-write-contract.md`](docs/mining-write-contract.md).
+
+Configuration comes from **host environment variables only**:
+
+| Env var | Meaning |
+| --- | --- |
+| `MINING_WRITE_ENDPOINT` | full URL of the bot-side action endpoint (dev: the shim — `python3 -m tests.shim.shim_bot`) |
+| `MINING_WRITE_SHARED_SECRET` | HMAC key signing every proposal (shared with the bot side) |
+
+**Degraded mode** (the default — CI, fresh clones): with either absent,
+the buttons render disabled ("writes not configured — read-only mode"),
+`POST /api/action` answers an honest 503, and everything else works
+exactly as before. When writes ARE configured, a persistent **TEST
+ECONOMY** badge shows in the header — v1 is hard-allowlisted to test
+guilds; live guilds are rejected until the owner's stage-d flag.
 
 ## Repo layout
 

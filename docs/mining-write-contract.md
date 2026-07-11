@@ -132,7 +132,11 @@ closed JSON object:
 
 An idempotent replay repeats the original response's HTTP status. A
 rejected response never has a `result`, and `replayed` on a rejection is
-`false` except for replays of stored rejections (below).
+`false` except for replays of stored rejections (below). When a request
+is too broken to carry a usable key (unparseable body, unsigned probe,
+malformed `action_id`), the executor echoes the placeholder
+`action_id` `00000000-0000-4000-8000-000000000000` so the response still
+conforms to the schema.
 
 ## Idempotency
 
@@ -279,12 +283,16 @@ guess.
   both schemas with `jsonschema.Draft202012Validator`, plus negative
   cases proving the gate bites. CI runs it in the same pytest workflows
   that gate the READ contract.
-- Stage-(c) reference implementation: a dev/test-only bot **shim** in
-  this repo implements this contract against an in-memory copy of the
-  committed sample snapshot (signature check, schema check, allowlist,
+- Stage-(c) reference implementation: the dev/test-only bot **shim**
+  `tests/shim/shim_bot.py` (run: `python3 -m tests.shim.shim_bot`)
+  implements this contract against an in-memory copy of the committed
+  sample snapshot (signature check, schema check, allowlist,
   deterministic transitions, in-memory audit log, idempotent replay) so
   the contract is executable before the real bot-side endpoint exists.
-  The shim is NEVER wired into the production server path.
+  `tests/test_actions.py` exercises it end to end — including through the
+  real web server's `POST /api/action` relay. The shim is NEVER wired
+  into the production server path (it lives under `tests/`, not
+  `server/`, keeping the backend stdlib-only).
 - The real bot-side endpoint is built in the superbot repo against this
   document; its done-criterion is that the shim's contract fixtures
   validate against the real endpoint's behavior.

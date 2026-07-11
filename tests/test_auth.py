@@ -293,7 +293,11 @@ def test_callback_discord_failure_is_502(serve, monkeypatch):
 def test_me_signed_out_without_cookie(serve):
     status, _, body = get(serve(auth_config=make_config()) + "/api/me")
     assert status == 200
-    assert json.loads(body) == {"signed_in": False, "auth_configured": True}
+    assert json.loads(body) == {
+        "signed_in": False,
+        "auth_configured": True,
+        "writes_configured": False,
+    }
 
 
 def test_me_rejects_tampered_cookie(serve):
@@ -306,7 +310,11 @@ def test_me_rejects_tampered_cookie(serve):
         headers={"Cookie": f"{auth.SESSION_COOKIE}={tampered}"},
     )
     assert status == 200
-    assert json.loads(body) == {"signed_in": False, "auth_configured": True}
+    assert json.loads(body) == {
+        "signed_in": False,
+        "auth_configured": True,
+        "writes_configured": False,
+    }
 
 
 def test_me_rejects_expired_cookie(serve):
@@ -363,7 +371,11 @@ def test_degraded_callback_is_honest_503(serve):
 def test_degraded_me_reports_auth_not_configured(serve):
     status, _, body = get(serve(auth_config=UNCONFIGURED) + "/api/me")
     assert status == 200
-    assert json.loads(body) == {"signed_in": False, "auth_configured": False}
+    assert json.loads(body) == {
+        "signed_in": False,
+        "auth_configured": False,
+        "writes_configured": False,
+    }
 
 
 def test_degraded_mode_still_serves_snapshot_and_frontend(serve):

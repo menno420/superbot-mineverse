@@ -174,6 +174,167 @@ function renderMyMiner(me, snapshot) {
   }
 }
 
+/* --- Write actions (stage c): PROPOSALS to the bot, test economy only. ---
+ * docs/mining-write-contract.md. The browser only ever sends
+ * {action_id, action, params} to POST /api/action on THIS server; the
+ * server derives suid from the session cookie, attaches guild_id, and
+ * signs with a secret the browser never sees. Degraded by default:
+ * without MINING_WRITE_ENDPOINT/MINING_WRITE_SHARED_SECRET on the host,
+ * buttons render disabled and nothing else changes. */
+
+const DISABLED_TOOLTIP = "Writes not configured — read-only mode";
+const EQUIP_SLOTS = ["tool", "light", "charm", "weapon", "shield",
+                     "helmet", "chestplate", "leggings", "boots"];
+
+function newActionId() {
+  if (window.crypto && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  // Fallback UUIDv4 for older browsers.
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-` +
+         `${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function showActionResult(text, isError) {
+  const line = document.getElementById("action-result");
+  line.textContent = text;
+  line.classList.toggle("error", Boolean(isError));
+  line.hidden = false;
+}
+
+async function sendAction(action, params) {
+  showActionResult(`${action}…`, false);
+  try {
+    const res = await fetch("/api/action", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action_id: newActionId(), action, params }),
+    });
+    const data = await res.json().catch(() => null);
+    if (data && data.status === "accepted") {
+      showActionResult(
+        `✓ ${data.message}${data.replayed ? " (replayed)" : ""}`, false);
+    } else if (data && data.status === "rejected") {
+      showActionResult(`✗ ${data.reason_code}: ${data.message}`, true);
+    } else if (data && data.error) {
+      showActionResult(`✗ ${data.error}`, true);
+    } else {
+      showActionResult(`✗ action failed (HTTP ${res.status})`, true);
+    }
+  } catch {
+    showActionResult("✗ action request failed — server unreachable?", true);
+  }
+}
+
+function actionButton(label, enabled, onClick) {
+  const button = el("button", "action-button", label);
+  if (!enabled) {
+    button.disabled = true;
+    button.title = DISABLED_TOOLTIP;
+  } else {
+    button.addEventListener("click", onClick);
+  }
+  return button;
+}
+
+function numberInput(placeholder) {
+  const input = document.createElement("input");
+  input.type = "number";
+  input.min = "1";
+  input.placeholder = placeholder;
+  input.className = "action-input";
+  return input;
+}
+
+function textInput(placeholder) {
+  const input = document.createElement("input");
+  input.type = "text";
+  input.placeholder = placeholder;
+  input.className = "action-input";
+  return input;
+}
+
+function renderActionPanel(me) {
+  if (!me || !me.signed_in) return; // panel lives inside the my-miner view
+  const panel = document.getElementById("action-panel");
+  const note = document.getElementById("action-note");
+  const buttons = document.getElementById("action-buttons");
+  panel.hidden = false;
+  buttons.replaceChildren();
+  const enabled = me.writes_configured === true;
+  note.textContent = enabled
+    ? "Actions run against the TEST economy only — never live guilds."
+    : DISABLED_TOOLTIP;
+  note.hidden = false;
+
+  const simple = el("div", "action-row");
+  for (const action of ["mine", "descend", "ascend"]) {
+    simple.appendChild(
+      actionButton(action, enabled, () => sendAction(action, {})));
+  }
+  buttons.appendChild(simple);
+
+  const sellRow = el("div", "action-row");
+  const sellItem = textInput("item (e.g. stone)");
+  const sellQty = numberInput("qty");
+  sellRow.append(sellItem, sellQty, actionButton("sell", enabled, () => {
+    const quantity = parseInt(sellQty.value, 10);
+    if (!sellItem.value || !(quantity >= 1)) {
+      showActionResult("✗ sell needs an item name and a quantity ≥ 1", true);
+      return;
+    }
+    sendAction("sell", { item: sellItem.value, quantity });
+  }));
+  buttons.appendChild(sellRow);
+
+  const vaultRow = el("div", "action-row");
+  const vaultAmount = numberInput("coins");
+  const vaultAction = (action) => () => {
+    const amount = parseInt(vaultAmount.value, 10);
+    if (!(amount >= 1)) {
+      showActionResult("✗ vault moves need an amount ≥ 1", true);
+      return;
+    }
+    sendAction(action, { amount });
+  };
+  vaultRow.append(
+    vaultAmount,
+    actionButton("vault deposit", enabled, vaultAction("vault_deposit")),
+    actionButton("vault withdraw", enabled, vaultAction("vault_withdraw")));
+  buttons.appendChild(vaultRow);
+
+  const equipRow = el("div", "action-row");
+  const equipItem = textInput("item (e.g. iron pickaxe)");
+  const equipSlot = document.createElement("select");
+  equipSlot.className = "action-input";
+  for (const slot of EQUIP_SLOTS) {
+    const option = document.createElement("option");
+    option.value = slot;
+    option.textContent = slot;
+    equipSlot.appendChild(option);
+  }
+  equipRow.append(equipItem, equipSlot, actionButton("equip", enabled, () => {
+    if (!equipItem.value) {
+      showActionResult("✗ equip needs an item name", true);
+      return;
+    }
+    sendAction("equip", { item: equipItem.value, slot: equipSlot.value });
+  }));
+  buttons.appendChild(equipRow);
+}
+
+function renderTestEconomyBadge(me) {
+  // Persistent badge whenever writes are enabled: this site is pointed at
+  // the TEST economy, and it should never be mistakable for live data.
+  const badge = document.getElementById("test-economy-badge");
+  badge.hidden = !(me && me.writes_configured === true);
+}
+
 async function fetchMe() {
   try {
     const res = await fetch("/api/me");
@@ -197,6 +358,8 @@ async function boot() {
   const me = await fetchMe();
   renderAuthControls(me);
   renderMyMiner(me, snapshot);
+  renderTestEconomyBadge(me);
+  renderActionPanel(me);
 }
 
 boot();
