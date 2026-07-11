@@ -1,0 +1,75 @@
+:root {
+  --bg: #17141f;
+  --panel: #221d2e;
+  --edge: #3a3350;
+  --text: #e8e4f2;
+  --muted: #a79fc0;
+  --accent: #f5a83c;
+  --bar: linear-gradient(90deg, #6cc46c, #f5a83c, #e2543e);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0 auto;
+  max-width: 64rem;
+  padding: 1.5rem 1rem 3rem;
+  font-family: system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.45;
+}
+
+h1 { margin: 0; }
+h2 { border-bottom: 1px solid var(--edge); padding-bottom: 0.3rem; }
+.subtitle, .meta, footer { color: var(--muted); font-size: 0.9rem; }
+
+.banner {
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--edge);
+  border-radius: 0.5rem;
+  background: var(--panel);
+}
+.banner.error { border-color: #e2543e; color: #ffb4a6; }
+
+/* depth race */
+.race-row {
+  display: grid;
+  grid-template-columns: 8rem 1fr 9rem;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.35rem 0;
+}
+.race-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.race-track {
+  height: 0.9rem;
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: 0.45rem;
+  overflow: hidden;
+}
+.race-bar { height: 100%; background: var(--bar); min-width: 2px; }
+.race-depth { color: var(--muted); font-size: 0.85rem; }
+
+/* leaderboard */
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--edge); }
+th { color: var(--accent); }
+
+/* miner cards */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  gap: 1rem;
+}
+.card {
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: 0.6rem;
+  padding: 0.9rem 1rem;
+}
+.card h3 { margin: 0 0 0.2rem; color: var(--accent); }
+.card h4 { margin: 0.7rem 0 0.2rem; font-size: 0.85rem; text-transform: uppercase; color: var(--muted); }
+.card .items { margin: 0; padding-left: 1.1rem; }
+.card .empty { color: var(--muted); margin: 0; font-style: italic; }
+.depth-line, .xp-line { margin: 0.15rem 0; font-size: 0.92rem; }
