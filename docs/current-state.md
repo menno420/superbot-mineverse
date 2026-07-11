@@ -19,6 +19,20 @@ should not be re-audited without a reported regression.)
 
 (Merged work only, newest first.)
 
+- 2026-07-11 — stage (c) part 2 (this PR): dev/test bot shim
+  (`tests/shim/shim_bot.py`) executing the write contract in memory,
+  `POST /api/action` relay (server signs; browser never sees the secret),
+  action buttons on "My miner" (degraded by default — enabled only with
+  `MINING_WRITE_ENDPOINT` + `MINING_WRITE_SHARED_SECRET`, persistent
+  TEST ECONOMY badge when on), end-to-end tests.
+- 2026-07-11 — PR #13 WRITE contract v1 (stage c part 1, TEST GUILD
+  ONLY): `docs/mining-write-contract.md` +
+  `schemas/mining_action.v1.schema.json` +
+  `schemas/mining_action_response.v1.schema.json` + schema gate; binding
+  audit requirement on the bot-side relay.
+- 2026-07-11 — PR #11 Discord OAuth sign-in (stage b): `identify`-scope
+  flow, signed session cookie, `/api/me` + "My miner" view, degraded
+  mode.
 - 2026-07-11 — PR #7 READ contract v1: `docs/mining-data-contract.md` +
   `schemas/mining_snapshot.v1.schema.json` + CI schema gate.
 

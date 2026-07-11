@@ -102,3 +102,54 @@ th { color: var(--accent); }
 .card .items { margin: 0; padding-left: 1.1rem; }
 .card .empty { color: var(--muted); margin: 0; font-style: italic; }
 .depth-line, .xp-line { margin: 0.15rem 0; font-size: 0.92rem; }
+
+/* write actions (stage c — test economy only) */
+.badge {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 0.5rem;
+  padding: 0.15rem 0.55rem;
+  border: 1px solid #e2543e;
+  border-radius: 0.4rem;
+  background: #3a1f1a;
+  color: #ffb4a6;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+#action-panel h3 { margin: 1rem 0 0.2rem; color: var(--accent); }
+.action-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.45rem 0;
+}
+button.action-button {
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--edge);
+  border-radius: 0.5rem;
+  background: var(--panel);
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+button.action-button:hover:not(:disabled) { border-color: var(--accent); }
+button.action-button:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  font-style: italic;
+}
+.action-input {
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--edge);
+  border-radius: 0.4rem;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  max-width: 11rem;
+}
+input.action-input[type="number"] { max-width: 6rem; }
+#action-result.error { color: #ffb4a6; }

@@ -12,12 +12,18 @@ no secrets in the repo):
   (stage b, docs/auth.md).  Configured exclusively via host env vars; with
   them absent the app runs in degraded mode and every public view still
   works.
+- ``POST /api/action`` — stage c (docs/mining-write-contract.md): relays a
+  signed action PROPOSAL to the bot-side executor named by
+  ``MINING_WRITE_ENDPOINT`` (TEST GUILD ONLY). Degraded by default: with
+  ``MINING_WRITE_ENDPOINT`` / ``MINING_WRITE_SHARED_SECRET`` absent it
+  answers an honest ``503 {"error": "writes not configured"}``.
 - Everything else — the static frontend under ``web/``.
 
 The layering contract (docs/architecture.md): data/ -> server/ -> web/;
 the frontend talks to this process only via the JSON API, and this process
-never writes anything (signing a cookie is not a write path — the server
-holds no mutable state and no bot credentials).
+never writes anything itself (signing a cookie or a proposal is not a
+write path — the server holds no mutable state, no database, and no bot
+credentials; mutations happen only bot-side, behind the write contract).
 """
 
 from __future__ import annotations
@@ -31,8 +37,9 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 try:
-    from server import auth
+    from server import actions, auth
 except ImportError:  # direct script execution: python3 server/app.py
+    import actions  # type: ignore[no-redef]
     import auth  # type: ignore[no-redef]
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -41,6 +48,8 @@ WEB_ROOT = REPO_ROOT / "web"
 
 API_SNAPSHOT = "/api/snapshot"
 API_ME = "/api/me"
+API_ACTION = "/api/action"
+MAX_ACTION_BODY_BYTES = 64 * 1024
 AUTH_LOGIN = "/auth/login"
 AUTH_CALLBACK = "/auth/callback"
 AUTH_LOGOUT = "/auth/logout"
@@ -52,12 +61,14 @@ class MineverseHandler(SimpleHTTPRequestHandler):
     # Injected by make_server via functools.partial.
     snapshot_path: Path = SNAPSHOT_PATH
     auth_config: auth.AuthConfig | None = None
+    write_config: actions.WriteConfig | None = None
 
     def __init__(
         self,
         *args,
         snapshot_path: Path | None = None,
         auth_config: auth.AuthConfig | None = None,
+        write_config: actions.WriteConfig | None = None,
         **kwargs,
     ):
         if snapshot_path is not None:
@@ -66,6 +77,10 @@ class MineverseHandler(SimpleHTTPRequestHandler):
             self.auth_config = auth_config
         if self.auth_config is None:
             self.auth_config = auth.AuthConfig.from_env()
+        if write_config is not None:
+            self.write_config = write_config
+        if self.write_config is None:
+            self.write_config = actions.WriteConfig.from_env()
         super().__init__(*args, **kwargs)
 
     def do_GET(self):  # noqa: N802 (http.server API name)
@@ -84,6 +99,97 @@ class MineverseHandler(SimpleHTTPRequestHandler):
             self._send_json(404, {"error": "unknown API route"})
         else:
             super().do_GET()
+
+    def do_POST(self):  # noqa: N802 (http.server API name)
+        route, _, _ = self.path.partition("?")
+        if route == API_ACTION:
+            self._serve_action()
+        elif route.startswith("/api/"):
+            self._send_json(404, {"error": "unknown API route"})
+        else:
+            self._send_json(405, {"error": "method not allowed"})
+
+    # --- write proposals (stage c — TEST GUILD ONLY, degraded by default) --
+
+    def _serve_action(self) -> None:
+        """Relay a signed action PROPOSAL to the bot-side executor.
+
+        docs/mining-write-contract.md: the browser sends only
+        ``{action_id, action, params}``; this server derives ``suid`` from
+        the VERIFIED session cookie (never from the browser), attaches the
+        snapshot's ``guild_id``, signs with the shared secret the browser
+        never sees, and relays the executor's response envelope verbatim.
+        """
+        write_config = self.write_config
+        if not write_config.configured:
+            self._send_json(503, {"error": "writes not configured"})
+            return
+        auth_config = self.auth_config
+        if not auth_config.configured:
+            self._send_json(503, {"error": "sign-in not configured"})
+            return
+        user_id = self._session_user_id(auth_config)
+        if user_id is None:
+            self._send_json(401, {"error": "sign-in required"})
+            return
+        request = self._read_action_request()
+        if request is None:
+            self._send_json(400, {"error": "invalid action request"})
+            return
+        try:
+            snapshot = json.loads(self.snapshot_path.read_bytes())
+            guild_id = snapshot["guild_id"]
+        except (OSError, ValueError, KeyError):
+            self._send_json(503, {"error": "snapshot unavailable"})
+            return
+        proposal = {
+            "contract_version": actions.CONTRACT_VERSION,
+            "action_id": request["action_id"],
+            "guild_id": guild_id,
+            "suid": user_id,  # server-derived — the browser cannot assert it
+            "action": request["action"],
+            "params": request["params"],
+        }
+        try:
+            status, body = actions.propose(write_config, proposal)
+        except (OSError, ValueError):
+            self._send_json(502, {"error": "action relay failed"})
+            return
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _read_action_request(self) -> dict | None:
+        """The browser's ``{action_id, action, params}`` — or None if bogus.
+
+        EXACTLY those three keys: a body carrying ``suid``/``guild_id`` (or
+        anything else) is rejected outright so no client input can ever
+        reach the identity fields of the proposal.
+        """
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            return None
+        if not 0 < length <= MAX_ACTION_BODY_BYTES:
+            return None
+        try:
+            request = json.loads(self.rfile.read(length))
+        except (OSError, ValueError):
+            return None
+        if not isinstance(request, dict):
+            return None
+        if set(request) != {"action_id", "action", "params"}:
+            return None
+        if not isinstance(request["action_id"], str) or not request["action_id"]:
+            return None
+        if not isinstance(request["action"], str) or not request["action"]:
+            return None
+        if not isinstance(request["params"], dict):
+            return None
+        return request
 
     def _serve_snapshot(self) -> None:
         try:
@@ -142,18 +248,34 @@ class MineverseHandler(SimpleHTTPRequestHandler):
 
     def _serve_me(self) -> None:
         config = self.auth_config
+        writes = self.write_config.configured  # degraded-mode flag for the UI
         if not config.configured:
-            self._send_json(200, {"signed_in": False, "auth_configured": False})
+            self._send_json(
+                200,
+                {
+                    "signed_in": False,
+                    "auth_configured": False,
+                    "writes_configured": writes,
+                },
+            )
             return
         user_id = self._session_user_id(config)
         if user_id is None:
-            self._send_json(200, {"signed_in": False, "auth_configured": True})
+            self._send_json(
+                200,
+                {
+                    "signed_in": False,
+                    "auth_configured": True,
+                    "writes_configured": writes,
+                },
+            )
             return
         self._send_json(
             200,
             {
                 "signed_in": True,
                 "auth_configured": True,
+                "writes_configured": writes,
                 "user_id": user_id,
                 "miner": self._find_miner(user_id),
             },
@@ -222,18 +344,24 @@ def make_server(
     snapshot_path: Path = SNAPSHOT_PATH,
     web_root: Path = WEB_ROOT,
     auth_config: auth.AuthConfig | None = None,
+    write_config: actions.WriteConfig | None = None,
 ) -> ThreadingHTTPServer:
     """Build (but don't start) the server — port 0 picks a free port.
 
     ``auth_config`` defaults to :meth:`auth.AuthConfig.from_env` (the four
     ``DISCORD_OAUTH_*`` / ``OAUTH_REDIRECT_URI`` / ``WEB_SESSION_SIGNING_KEY``
-    host env vars); pass one explicitly in tests.
+    host env vars); ``write_config`` defaults to
+    :meth:`actions.WriteConfig.from_env` (``MINING_WRITE_ENDPOINT`` /
+    ``MINING_WRITE_SHARED_SECRET``). Pass either explicitly in tests.
     """
     handler = partial(
         MineverseHandler,
         directory=str(web_root),
         snapshot_path=snapshot_path,
         auth_config=auth_config if auth_config is not None else auth.AuthConfig.from_env(),
+        write_config=write_config
+        if write_config is not None
+        else actions.WriteConfig.from_env(),
     )
     return ThreadingHTTPServer((host, port), handler)
 
@@ -247,8 +375,14 @@ def main() -> None:
         if auth.AuthConfig.from_env().configured
         else "NOT configured (degraded mode — public views only)"
     )
+    write_mode = (
+        "configured (TEST ECONOMY)"
+        if actions.WriteConfig.from_env().configured
+        else "NOT configured (read-only mode)"
+    )
     print(
         f"mineverse on http://{host}:{bound_port} — discord sign-in: {mode}"
+        f" — writes: {write_mode}"
     )
     try:
         server.serve_forever()
