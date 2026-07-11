@@ -6,10 +6,10 @@ here is a DERIVED read projection for the frontend: no state, no writes,
 no new contract — the READ contract v1 (docs/mining-data-contract.md +
 schemas/mining_snapshot.v1.schema.json) stays the single source of truth.
 
-Schema-derived, never hand-copied: the equipment slot list, the xp field
-list and the vault/depth/energy bounds are read from the committed v1
-schema file at import time, so this module cannot drift from the
-contract (tests/test_views.py pins the wiring).
+Schema-derived, never hand-copied: the equipment slot list, the
+xp/position/energy field lists and the vault/depth/energy bounds are
+read from the committed v1 schema file at import time, so this module
+cannot drift from the contract (tests/test_views.py pins the wiring).
 
 Every shaper tolerates missing or empty fields — a degraded snapshot
 renders as honest empty structures, never a crash.
@@ -18,6 +18,7 @@ renders as honest empty structures, never a crash.
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -33,6 +34,14 @@ _MINER_PROPS = _SCHEMA["$defs"]["miner"]["properties"]
 # conformance or hiding an item.
 ORE_TIER_ORDER = ("stone", "bronze", "iron", "silver", "gold", "diamond")
 
+# Delivery numbers from the contract PROSE (docs/mining-data-contract.md
+# § Delivery expectations): the bot targets a fresh snapshot every 60 s,
+# and the suggested staleness threshold is 3 missed cycles ≈ 180 s.  The
+# schema carries no delivery cadence, so — like ORE_TIER_ORDER — these are
+# prose-sourced constants, not shape facts.
+SNAPSHOT_CADENCE_SECONDS = 60
+STALE_AFTER_SECONDS = 3 * SNAPSHOT_CADENCE_SECONDS
+
 
 def equipment_slots() -> list[str]:
     """The closed slot enum, straight from the v1 schema."""
@@ -42,6 +51,16 @@ def equipment_slots() -> list[str]:
 def xp_fields() -> list[str]:
     """The xp projection's required field names, from the v1 schema."""
     return list(_MINER_PROPS["xp"]["required"])
+
+
+def position_fields() -> list[str]:
+    """The position object's required field names, from the v1 schema."""
+    return list(_MINER_PROPS["position"]["required"])
+
+
+def energy_fields() -> list[str]:
+    """The energy object's required field names, from the v1 schema."""
+    return list(_MINER_PROPS["energy"]["required"])
 
 
 def vault_level_max() -> int:
@@ -98,6 +117,55 @@ def shape_gear(miner: dict) -> list[dict]:
     return rows
 
 
+def rank_counts(store: dict | None) -> list:
+    """A dynamic countMap as ``[name, value]`` pairs, highest value first.
+
+    Ties break alphabetically.  Keys are contractually OPEN (skill and
+    structure names are oracle-owned), so nothing is filtered by name —
+    only non-integer values are dropped, since the schema forbids them.
+    Pairs (not an object) so JSON preserves the ordering.
+    """
+    store = store if isinstance(store, dict) else {}
+    entries = [
+        (name, value)
+        for name, value in store.items()
+        if isinstance(value, int)
+    ]
+    return [
+        [name, value]
+        for name, value in sorted(entries, key=lambda kv: (-kv[1], kv[0]))
+    ]
+
+
+def shape_position(miner: dict) -> dict | None:
+    """The schema-required coordinate fields, or None when unplottable.
+
+    A missing position object, or one whose required fields are absent or
+    non-integer, shapes to None so the frontend renders an honest
+    "position unknown" instead of plotting garbage.
+    """
+    position = miner.get("position")
+    if not isinstance(position, dict):
+        return None
+    shaped = {field: position.get(field) for field in position_fields()}
+    if not all(isinstance(value, int) for value in shaped.values()):
+        return None
+    return shaped
+
+
+def shape_energy(miner: dict) -> dict:
+    """Energy meter: the schema-required fields + the schema's 0–60 bound.
+
+    ``updated_at`` (unix epoch seconds of the last bot-side recalculation)
+    passes through so the frontend can say "as of <when>" honestly — the
+    value is snapshot data, never something to tick forward client-side.
+    """
+    energy = miner.get("energy") or {}
+    shaped = {field: energy.get(field) for field in energy_fields()}
+    shaped["max"] = energy_max()
+    return shaped
+
+
 def shape_vault(miner: dict) -> dict:
     """Vault panel data: tier level (bounded by the schema max) + items."""
     level = miner.get("vault_level")
@@ -111,19 +179,20 @@ def shape_vault(miner: dict) -> dict:
 def shape_miner(miner: dict) -> dict:
     """The per-miner card projection the frontend renders."""
     xp = miner.get("xp") or {}
-    energy = miner.get("energy") or {}
     return {
         "suid": miner.get("suid"),
         "display_name": miner.get("display_name") or f"miner {miner.get('suid')}",
         "depth": miner.get("depth", 0),
         "record_depth": miner.get("record_depth", 0),
-        "position": miner.get("position"),
+        "position": shape_position(miner),
         "coins": miner.get("coins", 0),
-        "energy": {"current": energy.get("current"), "max": energy_max()},
+        "energy": shape_energy(miner),
         "xp": {field: xp.get(field) for field in xp_fields()},
         "gear": shape_gear(miner),
         "pack": group_items(miner.get("mining_inventory")),
         "vault": shape_vault(miner),
+        "skills": rank_counts(miner.get("skills")),
+        "structures": rank_counts(miner.get("structures")),
     }
 
 
@@ -221,6 +290,86 @@ def build_inventory_matrix(miners: list) -> dict:
     return {"columns": columns, "rows": rows}
 
 
+def build_minimap(miners: list, max_depth: int, biomes: list) -> list[dict]:
+    """Position mini-map: one panel per depth band 0..max_depth.
+
+    Each panel carries ``points`` (``{name, x, y}`` for every miner at the
+    band whose position shapes cleanly), ``unplotted`` (names at the band
+    whose position is missing or malformed — listed honestly, never
+    silently dropped) and integer plot ``bounds`` (min/max of x and y over
+    the band's points; None when nothing plots, so the frontend shows an
+    empty state instead of inventing a grid).
+    """
+    panels = []
+    for depth in range(max_depth + 1):
+        biome = biomes[depth] if depth < len(biomes) else f"depth {depth}"
+        points, unplotted = [], []
+        for miner in miners:
+            if miner.get("depth") != depth:
+                continue
+            name = miner.get("display_name") or miner.get("suid") or "?"
+            position = shape_position(miner)
+            if position is None:
+                unplotted.append(name)
+            else:
+                points.append({"name": name, **position})
+        if points:
+            xs = [p["x"] for p in points]
+            ys = [p["y"] for p in points]
+            bounds = {
+                "min_x": min(xs),
+                "max_x": max(xs),
+                "min_y": min(ys),
+                "max_y": max(ys),
+            }
+        else:
+            bounds = None
+        panels.append({
+            "depth": depth,
+            "biome": biome,
+            "points": points,
+            "unplotted": unplotted,
+            "bounds": bounds,
+        })
+    return panels
+
+
+def parse_generated_at(value) -> int | None:
+    """``generated_at`` (ISO 8601 UTC) → unix epoch seconds, or None.
+
+    None means "unknown" — missing field, non-string, or an unparseable
+    timestamp — so the frontend can say so instead of guessing an age.
+    A timestamp without an explicit offset is read as UTC, per the
+    contract ("ISO 8601 UTC instant").
+    """
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return int(parsed.timestamp())
+
+
+def build_staleness(snapshot: dict) -> dict:
+    """Staleness metadata for the header — age math stays CLIENT-side.
+
+    The server only translates ``generated_at`` to epoch seconds and ships
+    the contract-prose thresholds; the frontend compares against its own
+    clock at render time (no live ticking).  ``generated_at_epoch`` is
+    None when the timestamp is unknown, and the frontend must say so.
+    """
+    generated_at = snapshot.get("generated_at")
+    return {
+        "generated_at": generated_at if isinstance(generated_at, str) else None,
+        "generated_at_epoch": parse_generated_at(generated_at),
+        "cadence_seconds": SNAPSHOT_CADENCE_SECONDS,
+        "stale_after_seconds": STALE_AFTER_SECONDS,
+    }
+
+
 def build_views(snapshot: dict) -> dict:
     """The whole derived read projection served by ``GET /api/views``."""
     miners_raw = snapshot.get("miners")
@@ -239,7 +388,9 @@ def build_views(snapshot: dict) -> dict:
         "world": {"max_depth": max_depth, "biomes": biomes},
         "slots": equipment_slots(),
         "miners": [shape_miner(m) for m in miners],
+        "staleness": build_staleness(snapshot),
         "ladder": build_ladder(miners, max_depth, biomes),
+        "minimap": build_minimap(miners, max_depth, biomes),
         "leaderboards": build_leaderboards(miners),
         "inventory": build_inventory_matrix(miners),
     }

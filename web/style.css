@@ -61,6 +61,12 @@ h2 { border-bottom: 1px solid var(--edge); padding-bottom: 0.3rem; }
 }
 .banner.error { border-color: #e2543e; color: #ffb4a6; }
 
+/* snapshot staleness (header — age computed client-side at page load) */
+.staleness { margin: 0.3rem 0 0; font-size: 0.95rem; }
+.staleness.fresh { color: #6cc46c; }
+.staleness.warn { color: var(--accent); }
+.staleness.stale { color: #ffb4a6; font-weight: 600; }
+
 /* depth race */
 .race-row {
   display: grid;
@@ -108,6 +114,48 @@ h2 { border-bottom: 1px solid var(--edge); padding-bottom: 0.3rem; }
   color: var(--muted);
 }
 .ladder-chips .empty { color: var(--muted); font-style: italic; font-size: 0.85rem; margin: 0; }
+
+/* position mini-map (per depth band) */
+.minimap-band {
+  display: grid;
+  grid-template-columns: 11rem 1fr;
+  gap: 0.6rem;
+  align-items: start;
+  padding: 0.55rem 0.75rem;
+  margin: 0.3rem 0;
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: 0.5rem;
+}
+.minimap-plot {
+  position: relative;
+  height: 9rem;
+  background: var(--bg);
+  border: 1px solid var(--edge);
+  border-radius: 0.5rem;
+  background-image:
+    linear-gradient(var(--edge) 1px, transparent 1px),
+    linear-gradient(90deg, var(--edge) 1px, transparent 1px);
+  background-size: 12.5% 25%;
+}
+.minimap-point {
+  position: absolute;
+  width: 0.6rem;
+  height: 0.6rem;
+  margin: -0.3rem;
+  background: var(--accent);
+  border-radius: 50%;
+}
+.minimap-name {
+  position: absolute;
+  left: 0.8rem;
+  top: -0.2rem;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.minimap-body .empty { margin: 0.2rem 0; font-style: italic; color: var(--muted); }
+#minimap > .empty { color: var(--muted); font-style: italic; }
 
 /* leaderboards (tabbed: depth · XP level · coins) */
 table { width: 100%; border-collapse: collapse; }
@@ -161,6 +209,28 @@ button.board-tab.active { color: var(--accent); border-color: var(--accent); }
 }
 .gear-list .slot-empty { color: var(--muted); font-style: italic; }
 .vault-pips { color: var(--accent); letter-spacing: 0.15em; font-size: 0.8rem; }
+
+/* energy meter (as-of-snapshot presentation, no ticking) */
+.energy-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.3rem 0;
+  font-size: 0.9rem;
+}
+.energy-label { font-weight: 600; }
+.energy-track {
+  flex: 1;
+  min-width: 4rem;
+  height: 0.55rem;
+  background: var(--bg);
+  border: 1px solid var(--edge);
+  border-radius: 0.3rem;
+  overflow: hidden;
+}
+.energy-bar { height: 100%; background: #6cc46c; }
+.energy-bar.low { background: #e2543e; }
+.energy-asof { color: var(--muted); font-size: 0.78rem; }
 
 /* write actions (stage c — test economy only) */
 .badge {
