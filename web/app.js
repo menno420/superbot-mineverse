@@ -45,6 +45,112 @@ function decorative(node) {
   return node;
 }
 
+function prefersReducedMotion() {
+  // Shared JS-side motion gate (the CSS-side twin is the global
+  // prefers-reduced-motion block in style.css). Any script-driven
+  // animation must check this and render its final state instantly.
+  return typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/* --- inline-SVG decoration (cave theme) ----------------------------------
+ * Every icon here is a graphical repeat of text that sits next to it, so
+ * each one routes through decorative() — never a replacement for text. */
+
+function svgSpan(className, markup) {
+  const span = el("span", className);
+  span.innerHTML = markup;
+  return decorative(span);
+}
+
+// Ore rarity identity: one distinct color per contract ore tier
+// (display-order stone → diamond mirrors server/views.py ORE_TIER_ORDER).
+const ORE_TIER_COLORS = {
+  stone: "#9aa0a6",
+  bronze: "#c07f45",
+  iron: "#aeb6c2",
+  silver: "#eceff4",
+  gold: "#f5c842",
+  diamond: "#7de8e0",
+};
+
+function oreIconSVG(name) {
+  // Aria-hidden gem icon for the six ore tiers; unknown item names are
+  // contractually open, so they simply get no icon (null).
+  const color = ORE_TIER_COLORS[name];
+  if (!color) return null;
+  return `<svg viewBox="0 0 10 10" width="11" height="11" focusable="false">` +
+    `<polygon points="5,0.5 9.5,4 5,9.5 0.5,4" fill="${color}"/>` +
+    `<polygon points="5,0.5 9.5,4 5,4" fill="#ffffff" opacity="0.25"/>` +
+    `</svg>`;
+}
+
+function minerAvatarSVG() {
+  // Pixel-style miner (helmet, face, overalls) for the depth shaft.
+  return `<svg viewBox="0 0 8 8" width="12" height="12" ` +
+    `shape-rendering="crispEdges" focusable="false">` +
+    `<rect x="2" y="0" width="4" height="1" fill="#f5a83c"/>` +
+    `<rect x="2" y="1" width="4" height="2" fill="#e8c9a0"/>` +
+    `<rect x="1" y="3" width="6" height="3" fill="#4a6fa5"/>` +
+    `<rect x="2" y="6" width="1" height="2" fill="#3a3350"/>` +
+    `<rect x="5" y="6" width="1" height="2" fill="#3a3350"/>` +
+    `</svg>`;
+}
+
+function recordFlagSVG() {
+  // Marker flag planted at a record-depth band.
+  return `<svg viewBox="0 0 8 10" width="10" height="12" ` +
+    `shape-rendering="crispEdges" focusable="false">` +
+    `<rect x="1" y="0" width="1" height="10" fill="#a79fc0"/>` +
+    `<polygon points="2,0 8,2 2,4" fill="#e2543e"/>` +
+    `</svg>`;
+}
+
+function vaultChestSVG(level, levelMax) {
+  // Chest that fills stepwise by vault level; the fill height is the
+  // level fraction of the chest body (empty at 0, brim-full at max).
+  const bounded = Math.max(0, Math.min(level, levelMax));
+  const fraction = levelMax > 0 ? bounded / levelMax : 0;
+  const bodyTop = 4;
+  const bodyHeight = 6;
+  const fillH = Math.round(bodyHeight * fraction);
+  return `<svg viewBox="0 0 12 11" width="14" height="13" focusable="false">` +
+    `<rect x="1" y="1" width="10" height="3" rx="1" fill="#c07f45"/>` +
+    `<rect x="1" y="${bodyTop}" width="10" height="${bodyHeight}" ` +
+    `fill="#221d2e" stroke="#c07f45" stroke-width="1"/>` +
+    (fillH > 0
+      ? `<rect x="2" y="${bodyTop + bodyHeight - fillH - 0.5}" width="8" ` +
+        `height="${fillH}" fill="#f5c842"/>`
+      : "") +
+    `<rect x="5" y="3" width="2" height="2" fill="#f5a83c"/>` +
+    `</svg>`;
+}
+
+function lanternSVG(fraction) {
+  // Lantern whose glow dims stepwise toward 0 with the energy fraction
+  // (5 steps) — an as-of-snapshot picture, never ticked forward.
+  const step = Math.max(0, Math.min(4, Math.round(fraction * 4)));
+  const glowRadius = [0.6, 1.6, 2.6, 3.6, 4.6][step];
+  const glowOpacity = [0.06, 0.16, 0.28, 0.4, 0.5][step];
+  const flameOpacity = 0.25 + 0.75 * (step / 4);
+  return `<svg viewBox="0 0 12 14" width="13" height="15" focusable="false">` +
+    `<circle cx="6" cy="8" r="${glowRadius}" fill="#f5c842" ` +
+    `opacity="${glowOpacity}"/>` +
+    `<rect x="4.5" y="1" width="3" height="1.5" fill="#8a8296"/>` +
+    `<rect x="3.5" y="2.5" width="5" height="8.5" rx="1.2" fill="none" ` +
+    `stroke="#8a8296" stroke-width="1"/>` +
+    `<circle cx="6" cy="8" r="1.5" fill="#f5c842" opacity="${flameOpacity}"/>` +
+    `</svg>`;
+}
+
+function crackedIconSVG() {
+  // Broken-gear crack mark (shown only at/over the wear display cap).
+  return `<svg viewBox="0 0 8 10" width="9" height="11" focusable="false">` +
+    `<polyline points="4,0 2.5,4 5.5,5.5 3,10" fill="none" ` +
+    `stroke="#e2543e" stroke-width="1.4"/>` +
+    `</svg>`;
+}
+
 function bandLabel(depth, biome) {
   // Shared ladder/mini-map band label: the biome emoji is decorative
   // (the biome NAME carries the meaning), so it is aria-hidden.
@@ -110,9 +216,32 @@ function groupedItemList(group) {
   const oreCount = (group?.ores || []).length;
   const ul = el("ul", "items");
   entries.forEach(([name, qty], i) => {
-    ul.appendChild(el("li", i < oreCount ? "ore" : null, `${qty}× ${name}`));
+    const li = el("li", i < oreCount ? `ore tier-${name}` : null);
+    const icon = i < oreCount ? oreIconSVG(name) : null;
+    if (icon) li.appendChild(svgSpan("ore-icon", icon));
+    li.appendChild(document.createTextNode(`${qty}× ${name}`));
+    ul.appendChild(li);
   });
   return [ul];
+}
+
+// Display cap for the gear-wear bar ONLY. The contract says gear_wear is
+// ACCUMULATED wear (0 = pristine, integer ≥ 0, no schema maximum), so the
+// bar fills toward broken and clamps at this cap; the exact wear number
+// stays visible as text either way.
+const WEAR_DISPLAY_MAX = 100;
+
+function wearBar(wear) {
+  // Green → amber → red durability bar; cracked/broken state at the cap.
+  // Decorative: the "· wear N" text next to it carries the real value.
+  const track = decorative(el("span", "wear-track"));
+  const bar = el("span", "wear-bar");
+  const clamped = Math.max(0, Math.min(wear, WEAR_DISPLAY_MAX));
+  bar.style.width = `${(clamped / WEAR_DISPLAY_MAX) * 100}%`;
+  bar.classList.add(
+    wear >= 80 ? "wear-critical" : wear >= 50 ? "wear-worn" : "wear-ok");
+  track.appendChild(bar);
+  return track;
 }
 
 function gearList(gear) {
@@ -124,9 +253,18 @@ function gearList(gear) {
   for (const { slot, item, wear } of gear) {
     const li = el("li", item ? null : "slot-empty");
     li.appendChild(el("span", "slot-name", slot));
+    const hasWear = wear !== null && wear !== undefined;
     li.appendChild(el("span", null, item
-      ? ` ${item}${wear !== null && wear !== undefined ? ` · wear ${wear}` : ""}`
+      ? ` ${item}${hasWear ? ` · wear ${wear}` : ""}`
       : " — empty"));
+    if (item && hasWear && typeof wear === "number") {
+      li.appendChild(wearBar(wear));
+      if (wear >= WEAR_DISPLAY_MAX) {
+        li.classList.add("gear-broken");
+        li.appendChild(svgSpan("cracked-icon", crackedIconSVG()));
+        li.appendChild(visuallyHidden("span", " (broken)"));
+      }
+    }
     ul.appendChild(li);
   }
   return [ul];
@@ -158,11 +296,17 @@ function energyMeter(energy) {
   const row = el("div", "energy-row");
   const current = energy?.current;
   const max = energy?.max;
+  const known = typeof current === "number" && typeof max === "number" && max > 0;
+  // Lantern glow dims with the energy fraction — a graphical repeat of
+  // the label numbers, so decorative; skipped when energy is unknown.
+  if (known) {
+    row.appendChild(svgSpan("energy-lantern",
+      lanternSVG(Math.max(0, Math.min(current / max, 1)))));
+  }
   row.appendChild(el("span", "energy-label", `⚡ ${current ?? "?"}/${max ?? "?"}`));
   // The bar repeats the current/max numbers graphically — decorative.
   const track = decorative(el("div", "energy-track"));
   const bar = el("div", "energy-bar");
-  const known = typeof current === "number" && typeof max === "number" && max > 0;
   bar.style.width = known
     ? `${Math.max(0, Math.min(current / max, 1)) * 100}%`
     : "0%";
@@ -216,9 +360,17 @@ function renderMinerCard(miner, world) {
   section(card, "Structures",
     rankedList(miner.structures, (name, count) => `${count}× ${name}`));
   const vault = miner.vault || {};
-  const vaultTitle = el("h4", null, `Vault · level ${vault.level ?? 0} `);
+  const vaultLevel = vault.level ?? 0;
+  const vaultLevelMax = vault.level_max ?? 0;
+  const vaultTitle = el("h4", null, `Vault · level ${vaultLevel} `);
+  // Chest fill + pips both repeat the level graphically — decorative;
+  // the visually-hidden line is the AT-facing "level N of M" equivalent.
   vaultTitle.appendChild(
-    el("span", "vault-pips", vaultTierPips(vault.level ?? 0, vault.level_max ?? 0)));
+    svgSpan("vault-chest", vaultChestSVG(vaultLevel, vaultLevelMax)));
+  vaultTitle.appendChild(decorative(
+    el("span", "vault-pips", ` ${vaultTierPips(vaultLevel, vaultLevelMax)}`)));
+  vaultTitle.appendChild(
+    visuallyHidden("span", ` vault level ${vaultLevel} of ${vaultLevelMax}`));
   card.appendChild(vaultTitle);
   groupedItemList(vault).forEach((n) => card.appendChild(n));
   return card;
@@ -249,18 +401,34 @@ function renderDepthRace(miners, world) {
 
 /* --- depth/biome ladder (bands 0–3, current + record markers) ----------- */
 
+function bandTintClass(depth) {
+  // Biome tint hook (band-depth-0..3, style.css); deeper-than-known
+  // bands clamp to the deepest tint instead of losing their theming.
+  return `band-depth-${Math.max(0, Math.min(depth, 3))}`;
+}
+
 function renderLadder(ladder) {
+  // Side-view mine shaft: stacked biome-tinted strata (CSS layers the
+  // dirt-lip → stone → biome gradients per band-depth class); miner
+  // avatars and record flags are aria-hidden decoration ON the chips —
+  // the chip text ("Name", "Name · record") stays the semantics.
   const holder = document.getElementById("depth-ladder");
   holder.replaceChildren();
   for (const band of ladder || []) {
-    const row = el("div", "ladder-band");
+    const row = el("div", `ladder-band ${bandTintClass(band.depth)}`);
     row.appendChild(bandLabel(band.depth, band.biome));
     const chips = el("div", "ladder-chips");
     for (const name of band.here) {
-      chips.appendChild(el("span", "chip", name));
+      const chip = el("span", "chip");
+      chip.appendChild(svgSpan("miner-avatar", minerAvatarSVG()));
+      chip.appendChild(document.createTextNode(name));
+      chips.appendChild(chip);
     }
     for (const name of band.record_only) {
-      chips.appendChild(el("span", "chip record", `${name} · record`));
+      const chip = el("span", "chip record");
+      chip.appendChild(svgSpan("record-flag", recordFlagSVG()));
+      chip.appendChild(document.createTextNode(`${name} · record`));
+      chips.appendChild(chip);
     }
     if (!band.here.length && !band.record_only.length) {
       chips.appendChild(el("span", "empty", "(nobody here)"));
@@ -301,7 +469,7 @@ function renderMinimap(minimap) {
     const points = panel.points || [];
     const unplotted = panel.unplotted || [];
     if (!points.length && !unplotted.length) continue; // empty band: skip
-    const band = el("div", "minimap-band");
+    const band = el("div", `minimap-band ${bandTintClass(panel.depth)}`);
     band.appendChild(bandLabel(panel.depth, panel.biome));
     const body = el("div", "minimap-body");
     if (panel.bounds) {
@@ -336,6 +504,34 @@ const BOARD_TABS = [
   ["coins", "Coins"],
 ];
 
+const MEDALS = ["🥇", "🥈", "🥉"]; // podium marks, decorative (rank stays text)
+
+function countUpCell(cell, value) {
+  // Count a numeric cell up to the server value. ALWAYS ends by writing
+  // the exact final value (no drift), and renders instantly when the
+  // value isn't a plain number or the user prefers reduced motion.
+  const finalText = String(value);
+  if (typeof value !== "number" || !Number.isFinite(value) ||
+      prefersReducedMotion() ||
+      typeof requestAnimationFrame !== "function") {
+    cell.textContent = finalText;
+    return;
+  }
+  const duration = 600; // ms — short enough to never lag a tab switch
+  const start = performance.now();
+  const step = (now) => {
+    const t = Math.min((now - start) / duration, 1);
+    if (t >= 1) {
+      cell.textContent = finalText; // exact final value — no drift
+      return;
+    }
+    cell.textContent = String(Math.round(value * t));
+    requestAnimationFrame(step);
+  };
+  cell.textContent = "0";
+  requestAnimationFrame(step);
+}
+
 function renderBoard(board) {
   const table = document.getElementById("leaderboard");
   const thead = table.querySelector("thead");
@@ -349,11 +545,23 @@ function renderBoard(board) {
     headRow.appendChild(th);
   });
   thead.appendChild(headRow);
-  for (const row of board?.rows || []) {
-    const tr = el("tr");
-    row.forEach((cell) => tr.appendChild(el("td", null, String(cell))));
+  (board?.rows || []).forEach((row, rank) => {
+    const tr = el("tr", rank < MEDALS.length ? `podium podium-${rank + 1}` : null);
+    row.forEach((cell, i) => {
+      const td = el("td");
+      if (i === 0 && rank < MEDALS.length) {
+        // Medal is decorative; the rank NUMBER stays in the cell text.
+        td.appendChild(decorative(el("span", "medal", `${MEDALS[rank]} `)));
+        td.appendChild(document.createTextNode(String(cell)));
+      } else if (i >= 2) {
+        countUpCell(td, cell); // score columns count up to the exact value
+      } else {
+        td.textContent = String(cell);
+      }
+      tr.appendChild(td);
+    });
     tbody.appendChild(tr);
-  }
+  });
 }
 
 function renderBoardTabs(leaderboards) {
@@ -437,10 +645,17 @@ function renderInventory(matrix) {
     row.forEach((cell, i) => {
       // First column is the row header (the item name).
       const tag = i === 0 ? "th" : "td";
-      const node = el(tag, null, i >= 2 && cell === 0 ? "·" : String(cell));
+      const node = el(tag);
       if (i === 0) {
-        node.className = "item-name";
+        // Ore tiers get their rarity icon + tint; the item NAME stays
+        // the header text (unknown items simply get no icon).
+        const icon = oreIconSVG(cell);
+        node.className = icon ? `item-name tier-${cell}` : "item-name";
+        if (icon) node.appendChild(svgSpan("ore-icon", icon));
+        node.appendChild(document.createTextNode(String(cell)));
         node.scope = "row";
+      } else {
+        node.textContent = i >= 2 && cell === 0 ? "·" : String(cell);
       }
       if (i === 1) node.className = "item-total";
       tr.appendChild(node);
