@@ -1,0 +1,67 @@
+{
+  "graduation": {
+    "criteria": {
+      "blocking_questions": 0,
+      "critical_slots_filled_pct": 0.8
+    },
+    "soft_target_sessions": 50
+  },
+  "graduation_proposed": false,
+  "kit_version": "1.8.0",
+  "last_compaction_session": 0,
+  "mode": "guided",
+  "mode_history": [],
+  "open_questions": [],
+  "planted_doc_hashes": {
+    ".claude/CLAUDE.md": "fabdb501bccbff18d345b51c6edee1ddd2d72328cb15cb20d3483790a193ff16",
+    ".session-journal.md": "dc0e5071cd79780336d70cdf8d14a4a329f93fe127b82f17e60716a1e9f82d1d",
+    "CONSTITUTION.md": "7e5da783d95d1f31ef62603a931ee5f8483e94ebe63dc135cf3fc553fead3acf",
+    "control/README.md": "554f25b4d6586f9073485b5c09987f3f10c6d9ae10e0d306954073cbc2ba7a63",
+    "control/claims/README.md": "c7809e83e61d15172187ed3213d924f89ecf561a2fb18ff318df95184417c3be",
+    "control/inbox.md": "8fe4fe65fa5c91a50e249073535664faa7f0f8e5a2a3ac1fc232ce3567898575",
+    "control/status.md": "57bf95013dd7daadef45eeb8ed1a038c68678de96a32fe6ba8c633667d6df6e7",
+    "docs/AGENT_ORIENTATION.md": "374c176edc79156ba100313f650e3c266c6f3ee0b5bb0be714945da19b931cae",
+    "docs/CAPABILITIES.md": "3ff607abc2607f212038ecf6d7f5aae2ebd1bc8b3e819d225eae4af91bc50ff8",
+    "docs/ai-project-workflow.md": "26dfaeb7e1003481f555cad927b8fd3dc0331af70af1d89f709784cb8ff85950",
+    "docs/architecture.md": "798a8a9ee5be3937d1311460b40705c2a39936d126fd7914ddf897c5274dbef9",
+    "docs/collaboration-model.md": "53afcdbe44ed783ee2721f5aac34910eb6c7f6ba8c0ee5c0c9ba3bc629a4dbed",
+    "docs/current-state.md": "2af64d6244d9c240f923182ac06fcc12aea158f9c2462cc868e8291ea07cd18d",
+    "docs/decisions.md": "62a4bb65d06801649ac87c6469e53bd2aaddd24a31f442784812827a2b67740c",
+    "docs/helper-policy.md": "afd203ca2d8d6a58fac69a84156fbf84f1bc4b6f08fc264ba793577cc3c5c85a",
+    "docs/ideas/README.md": "4b52ffacda6368f56f31dfbe483b1d141f16dfe426a9095997f4e605218d7ed8",
+    "docs/owner-profile.md": "8bf749b2e02df5360500779faf18c1303efc80f41b1652618f04558a577395f7",
+    "docs/ownership.md": "832f503124d811d6b5240251db66e998daa45542a99f723608fdc86925e87442",
+    "docs/question-router.md": "70eccb139be458261564afe2280b5065080648e17174676a38220b323b7f5cac",
+    "docs/repo-navigation-map.md": "b43a2d93d6e9170f2999ba8dc04788c6b677ad61d0b5a2ea72271f5509879c75",
+    "docs/runtime_contracts.md": "355ec449f1a06cdc540e17f06d47e1ffed7483cfb8d3c4022adcc1b3ca5b9f43",
+    "scripts/env-setup.sh": "cd2145129fcba288ff9399ad44146a09017d85813e282c16bcba22340b613a2c"
+  },
+  "project_id": "e4a11c56d846",
+  "promotion_rights": "propose",
+  "quiet_sessions": 0,
+  "reflection_buffer": {
+    "active_count": 0,
+    "last_mined": null
+  },
+  "review_log": [],
+  "session_count": 0,
+  "slot_values": {
+    "doc_roots": {
+      "question_id": "Q-007",
+      "source": "derived",
+      "value": "docs"
+    },
+    "project_name": {
+      "question_id": "Q-002",
+      "source": "derived",
+      "value": "superbot-mineverse"
+    }
+  },
+  "slots": {
+    "doc_roots": "provisional",
+    "project_name": "provisional"
+  },
+  "stage": "integration",
+  "stance": "analysis",
+  "version": 1
+}
