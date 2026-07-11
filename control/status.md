@@ -1,24 +1,26 @@
 # superbot-mineverse · status
-updated: 2026-07-11T03:03:47Z
-phase: stage (d) LIVE-PROD PREP MERGED (PR #16, owner-gated cutover checklist + readiness tooling); ladder PREPARED through (d) — live-prod remains OWNER-FLAG-GATED; test-guild read-write waits on bot lanes + owner env vars
+updated: 2026-07-11T03:25:30Z
+phase: DEEPENING — read-views slice 1 (PR #18) + conformance seam (PR #19) MERGED; deepening slice 2 in flight; ladder PREPARED through (d) — live-prod remains OWNER-FLAG-GATED; test-guild read-write waits on bot lanes + owner env vars
 health: green
 kit: v1.8.0 · check: green · engaged: yes   # check --strict GREEN; engaged = no unrendered banners + live CI gate (substrate-gate required context on main ruleset) + session loop engaged — all met
-last-shipped: STAGE (d) LIVE-PROD PREP MERGED — PR #16 (ff1e5a6) 2026-07-11T03:00Z: docs/live-prod-cutover.md (owner-gated checklist: prerequisites with evidence commands, rate-limit + abuse review incl. key rotations, rollback lever table, THE FLAG = menno420 adds prod guild ids to bot allowlist AND orders via control/inbox.md, one-guild-first rollout) + scripts/readiness_check.py + tests/test_readiness.py. Repo: 130 pytest green, strict check green. Prior: PR #15 (heartbeat), #13/#14 (stage c), #12, #11 (stage b), #10/#8/#7 (stage a), #9, #6, #5, #4, #3, #2, #1.
+last-shipped: READ-VIEWS DEEPENING + CONFORMANCE SEAM MERGED — PR #18 (8bccd0f) ~2026-07-11T03:07Z: schema-derived GET /api/views; vault panel with tier pips, ore-tier-sorted inventory browser, depth/biome ladder with current+record chips, tabbed depth/XP/coins leaderboards, 9-slot gear panel with wear; tests 130→163. PR #19 (6995920) ~2026-07-11T03:18Z: conformance seam — opt-in SHIM_CONFORMANCE_BASE_URL (+ optional SHIM_CONFORMANCE_SECRET) in tests/test_actions.py so the shim contract fixtures can point at a real endpoint; hermetic default with honest skip; cutover + write-contract docs updated. Both merged on green. Prior: PR #17 (heartbeat), #16 (stage d prep), #15, #13/#14 (stage c), #12, #11 (stage b), #10/#8/#7 (stage a), #9, #6, #5, #4, #3, #2, #1.
 blockers: none
 orders: acked= done=
 ⚑ needs-owner: 2 items — (1) provision the six env vars to switch sign-in on (and, for test-guild write mode, the write-endpoint pair); (2) make pytest a required (blocking) status check on main. Structured OWNER-ACTION blocks below. Bot-lane FLAGs below stay informational until the manager picks them up.
-notes: coordinator heartbeat, boot session cse_017yrng4qx2LcLNqKb5AGoe8 — stage (d) PREP MERGED record, ladder prepared, owner-action blocks + both bot-lane FLAGs carried verbatim, in-flight (read-views deepening + conformance seam) + backlog + routine/chain verbatim records below (this Project is this file's SOLE writer; overwritten whole, never appended).
+notes: coordinator heartbeat, boot session cse_017yrng4qx2LcLNqKb5AGoe8 — deepening slice 1 + conformance seam MERGED record, ladder prepared, owner-action blocks + both bot-lane FLAGs carried verbatim, in-flight (deepening slice 2) + backlog + routine/chain verbatim records below (this Project is this file's SOLE writer; overwritten whole, never appended). Housekeeping this heartbeat: removed released claim control/claims/claude-conformance-env-seam.md.
 
-## Stage (d) LIVE-PROD PREP — MERGED (PR #16, ff1e5a6, 2026-07-11T03:00Z)
+## Deepening slice 1 + conformance seam — MERGED (PR #18 8bccd0f ~03:07Z, PR #19 6995920 ~03:18Z)
 
-- docs/live-prod-cutover.md: owner-gated cutover checklist — prerequisites
-  with evidence commands, rate-limit + abuse review including key rotations,
-  rollback lever table, one-guild-first rollout. THE FLAG = menno420 adds prod
-  guild ids to the bot allowlist AND orders the cutover via control/inbox.md.
-- scripts/readiness_check.py: mechanical readiness check; tests/test_readiness.py.
-- Repo state: 130 pytest green; check --strict green.
+- PR #18 read-views deepening: schema-derived GET /api/views; vault panel with
+  tier pips; ore-tier-sorted inventory browser; depth/biome ladder with
+  current + record chips; tabbed depth/XP/coins leaderboards; 9-slot gear
+  panel with wear. Tests 130 → 163, all green.
+- PR #19 conformance seam: SHIM_CONFORMANCE_BASE_URL (+ optional
+  SHIM_CONFORMANCE_SECRET) switch in the shim contract fixtures — hermetic
+  default byte-identical with honest skip; docs/live-prod-cutover.md +
+  docs/mining-write-contract.md updated for the cutover conformance run.
 - LADDER: 0 ✓ · (a) ✓ · (b) ✓ · (c) ✓ web-side · (d) PREPARED ✓ — live-prod
-  remains OWNER-FLAG-GATED (never agent-decided). Test-guild read-write now
+  remains OWNER-FLAG-GATED (never agent-decided). Test-guild read-write still
   waits on: Builder lane WRITE endpoint (FLAG 2) + READ relay projection
   (FLAG 1) + owner env vars (OWNER-ACTION 1).
 
@@ -77,12 +79,8 @@ endpoint.
 
 ## IN FLIGHT
 
-- Deepening read-views lane (vault panel, inventory browser, depth/biome map,
-  XP leaderboards, gear views) — session cse_013qmRkTVXinrpeCNVpTvcJd.
-- Conformance-seam slice (env-var SHIM_CONFORMANCE_BASE_URL in
-  tests/test_actions.py so the shim contract fixtures can point at a real
-  endpoint) — dispatched 03:03Z; session id will be added next heartbeat if
-  missing.
+- Deepening slice 2 (skills view, structures view, position map, staleness
+  UX) — dispatched 2026-07-11T03:24Z, session cse_01DkfNLwT4rdoduVxvDRAXuV.
 
 ## Ladder + deepening backlog
 
@@ -90,12 +88,14 @@ endpoint.
   is OWNER-FLAG-GATED, never agent-decided; test-guild read-write pending
   FLAG 1 + FLAG 2 + owner env vars.
 - Backlog (never-idle): audit-trail end-to-end verification (waits on the
-  real endpoint; 3-step procedure in docs/live-prod-cutover.md); more
-  contract fields, views, and tests as they surface.
+  Builder lane's real endpoint; 3-step procedure in
+  docs/live-prod-cutover.md); conformance run of tests/test_actions.py
+  against the real endpoint via SHIM_CONFORMANCE_BASE_URL once it exists;
+  more contract fields, views, and tests as they surface.
 
 ## Routine + chain (verbatim record)
 
 Failsafe: trig_01K8xmAKYS5S2HLy1HPANM7j cron 20 */2 * * * (next 04:20Z).
-Chain link: trig_01S8fXvCF7FSzzUye872zuVD fires 03:06:42Z, re-armed each wake
-as run_once triggers from worker seats — send_later is self-session-only on
-worker seats (no target param).
+Chain link: re-armed each wake as run_once triggers from worker seats —
+current link fires ~03:38Z (id in coordinator log); send_later is
+self-session-only on worker seats (no target param).
