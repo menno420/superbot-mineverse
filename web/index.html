@@ -67,10 +67,31 @@
       <div id="inventory-browser" class="table-scroll"></div>
     </section>
 
+    <section id="achievements-section" aria-labelledby="achievements-heading" hidden>
+      <h2 id="achievements-heading">Achievements</h2>
+      <p class="meta">Badges derived from the snapshot alone — deterministic, thresholds documented in server/views.py</p>
+      <div id="achievements-rollup"></div>
+      <div id="achievements-miners" class="cards"></div>
+    </section>
+
+    <section id="vs-section" aria-labelledby="vs-heading" hidden>
+      <h2 id="vs-heading">Miner VS</h2>
+      <p class="meta">Pick two miners for a side-by-side comparison — the bars are decoration, the numbers are the data</p>
+      <div class="vs-controls">
+        <label for="vs-a">Miner A</label>
+        <select id="vs-a" class="action-input"></select>
+        <label for="vs-b">Miner B</label>
+        <select id="vs-b" class="action-input"></select>
+      </div>
+      <div id="vs-compare" class="table-scroll"></div>
+    </section>
+
     <section id="miners-section" aria-labelledby="miners-heading" hidden>
       <h2 id="miners-heading">Miners</h2>
       <div id="miner-cards" class="cards"></div>
     </section>
+
+    <p id="toast" class="toast" role="status" hidden></p>
   </main>
 
   <footer>

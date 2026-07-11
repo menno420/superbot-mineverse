@@ -452,3 +452,118 @@ body {
   .gear-list .slot-name { min-width: 5.5rem; }
   .action-input { max-width: 100%; flex: 1 1 8rem; }
 }
+
+/* --- fun layer -------------------------------------------------------------
+ * Achievements badges, the Konami diamond rain, the Tool Fondler sparkle
+ * + toast, the idle 💤 mark and the miner VS table. All motion here is
+ * either CSS keyframes (zeroed by the global prefers-reduced-motion
+ * guard above) or JS-gated by prefersReducedMotion() in app.js — one
+ * gate per side, no third path. */
+
+/* achievements: roll-up list + per-miner badge chips */
+.rollup-list { list-style: none; padding-left: 0; }
+.rollup-entry { margin: 0.25rem 0; }
+.rollup-desc { color: var(--muted); }
+.rollup-earners { color: var(--accent); font-size: 0.9em; }
+.badge-list {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.3rem 0 0;
+  padding: 0;
+}
+.badge-chip {
+  padding: 0.15rem 0.6rem;
+  border: 1px solid var(--edge);
+  border-radius: 0.9rem;
+  background: var(--bg);
+  font-size: 0.85rem;
+}
+.badge-emoji { font-size: 0.95em; }
+
+/* toast (polite live region) — fixed, so it never shifts layout */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1.2rem;
+  transform: translateX(-50%);
+  max-width: 90vw;
+  margin: 0;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--accent);
+  border-radius: 0.6rem;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 0 14px var(--glow);
+  z-index: 60;
+}
+
+/* konami diamond rain — fixed overlay, pointer-events none: nothing
+   moves in the layout and nothing becomes unclickable */
+.diamond-rain {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 50;
+}
+.diamond-drop { position: absolute; top: -6%; }
+.diamond-drop svg { width: 1.3rem; height: 1.3rem; }
+.diamond-drop.falling { animation: diamond-fall 2.8s linear forwards; }
+@keyframes diamond-fall {
+  to { transform: translateY(120vh) rotate(180deg); }
+}
+
+/* tool row: a real button styled as the plain gear row it replaces */
+button.tool-row {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* tool fondler sparkle (the animation class is JS-gated) */
+.sparkle { display: inline-block; }
+.sparkle.sparkle-pop { animation: sparkle-pop 0.9s ease-out; }
+@keyframes sparkle-pop {
+  0% { transform: scale(0.2); opacity: 0; }
+  60% { transform: scale(1.6); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+/* idle miners (stale snapshot — the 💤 next to the card title) */
+.idle-mark { font-size: 0.9em; }
+
+/* miner VS */
+.vs-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+.vs-table th[scope="row"] {
+  color: var(--muted);
+  font-weight: 400;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+}
+.vs-value { font-variant-numeric: tabular-nums; }
+.vs-lead .vs-value { color: var(--accent); font-weight: 600; }
+.vs-track {
+  display: inline-block;
+  width: 5rem;
+  height: 0.4rem;
+  margin-left: 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--edge);
+  border-radius: 0.2rem;
+  overflow: hidden;
+  vertical-align: middle;
+}
+.vs-bar { display: block; height: 100%; background: var(--accent); }
