@@ -1,9 +1,3 @@
-> ⚠️ **UNRENDERED SLOTS BELOW — run `python3 bootstrap.py ask`.**
-> Every `${...}` token in this file is an unfilled interview slot, not
-> project truth. Fill: `bootstrap answer <slot> <value...>`, then
-> `bootstrap render --live` (fills in place and removes this banner).
-> Prose without `${...}` tokens is live guidance already.
-
 # superbot-mineverse — constitution
 
 > **Status:** `binding`
@@ -35,7 +29,7 @@
   file → check the environment (`printenv`, tool lists) → attempt once and
   capture the exact error → append the finding same session. An imagined
   wall stalls the session; an unrecorded real one taxes every later session.
-- When a doc and a source file disagree: ${drift_resolution}
+- When a doc and a source file disagree: Source code wins over docs: when a doc contradicts merged code, fix the doc in the same session, note the correction in docs/current-state.md
 
 ## Autonomy rails — act vs. ask
 

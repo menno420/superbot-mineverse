@@ -1,9 +1,3 @@
-> ⚠️ **UNRENDERED SLOTS BELOW — run `python3 bootstrap.py ask`.**
-> Every `${...}` token in this file is an unfilled interview slot, not
-> project truth. Fill: `bootstrap answer <slot> <value...>`, then
-> `bootstrap render --live` (fills in place and removes this banner).
-> Prose without `${...}` tokens is live guidance already.
-
 # superbot-mineverse — ownership
 
 > **Status:** `binding`
@@ -18,7 +12,7 @@
 
 ## Ownership model
 
-${ownership_model}
+Single owner (menno420); agent sessions write only via PRs gated on substrate-gate; one writer per control file (manager: control/inbox.md, this Project: control/status.md)
 
 ## Ownership table
 
@@ -28,4 +22,4 @@ ${ownership_model}
 
 ## New areas
 
-${new_area_ownership}
+New top-level areas default to this Project (agent sessions) and land via reviewed PRs; the manager owns control/inbox.md exclusively

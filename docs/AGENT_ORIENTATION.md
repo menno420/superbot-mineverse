@@ -1,9 +1,3 @@
-> ⚠️ **UNRENDERED SLOTS BELOW — run `python3 bootstrap.py ask`.**
-> Every `${...}` token in this file is an unfilled interview slot, not
-> project truth. Fill: `bootstrap answer <slot> <value...>`, then
-> `bootstrap render --live` (fills in place and removes this banner).
-> Prose without `${...}` tokens is live guidance already.
-
 # superbot-mineverse — agent orientation & reading order
 
 > **Status:** `reference`
@@ -21,9 +15,9 @@
 
 ## Binding contracts
 
-- **Architecture / layering:** ${architecture_layers}
-- **Ownership** (who owns each write path): ${ownership_model}
-- **Mutation seam** (how writes are gated): ${mutation_seam}
+- **Architecture / layering:** Three read-only layers, imports flow downward only: data/ (committed sample snapshot JSON — the only data source in stage 1) -> server/ (stdlib http.server backend: GET /api/snapshot + static file serving) -> web/ (static frontend that talks to the backend ONLY via the JSON API). The frontend never reads data/ directly; the server never writes; no database, no auth, no secrets anywhere in this repo.
+- **Ownership** (who owns each write path): Single owner (menno420); agent sessions write only via PRs gated on substrate-gate; one writer per control file (manager: control/inbox.md, this Project: control/status.md)
+- **Mutation seam** (how writes are gated): Stage 1 is read-only end to end: the web app serves a committed snapshot and has no write path. All repo mutations go branch -> PR -> substrate-gate green -> squash merge; direct pushes to main are blocked
 
 ## Where things live
 
@@ -40,5 +34,5 @@ The planted doc set (this router reaches every live doc — keep it that way):
 ## Verifying any change
 
 ```
-${verify_command}
+python3 -m pytest -q
 ```

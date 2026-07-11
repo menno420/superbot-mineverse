@@ -1,9 +1,3 @@
-> ⚠️ **UNRENDERED SLOTS BELOW — run `python3 bootstrap.py ask`.**
-> Every `${...}` token in this file is an unfilled interview slot, not
-> project truth. Fill: `bootstrap answer <slot> <value...>`, then
-> `bootstrap render --live` (fills in place and removes this banner).
-> Prose without `${...}` tokens is live guidance already.
-
 # superbot-mineverse — owner working profile
 
 > **Status:** `owner-guidance`
@@ -14,11 +8,11 @@
 
 ## How the owner works
 
-${owner_profile}
+Menno (menno420) — solo owner of the superbot fleet; steers agent sessions through control/ orders and reviews shipped PRs asynchronously; prefers small, tested, autonomous PRs with plain-language before/after reports
 
 ## Review ritual
 
-${review_ritual}
+Every change ships branch -> PR -> substrate-gate green -> squash merge; the owner reviews merged PRs asynchronously and docs/current-state.md is updated with each shipped PR
 
 ## Privacy note
 

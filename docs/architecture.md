@@ -1,9 +1,3 @@
-> ⚠️ **UNRENDERED SLOTS BELOW — run `python3 bootstrap.py ask`.**
-> Every `${...}` token in this file is an unfilled interview slot, not
-> project truth. Fill: `bootstrap answer <slot> <value...>`, then
-> `bootstrap render --live` (fills in place and removes this banner).
-> Prose without `${...}` tokens is live guidance already.
-
 # superbot-mineverse — architecture
 
 > **Status:** `binding`
@@ -13,7 +7,7 @@
 
 ## Layers & import rules
 
-${architecture_layers}
+Three read-only layers, imports flow downward only: data/ (committed sample snapshot JSON — the only data source in stage 1) -> server/ (stdlib http.server backend: GET /api/snapshot + static file serving) -> web/ (static frontend that talks to the backend ONLY via the JSON API). The frontend never reads data/ directly; the server never writes; no database, no auth, no secrets anywhere in this repo.
 
 | Layer | May import | Must NOT import |
 |---|---|---|
@@ -43,5 +37,5 @@ believing the other covers it.
 ## Verifying a change
 
 ```
-${verify_command}
+python3 -m pytest -q
 ```

@@ -1,9 +1,3 @@
-> ⚠️ **UNRENDERED SLOTS BELOW — run `python3 bootstrap.py ask`.**
-> Every `${...}` token in this file is an unfilled interview slot, not
-> project truth. Fill: `bootstrap answer <slot> <value...>`, then
-> `bootstrap render --live` (fills in place and removes this banner).
-> Prose without `${...}` tokens is live guidance already.
-
 # superbot-mineverse — Current State
 
 > **Status:** `living-ledger`
@@ -27,4 +21,4 @@ should not be re-audited without a reported regression.)
 
 ## Review rhythm
 
-${review_ritual}
+Every change ships branch -> PR -> substrate-gate green -> squash merge; the owner reviews merged PRs asynchronously and docs/current-state.md is updated with each shipped PR

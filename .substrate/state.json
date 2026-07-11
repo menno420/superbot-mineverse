@@ -13,27 +13,27 @@
   "mode_history": [],
   "open_questions": [],
   "planted_doc_hashes": {
-    ".claude/CLAUDE.md": "fabdb501bccbff18d345b51c6edee1ddd2d72328cb15cb20d3483790a193ff16",
+    ".claude/CLAUDE.md": "c7fdec106cd0876730e592f185d7f4c8b1d5497972b4bdb1698a81321e0a5eba",
     ".session-journal.md": "dc0e5071cd79780336d70cdf8d14a4a329f93fe127b82f17e60716a1e9f82d1d",
-    "CONSTITUTION.md": "7e5da783d95d1f31ef62603a931ee5f8483e94ebe63dc135cf3fc553fead3acf",
+    "CONSTITUTION.md": "05dd662a8f5d2d6860bcee1fad8624006cc3c370a4f4d23e2e0e719bb0880282",
     "control/README.md": "554f25b4d6586f9073485b5c09987f3f10c6d9ae10e0d306954073cbc2ba7a63",
     "control/claims/README.md": "c7809e83e61d15172187ed3213d924f89ecf561a2fb18ff318df95184417c3be",
     "control/inbox.md": "8fe4fe65fa5c91a50e249073535664faa7f0f8e5a2a3ac1fc232ce3567898575",
     "control/status.md": "57bf95013dd7daadef45eeb8ed1a038c68678de96a32fe6ba8c633667d6df6e7",
-    "docs/AGENT_ORIENTATION.md": "374c176edc79156ba100313f650e3c266c6f3ee0b5bb0be714945da19b931cae",
+    "docs/AGENT_ORIENTATION.md": "8296a6c17ade354e415644877fbe63238e9ff262ef16357a356d106d703dc9ce",
     "docs/CAPABILITIES.md": "3ff607abc2607f212038ecf6d7f5aae2ebd1bc8b3e819d225eae4af91bc50ff8",
-    "docs/ai-project-workflow.md": "26dfaeb7e1003481f555cad927b8fd3dc0331af70af1d89f709784cb8ff85950",
-    "docs/architecture.md": "798a8a9ee5be3937d1311460b40705c2a39936d126fd7914ddf897c5274dbef9",
-    "docs/collaboration-model.md": "53afcdbe44ed783ee2721f5aac34910eb6c7f6ba8c0ee5c0c9ba3bc629a4dbed",
-    "docs/current-state.md": "2af64d6244d9c240f923182ac06fcc12aea158f9c2462cc868e8291ea07cd18d",
+    "docs/ai-project-workflow.md": "9e635f4b3b2957f1292b5537ef30913078b1dd52cc52bc1bfa6777648a005fc2",
+    "docs/architecture.md": "4e842c354db117b28de888afe4152873de5be0a9391df40851ea1c60f53bf710",
+    "docs/collaboration-model.md": "d33862a0b35e3e83b41931da67491fc9b9f15c2a6478cd6c7fa47082a838a574",
+    "docs/current-state.md": "f46c6e62c0189975876ebb683182e8d85548fd1bbb94e5873d87ac66268608c7",
     "docs/decisions.md": "62a4bb65d06801649ac87c6469e53bd2aaddd24a31f442784812827a2b67740c",
     "docs/helper-policy.md": "afd203ca2d8d6a58fac69a84156fbf84f1bc4b6f08fc264ba793577cc3c5c85a",
     "docs/ideas/README.md": "4b52ffacda6368f56f31dfbe483b1d141f16dfe426a9095997f4e605218d7ed8",
-    "docs/owner-profile.md": "8bf749b2e02df5360500779faf18c1303efc80f41b1652618f04558a577395f7",
-    "docs/ownership.md": "832f503124d811d6b5240251db66e998daa45542a99f723608fdc86925e87442",
+    "docs/owner-profile.md": "18661dc5e10b5d73cc934f236aaf0f262100ab6287e84786e0949ecaed5097c3",
+    "docs/ownership.md": "6a0f8fb11299f3cd9a5a49ff0b7a636ed9ad760564a5727f16b0217b2a9a841a",
     "docs/question-router.md": "70eccb139be458261564afe2280b5065080648e17174676a38220b323b7f5cac",
     "docs/repo-navigation-map.md": "b43a2d93d6e9170f2999ba8dc04788c6b677ad61d0b5a2ea72271f5509879c75",
-    "docs/runtime_contracts.md": "355ec449f1a06cdc540e17f06d47e1ffed7483cfb8d3c4022adcc1b3ca5b9f43",
+    "docs/runtime_contracts.md": "6493734575910825ef652502cc683fe5867c93c3c06345ec76ed2e722928d9b5",
     "scripts/env-setup.sh": "cd2145129fcba288ff9399ad44146a09017d85813e282c16bcba22340b613a2c"
   },
   "project_id": "e4a11c56d846",
@@ -44,22 +44,88 @@
     "last_mined": null
   },
   "review_log": [],
+  "session_anchor": {
+    "branch": null,
+    "epoch": 1783733415.819869,
+    "head": "d1d8c9f04692f780a0ed9d09e685cfffab46d88e",
+    "ts": "2026-07-11T01:30:15+00:00"
+  },
   "session_count": 0,
   "slot_values": {
+    "architecture_layers": {
+      "question_id": "Q-004",
+      "source": "user",
+      "value": "Three read-only layers, imports flow downward only: data/ (committed sample snapshot JSON \u2014 the only data source in stage 1) -> server/ (stdlib http.server backend: GET /api/snapshot + static file serving) -> web/ (static frontend that talks to the backend ONLY via the JSON API). The frontend never reads data/ directly; the server never writes; no database, no auth, no secrets anywhere in this repo."
+    },
     "doc_roots": {
       "question_id": "Q-007",
       "source": "derived",
       "value": "docs"
     },
+    "drift_resolution": {
+      "question_id": "Q-011",
+      "source": "user",
+      "value": "Source code wins over docs: when a doc contradicts merged code, fix the doc in the same session, note the correction in docs/current-state.md"
+    },
+    "mutation_seam": {
+      "question_id": "Q-009",
+      "source": "user",
+      "value": "Stage 1 is read-only end to end: the web app serves a committed snapshot and has no write path. All repo mutations go branch -> PR -> substrate-gate green -> squash merge; direct pushes to main are blocked"
+    },
+    "new_area_ownership": {
+      "question_id": "Q-013",
+      "source": "user",
+      "value": "New top-level areas default to this Project (agent sessions) and land via reviewed PRs; the manager owns control/inbox.md exclusively"
+    },
+    "owner_profile": {
+      "question_id": "Q-008",
+      "source": "user",
+      "value": "Menno (menno420) \u2014 solo owner of the superbot fleet; steers agent sessions through control/ orders and reviews shipped PRs asynchronously; prefers small, tested, autonomous PRs with plain-language before/after reports"
+    },
+    "ownership_model": {
+      "question_id": "Q-006",
+      "source": "user",
+      "value": "Single owner (menno420); agent sessions write only via PRs gated on substrate-gate; one writer per control file (manager: control/inbox.md, this Project: control/status.md)"
+    },
+    "primary_language": {
+      "question_id": "Q-003",
+      "source": "user",
+      "value": "Python 3.10 (stdlib-only backend) plus a vanilla HTML/JS/CSS frontend with no build step"
+    },
     "project_name": {
       "question_id": "Q-002",
       "source": "derived",
       "value": "superbot-mineverse"
+    },
+    "review_ritual": {
+      "question_id": "Q-010",
+      "source": "user",
+      "value": "Every change ships branch -> PR -> substrate-gate green -> squash merge; the owner reviews merged PRs asynchronously and docs/current-state.md is updated with each shipped PR"
+    },
+    "staleness_review": {
+      "question_id": "Q-012",
+      "source": "user",
+      "value": "Docs untouched past the kit staleness window (14 days) get re-verified against live source by the next session that reads them"
+    },
+    "verify_command": {
+      "question_id": "Q-005",
+      "source": "user",
+      "value": "python3 -m pytest -q"
     }
   },
   "slots": {
+    "architecture_layers": "filled",
     "doc_roots": "provisional",
-    "project_name": "provisional"
+    "drift_resolution": "filled",
+    "mutation_seam": "filled",
+    "new_area_ownership": "filled",
+    "owner_profile": "filled",
+    "ownership_model": "filled",
+    "primary_language": "filled",
+    "project_name": "provisional",
+    "review_ritual": "filled",
+    "staleness_review": "filled",
+    "verify_command": "filled"
   },
   "stage": "integration",
   "stance": "analysis",
