@@ -41,6 +41,11 @@ action-proposal envelope, TEST GUILD ONLY) with machine twins
 `schemas/mining_action_response.v1.schema.json`, enforced by
 `tests/test_write_schema_gate.py` in the same CI.
 
+Live-prod cutover (stage d PREP — owner-flag-gated, NOT enabled):
+`docs/live-prod-cutover.md` — prerequisites, rate-limit + abuse review,
+rollback levers, THE FLAG (owner-only), and the mechanical readiness
+check `scripts/readiness_check.py` (tests: `tests/test_readiness.py`).
+
 Auth: `docs/auth.md` (stage b — Discord OAuth sign-in with `identify` scope
 only: flow, the four host env vars, degraded mode, threat notes). Behavior
 lives in `server/auth.py` + `server/app.py`; tests in `tests/test_auth.py`.

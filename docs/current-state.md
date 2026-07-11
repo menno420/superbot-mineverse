@@ -19,7 +19,16 @@ should not be re-audited without a reported regression.)
 
 (Merged work only, newest first.)
 
-- 2026-07-11 — stage (c) part 2 (this PR): dev/test bot shim
+- 2026-07-11 — stage (d) PREP (this PR): owner-flag-gated live-prod
+  cutover checklist (`docs/live-prod-cutover.md` — prerequisites,
+  rate-limit + abuse review, rollback levers, THE FLAG: owner adds prod
+  guild ids to the bot-side allowlist AND says so via a control/inbox.md
+  ORDER; no agent may decide-and-flag) + mechanical readiness check
+  (`scripts/readiness_check.py`, stdlib-only: six env vars SET/UNSET —
+  never values — plus opt-in unsigned endpoint probe;
+  `tests/test_readiness.py`). Docs + tooling ONLY — zero runtime
+  behavior change, no write path enabled; live prod stays owner-gated.
+- 2026-07-11 — PR #14 stage (c) part 2: dev/test bot shim
   (`tests/shim/shim_bot.py`) executing the write contract in memory,
   `POST /api/action` relay (server signs; browser never sees the secret),
   action buttons on "My miner" (degraded by default — enabled only with
