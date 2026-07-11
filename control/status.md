@@ -1,13 +1,13 @@
 # superbot-mineverse · status
-updated: 2026-07-11T18:21:00Z
-phase: POLISH + ROBUSTNESS SHIPPED — PRs #32 (housekeeping) / #33 (a11y+responsive) / #34 (server robustness) all merged on green; pytest is now a VERIFIED-BLOCKING required check on main (owner flipped it 2026-07-11); no in-flight lanes — remaining work externally blocked (bot-lane FLAGs 1+2, owner env vars); loop stays at blocked cadence ~60 min
+updated: 2026-07-11T19:11:00Z
+phase: FUN PASS SHIPPED (owner-requested) — PRs #36 (cave visual theme) / #37 (fun layer) merged on green on top of the earlier same-day #32–#35 batch; one in-flight lane: fun mop-up slice dispatched 19:09Z; everything else externally blocked (bot-lane FLAGs 1+2, owner env vars)
 health: green
 kit: v1.8.0 · check: green · engaged: yes   # check --strict GREEN; engaged = no unrendered banners + live CI gate (substrate-gate + pytest both required contexts on main ruleset) + session loop engaged — all met
-last-shipped: THREE-PR BATCH 2026-07-11 — PR #32 housekeeping: 10 session cards normalized to family-level model names + docs/current-state.md rewritten to match reality. PR #33 a11y/responsive: ARIA tab pattern, landmarks, table captions/scope, reduced-motion support, narrow-viewport reflow, +15 tests. PR #34 server robustness: utf-8 charsets on every Content-Type, sha256 ETag/304 conditional caching on /api/snapshot + /api/views, honest 405 (with Allow) and 404 responses, malformed-snapshot 500 guard, +36 tests. Suite now 242 passed + 1 conformance skip; strict check green. Prior: #29 (self-review), #28, #27 (ORDER 001), #26, #23 (micro-polish — read side renders the ENTIRE v1 contract), #21, #20, #19, #18, #17, #16, #15, #13/#14, #12, #11, #10/#8/#7, #9, #6, #5, #4, #3, #2, #1.
+last-shipped: FUN PASS (owner-requested) 2026-07-11 — PR #36 cave visual theme: mine-shaft cross-section with pixel avatars + record flags, biome strata, ore rarity SVG icons, vault chest / energy lantern / durability bars, podium + count-up animation, all JS effects gated behind prefersReducedMotion. PR #37 fun layer: server-derived achievements in build_views under an additive key, Konami-code diamond rain, 10-click easter-egg toast, stale-snapshot 💤 idle state, console ASCII art, miner VS comparison view, cave-art HTML 404 page with JSON API behavior byte-identical. Test suite 242 → 314 passed + 1 conformance skip; strict check green. Earlier same day: PRs #32 (housekeeping) / #33 (a11y+responsive) / #34 (server robustness) / #35 (heartbeat) — pytest gate verified blocking on every one of these merges. Prior: #29 (self-review), #28, #27 (ORDER 001), #26, #23 (micro-polish — read side renders the ENTIRE v1 contract), #21, #20, #19, #18, #17, #16, #15, #13/#14, #12, #11, #10/#8/#7, #9, #6, #5, #4, #3, #2, #1.
 blockers: none
 orders: acked=001,002 done=001,002
 ⚑ needs-owner: 1 item — provision the six env vars to switch sign-in on (and, for test-guild write mode, the write-endpoint pair). Structured OWNER-ACTION block below. The pytest-required-check ask is RESOLVED/VERIFIED (owner did it 2026-07-11 — see the resolved block below). Bot-lane FLAGs below stay informational until the manager picks them up.
-notes: coordinator heartbeat, session cse_017yrng4qx2LcLNqKb5AGoe8 — HONEST STATE: no in-flight lanes; all remaining work is externally blocked: (1) Builder-lane FLAG 1 (READ relay projection) + FLAG 2 (WRITE endpoint) — specs on main; (2) owner env vars (six names); (3) stage-5 live-prod owner flag; (4) audit-trail e2e + real-endpoint conformance run once (1)/(2) exist. LOOP CADENCE: blocked pace — chain links ~60 min (current link fires 18:27Z), failsafe cron every 2h unchanged; inbox checked each wake. OWNER-ACTION 1 and both bot-lane ⚑ FLAGs carried verbatim below (this Project is this file's SOLE writer; overwritten whole, never appended). Housekeeping this heartbeat: removed released claims control/claims/claude-web-a11y-responsive.md (rode PR #33) and control/claims/claude-server-robustness.md (rode PR #34); deletions ride this control-lane PR per pattern. ORDER 002 self-review (window 2026-07-10 20:00Z → 2026-07-11 10:20Z) lives in git history of this file (PR #29 / commit 2f2d33a) — summary: 24 PRs merged on green in ~3h, one classifier denial recorded+complied, one false alarm corrected, gitignore regression fixed in PR #5, nothing shipped red.
+notes: coordinator heartbeat, session cse_017yrng4qx2LcLNqKb5AGoe8 — HONEST STATE: one in-flight lane (fun mop-up slice, see IN FLIGHT); all other remaining work is externally blocked: (1) Builder-lane FLAG 1 (READ relay projection) + FLAG 2 (WRITE endpoint) — specs on main; (2) owner env vars (six names); (3) stage-5 live-prod owner flag; (4) audit-trail e2e + real-endpoint conformance run once (1)/(2) exist. LOOP CADENCE: active pace while the mop-up lane runs — chain link ~19:15Z (trigger ids recorded in the coordinator log), failsafe cron every 2h unchanged; inbox checked each wake. OWNER-ACTION 1 and both bot-lane ⚑ FLAGs carried verbatim below (this Project is this file's SOLE writer; overwritten whole, never appended). Housekeeping this heartbeat: verified control/claims/ contains only README.md — the fun-lane claims were already retired; no deletions needed. ORDER 002 self-review (window 2026-07-10 20:00Z → 2026-07-11 10:20Z) lives in git history of this file (PR #29 / commit 2f2d33a) — summary: 24 PRs merged on green in ~3h, one classifier denial recorded+complied, one false alarm corrected, gitignore regression fixed in PR #5, nothing shipped red.
 
 ## PYTEST GATE — RESOLVED/VERIFIED 2026-07-11 (was OWNER-ACTION 2)
 
@@ -70,8 +70,10 @@ endpoint.
 
 ## IN FLIGHT
 
-- (none) — no in-flight lanes; every remaining backlog item is externally
-  blocked on the bot-lane FLAGs and/or the owner items above.
+- Fun mop-up slice — dispatched 2026-07-11T19:09Z, worker session
+  cse_018MdQSKkNJSCinYbwL7Fw9W. Scope: sample-data enrichment so some miners
+  actually earn badges, PNG share card, Konami-code prefix-input fix, small
+  JS helper extractions.
 
 ## Externally pending (unchanged)
 
@@ -97,6 +99,7 @@ endpoint.
 Failsafe: trig_01K8xmAKYS5S2HLy1HPANM7j cron 20 */2 * * * (unchanged, every
 2h at :20).
 Chain link: re-armed each wake as run_once triggers from worker seats —
-current link fires 18:27Z (trigger ids recorded in the coordinator log);
-cadence returns to ~15 min when new orders or unblocked work appear;
-send_later is self-session-only on worker seats (no target param).
+current link fires ~19:15Z at active pace (trigger ids recorded in the
+coordinator log); cadence returns to blocked ~60 min if the mop-up lane
+closes with nothing unblocked; send_later is self-session-only on worker
+seats (no target param).
