@@ -50,8 +50,10 @@ def test_snapshot_route_status_and_content_type(serve):
 def test_snapshot_route_payload_shape(serve):
     _, _, body = fetch(serve() + "/api/snapshot")
     payload = json.loads(body)
-    assert payload["schema"] == "mineverse.snapshot"
-    assert payload["schema_version"] == 1
+    # READ contract v1 envelope (docs/mining-data-contract.md).
+    assert payload["schema_version"] == "1"
+    assert payload["generated_at"]
+    assert isinstance(payload["guild_id"], str)
     assert payload["miners"], "snapshot must ship miners"
     for miner in payload["miners"]:
         assert "mining_inventory" in miner

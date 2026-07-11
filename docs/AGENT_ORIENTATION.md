@@ -31,6 +31,11 @@ The planted doc set (this router reaches every live doc — keep it that way):
 `docs/question-router.md` · `docs/CAPABILITIES.md` · `docs/ideas/README.md` — plus the root
 `CONSTITUTION.md` (the working agreement) and `.session-journal.md`.
 
+Data contracts: `docs/mining-data-contract.md` (READ contract v1 — the
+bot→web snapshot envelope) with its machine twin
+`schemas/mining_snapshot.v1.schema.json`, enforced by
+`tests/test_schema_gate.py` in CI (`.github/workflows/schema-gate.yml`).
+
 ## Verifying any change
 
 ```

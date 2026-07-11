@@ -1,0 +1,5 @@
+# Dev/test dependencies ONLY — the runtime backend is stdlib-only by
+# contract (docs/architecture.md), so there is deliberately no runtime
+# requirements.txt.
+pytest==9.1.1
+jsonschema==4.26.0

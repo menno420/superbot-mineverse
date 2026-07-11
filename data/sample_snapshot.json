@@ -1,16 +1,13 @@
 {
-  "schema": "mineverse.snapshot",
-  "schema_version": 1,
-  "generated_at": "2026-07-11T00:00:00Z",
-  "source": "committed sample fixture — stage 1 is read-only, no live data",
-  "field_provenance": "field names mirror menno420/superbot mining_player_state (disbot/services/mining_workflow.py, disbot/utils/mining/*, disbot/utils/equipment.py); xp mirrors disbot/services/game_xp_service.py",
-  "guild_id": 987654321098765432,
+  "schema_version": "1",
+  "generated_at": "2026-07-11T12:00:00Z",
+  "guild_id": "987654321098765432",
   "max_depth": 3,
   "biomes": ["Surface", "Cavern", "the Deep", "the Magma core"],
   "miners": [
     {
       "suid": "100000000000000001",
-      "guild_id": 987654321098765432,
+      "guild_id": "987654321098765432",
       "display_name": "DeepDelver",
       "depth": 3,
       "record_depth": 3,
@@ -28,7 +25,7 @@
     },
     {
       "suid": "100000000000000002",
-      "guild_id": 987654321098765432,
+      "guild_id": "987654321098765432",
       "display_name": "SilverSeeker",
       "depth": 2,
       "record_depth": 2,
@@ -46,7 +43,7 @@
     },
     {
       "suid": "100000000000000003",
-      "guild_id": 987654321098765432,
+      "guild_id": "987654321098765432",
       "display_name": "CavernCrawler",
       "depth": 1,
       "record_depth": 2,
@@ -64,7 +61,7 @@
     },
     {
       "suid": "100000000000000004",
-      "guild_id": 987654321098765432,
+      "guild_id": "987654321098765432",
       "display_name": "PebblePicker",
       "depth": 0,
       "record_depth": 1,
@@ -82,7 +79,7 @@
     },
     {
       "suid": "100000000000000005",
-      "guild_id": 987654321098765432,
+      "guild_id": "987654321098765432",
       "display_name": "MagmaMaven",
       "depth": 3,
       "record_depth": 3,
