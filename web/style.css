@@ -80,10 +80,58 @@ h2 { border-bottom: 1px solid var(--edge); padding-bottom: 0.3rem; }
 .race-bar { height: 100%; background: var(--bar); min-width: 2px; }
 .race-depth { color: var(--muted); font-size: 0.85rem; }
 
-/* leaderboard */
+/* depth ladder (biome bands, current + record chips) */
+.ladder-band {
+  display: grid;
+  grid-template-columns: 11rem 1fr;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.55rem 0.75rem;
+  margin: 0.3rem 0;
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: 0.5rem;
+}
+.ladder-label { display: flex; flex-direction: column; }
+.ladder-biome { font-weight: 600; }
+.ladder-depth { color: var(--muted); font-size: 0.8rem; }
+.ladder-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.chip {
+  padding: 0.1rem 0.55rem;
+  border: 1px solid var(--edge);
+  border-radius: 0.9rem;
+  background: var(--bg);
+  font-size: 0.85rem;
+}
+.chip.record {
+  border-style: dashed;
+  color: var(--muted);
+}
+.ladder-chips .empty { color: var(--muted); font-style: italic; font-size: 0.85rem; margin: 0; }
+
+/* leaderboards (tabbed: depth · XP level · coins) */
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--edge); }
 th { color: var(--accent); }
+.board-tabs { display: flex; gap: 0.4rem; margin-bottom: 0.5rem; }
+button.board-tab {
+  padding: 0.3rem 0.8rem;
+  border: 1px solid var(--edge);
+  border-radius: 0.5rem;
+  background: var(--panel);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+button.board-tab:hover { border-color: var(--accent); }
+button.board-tab.active { color: var(--accent); border-color: var(--accent); }
+
+/* inventory browser (item × miner matrix) */
+.table-scroll { overflow-x: auto; }
+.inventory-table td, .inventory-table th { white-space: nowrap; }
+.inventory-table .item-name { font-weight: 600; }
+.inventory-table .item-total { color: var(--accent); }
 
 /* miner cards */
 .cards {
@@ -102,6 +150,17 @@ th { color: var(--accent); }
 .card .items { margin: 0; padding-left: 1.1rem; }
 .card .empty { color: var(--muted); margin: 0; font-style: italic; }
 .depth-line, .xp-line { margin: 0.15rem 0; font-size: 0.92rem; }
+.card .items .ore { color: var(--accent); }
+.gear-list { list-style: none; padding-left: 0; }
+.gear-list .slot-name {
+  display: inline-block;
+  min-width: 6.5rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+}
+.gear-list .slot-empty { color: var(--muted); font-style: italic; }
+.vault-pips { color: var(--accent); letter-spacing: 0.15em; font-size: 0.8rem; }
 
 /* write actions (stage c — test economy only) */
 .badge {
