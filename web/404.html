@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>404 — you dug too deep</title>
+  <style>
+    /* Self-contained on purpose: this page is served for ANY unknown
+       path, so no relative asset can be trusted to resolve. Palette
+       mirrors web/style.css. */
+    :root {
+      --bg: #17141f;
+      --bg-deep: #0e0c14;
+      --panel: #221d2e;
+      --edge: #3a3350;
+      --text: #e8e4f2;
+      --muted: #a79fc0;
+      --accent: #f5a83c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0 auto;
+      max-width: 44rem;
+      min-height: 100vh;
+      padding: 3rem 1rem;
+      font-family: system-ui, sans-serif;
+      background: linear-gradient(180deg, var(--bg), var(--bg-deep));
+      color: var(--text);
+      line-height: 1.45;
+    }
+    main {
+      background: var(--panel);
+      border: 1px solid var(--edge);
+      border-radius: 0.6rem;
+      padding: 1.5rem 1.75rem 2rem;
+    }
+    h1 { margin: 0 0 0.4rem; color: var(--accent); }
+    p { color: var(--muted); }
+    pre.cave {
+      overflow-x: auto;
+      margin: 1rem 0;
+      padding: 1rem;
+      background: var(--bg-deep);
+      border: 1px solid var(--edge);
+      border-radius: 0.5rem;
+      color: var(--muted);
+      font-size: 0.8rem;
+      line-height: 1.25;
+    }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>404 — you dug too deep</h1>
+    <p>This tunnel leads nowhere: there is no page at this path.</p>
+    <pre class="cave" aria-hidden="true">
+      _____________________________________
+     /   surface . . . . . . . . . . . .   \
+    |~~~~~~~~~~~~~~|  |~~~~~~~~~~~~~~~~~~~~~|
+    |  cavern      |  |     o   o           |
+    |______________|  |_____________________|
+    |  the deep    |  |        *  .  *      |
+    |______________|  |_____________________|
+    |  magma core  |  |    ~ ~ ~ ~ ~ ~ ~    |
+    |______________|__|_____________________|
+    |                404                    |
+    |      &lt;- you are somewhere down        |
+    |         here, past the map            |
+    |_______________________________________|
+    </pre>
+    <p><a href="/">⛏ climb back to the surface</a></p>
+  </main>
+</body>
+</html>

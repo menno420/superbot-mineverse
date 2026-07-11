@@ -53,6 +53,132 @@ function prefersReducedMotion() {
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
+/* --- fun layer: console greeting (plain string, printed once at boot) ---- */
+
+const CONSOLE_GREETING = [
+  "        _____________________",
+  "       /  welcome to the     \\",
+  "      |   M I N E V E R S E   |",
+  "       \\_____________________/",
+  "  ~~~~~~~~~|  |~~~~~~~~~~~~~~~~~~~~",
+  "   surface |  |  <- you are here",
+  "  ---------|  |--------------------",
+  "   cavern  |  |      o   o",
+  "  ---------|  |--------------------",
+  "   the deep|  |          *  .  *",
+  "  ---------|  |--------------------",
+  "   magma   |__|  dig safely, miner",
+  "  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+].join("\n");
+
+/* --- fun layer: Konami code → diamond rain -------------------------------
+ * ↑↑↓↓←→←→BA anywhere on the page starts a brief aria-hidden shower of
+ * the diamond ore SVG. Fixed-position + pointer-events:none, so no
+ * layout shift and nothing becomes unclickable; Escape dismisses early;
+ * it always cleans itself up. Under prefersReducedMotion() the shower
+ * is an instant static flash (no falling animation) that clears fast. */
+
+const KONAMI_SEQUENCE = [
+  "ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown",
+  "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight",
+  "b", "a",
+];
+const DIAMOND_RAIN_DROPS = 24;
+const DIAMOND_RAIN_MS = 4000;
+const DIAMOND_FLASH_MS = 1200; // reduced-motion static flash duration
+let konamiProgress = 0;
+let diamondRainTimer = null;
+
+function dismissDiamondRain() {
+  const overlay = document.getElementById("diamond-rain");
+  if (overlay) overlay.remove();
+  if (diamondRainTimer !== null) {
+    clearTimeout(diamondRainTimer);
+    diamondRainTimer = null;
+  }
+}
+
+function startDiamondRain() {
+  dismissDiamondRain(); // never stack two showers
+  const reduced = prefersReducedMotion();
+  const overlay = decorative(el("div", "diamond-rain"));
+  overlay.id = "diamond-rain";
+  for (let i = 0; i < DIAMOND_RAIN_DROPS; i++) {
+    const drop = svgSpan("diamond-drop", oreIconSVG("diamond"));
+    // Deterministic scatter — no randomness, the same shower every time.
+    drop.style.left = `${(i * 37) % 100}%`;
+    if (reduced) {
+      // Static flash: diamonds appear in place, no motion at all.
+      drop.style.top = `${(i * 53) % 90}%`;
+    } else {
+      drop.style.animationDelay = `${(i % 8) * 0.15}s`;
+      drop.classList.add("falling");
+    }
+    overlay.appendChild(drop);
+  }
+  document.body.appendChild(overlay);
+  diamondRainTimer = setTimeout(
+    dismissDiamondRain, reduced ? DIAMOND_FLASH_MS : DIAMOND_RAIN_MS);
+}
+
+function onKonamiKeydown(event) {
+  if (event.key === "Escape") {
+    dismissDiamondRain();
+    return;
+  }
+  const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+  if (key === KONAMI_SEQUENCE[konamiProgress]) konamiProgress += 1;
+  else konamiProgress = key === KONAMI_SEQUENCE[0] ? 1 : 0;
+  if (konamiProgress === KONAMI_SEQUENCE.length) {
+    konamiProgress = 0;
+    startDiamondRain();
+  }
+}
+
+document.addEventListener("keydown", onKonamiKeydown);
+
+/* --- fun layer: polite toast (role=status live region in index.html) ----- */
+
+let toastTimer = null;
+
+function showToast(text) {
+  const toast = document.getElementById("toast");
+  toast.textContent = text;
+  toast.hidden = false;
+  if (toastTimer !== null) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toast.hidden = true; }, 5000);
+}
+
+/* --- fun layer: Tool Fondler (activate a miner's tool row 10×) -----------
+ * The tool row is a REAL button (keyboard-activatable for free); the
+ * counter is per miner and the achievement fires once per page load —
+ * no persistence, it's a toy. The sparkle animates only when motion is
+ * allowed; the toast is the accessible announcement either way. */
+
+const TOOL_FONDLER_CLICKS = 10;
+const toolClicks = new Map(); // suid -> activations this page load
+const toolFondlerDone = new Set();
+
+function onToolRowActivated(suid, row) {
+  if (toolFondlerDone.has(suid)) return;
+  const clicks = (toolClicks.get(suid) || 0) + 1;
+  toolClicks.set(suid, clicks);
+  if (clicks < TOOL_FONDLER_CLICKS) return;
+  toolFondlerDone.add(suid);
+  const sparkle = decorative(el("span", "sparkle", " ✨"));
+  if (!prefersReducedMotion()) sparkle.classList.add("sparkle-pop");
+  row.appendChild(sparkle);
+  showToast(
+    "Hidden achievement: Tool Fondler — that pickaxe is now extremely polished.");
+}
+
+function toolRowButton(suid) {
+  const button = el("button", "tool-row");
+  button.type = "button";
+  button.addEventListener("click", () => onToolRowActivated(suid, button));
+  return button;
+}
+
 /* --- inline-SVG decoration (cave theme) ----------------------------------
  * Every icon here is a graphical repeat of text that sits next to it, so
  * each one routes through decorative() — never a replacement for text. */
@@ -244,7 +370,7 @@ function wearBar(wear) {
   return track;
 }
 
-function gearList(gear) {
+function gearList(gear, suid) {
   // gear = [{slot, item|null, wear|null}] — every schema slot, always.
   if (!Array.isArray(gear) || !gear.length) {
     return [el("p", "empty", "(no gear data)")];
@@ -252,19 +378,26 @@ function gearList(gear) {
   const ul = el("ul", "items gear-list");
   for (const { slot, item, wear } of gear) {
     const li = el("li", item ? null : "slot-empty");
-    li.appendChild(el("span", "slot-name", slot));
+    // The equipped tool row is a real button (styled as plain text) so
+    // the hidden Tool Fondler achievement is keyboard-activatable; the
+    // row's content and semantics are otherwise identical.
+    const row = slot === "tool" && item && suid != null
+      ? toolRowButton(suid)
+      : li;
+    row.appendChild(el("span", "slot-name", slot));
     const hasWear = wear !== null && wear !== undefined;
-    li.appendChild(el("span", null, item
+    row.appendChild(el("span", null, item
       ? ` ${item}${hasWear ? ` · wear ${wear}` : ""}`
       : " — empty"));
     if (item && hasWear && typeof wear === "number") {
-      li.appendChild(wearBar(wear));
+      row.appendChild(wearBar(wear));
       if (wear >= WEAR_DISPLAY_MAX) {
         li.classList.add("gear-broken");
-        li.appendChild(svgSpan("cracked-icon", crackedIconSVG()));
-        li.appendChild(visuallyHidden("span", " (broken)"));
+        row.appendChild(svgSpan("cracked-icon", crackedIconSVG()));
+        row.appendChild(visuallyHidden("span", " (broken)"));
       }
     }
+    if (row !== li) li.appendChild(row);
     ul.appendChild(li);
   }
   return [ul];
@@ -331,9 +464,27 @@ function section(card, title, nodes) {
   nodes.forEach((n) => card.appendChild(n));
 }
 
-function renderMinerCard(miner, world) {
+function snapshotIsStale(staleness) {
+  // The SAME age math renderStaleness paints in the header: age against
+  // the browser clock once at render time, never ticked forward. An
+  // unknown timestamp reads as NOT stale — the header already announces
+  // "age unknown" honestly, so the cards don't pile on a guess.
+  const epoch = staleness?.generated_at_epoch;
+  if (typeof epoch !== "number") return false;
+  const age = Math.floor(Date.now() / 1000) - epoch;
+  return age >= (staleness?.stale_after_seconds ?? 180);
+}
+
+function renderMinerCard(miner, world, staleness) {
   const card = el("article", "card");
-  card.appendChild(el("h3", null, miner.display_name));
+  const title = el("h3", null, miner.display_name);
+  if (snapshotIsStale(staleness)) {
+    // Stale snapshot → as far as the data shows, this miner is idle.
+    // 💤 is decoration; the visually-hidden "(idle)" is the semantics.
+    title.appendChild(decorative(el("span", "idle-mark", " 💤")));
+    title.appendChild(visuallyHidden("span", " (idle)"));
+  }
+  card.appendChild(title);
   // Subtle identity line: the superbot user id (suid) the card is keyed
   // on — snapshot data shown verbatim, also serves the my-miner view.
   card.appendChild(el("p", "identity-line", `suid ${miner.suid ?? "unknown"}`));
@@ -353,7 +504,7 @@ function renderMinerCard(miner, world) {
       `${miner.coins ?? 0} 🪙`),
   );
   card.appendChild(energyMeter(miner.energy));
-  section(card, "Gear", gearList(miner.gear));
+  section(card, "Gear", gearList(miner.gear, miner.suid));
   section(card, "Pack", groupedItemList(miner.pack));
   section(card, "Skills",
     rankedList(miner.skills, (name, rank) => `${name} · rank ${rank}`));
@@ -666,6 +817,178 @@ function renderInventory(matrix) {
   holder.appendChild(table);
 }
 
+/* --- achievements (server-derived: /api/views `achievements`) -------------
+ * server/views.py build_achievements does ALL the math (pytest-covered);
+ * this only paints badges. Emoji are aria-hidden decoration — the badge
+ * NAME is always the text. Zero badges renders an honest empty state. */
+
+function achievementBadge(entry) {
+  const badge = el("li", "badge-chip");
+  badge.title = entry.description;
+  badge.appendChild(decorative(el("span", "badge-emoji", `${entry.emoji} `)));
+  badge.appendChild(document.createTextNode(entry.name));
+  return badge;
+}
+
+function renderAchievements(achievements) {
+  const rollup = document.getElementById("achievements-rollup");
+  const holder = document.getElementById("achievements-miners");
+  rollup.replaceChildren();
+  holder.replaceChildren();
+  const catalog = achievements?.catalog || [];
+  const miners = achievements?.miners || [];
+  if (!catalog.length) {
+    rollup.appendChild(el("p", "empty",
+      "(no achievement catalog in this snapshot view)"));
+    return;
+  }
+  const byId = new Map(catalog.map((entry) => [entry.id, entry]));
+  // Roll-up: every achievement with its earners listed honestly —
+  // including "nobody yet" (e.g. Fully Geared / Tool Breaker today).
+  const list = el("ul", "items rollup-list");
+  for (const entry of catalog) {
+    const li = el("li", "rollup-entry");
+    li.appendChild(decorative(el("span", "badge-emoji", `${entry.emoji} `)));
+    li.appendChild(el("strong", null, entry.name));
+    li.appendChild(el("span", "rollup-desc", ` — ${entry.description}`));
+    const earners = miners
+      .filter((m) => (m.earned || []).includes(entry.id))
+      .map((m) => m.display_name);
+    li.appendChild(el("span", "rollup-earners",
+      earners.length ? ` · ${earners.join(", ")}` : " · nobody yet"));
+    list.appendChild(li);
+  }
+  rollup.appendChild(list);
+  // Per-miner badge cards.
+  for (const m of miners) {
+    const card = el("article", "card achievement-card");
+    card.appendChild(el("h3", null, m.display_name));
+    const earned = (m.earned || []).map((id) => byId.get(id)).filter(Boolean);
+    if (!earned.length) {
+      card.appendChild(el("p", "empty", "(no achievements yet)"));
+    } else {
+      const badges = el("ul", "badge-list");
+      earned.forEach((entry) => badges.appendChild(achievementBadge(entry)));
+      card.appendChild(badges);
+    }
+    holder.appendChild(card);
+  }
+  if (!miners.length) {
+    holder.appendChild(el("p", "empty", "(no miners in this snapshot)"));
+  }
+}
+
+/* --- miner VS (side-by-side comparison, native selects) ------------------- */
+
+function packTotal(pack) {
+  // Total item count carried: every entry of the shaped pack, ores +
+  // other. Non-numeric counts (schema-forbidden) simply don't add.
+  const entries = [...(pack?.ores || []), ...(pack?.other || [])];
+  return entries.reduce(
+    (sum, [, qty]) => sum + (typeof qty === "number" ? qty : 0), 0);
+}
+
+function skillRankTotal(skills) {
+  // Sum of all skill ranks — one number for the comparison table.
+  return (Array.isArray(skills) ? skills : []).reduce(
+    (sum, [, rank]) => sum + (typeof rank === "number" ? rank : 0), 0);
+}
+
+// Stat rows for the VS table: label + reader over a SHAPED miner
+// (server/views.py shape_miner). Missing values read as 0 — the shaped
+// miner already defaults these fields server-side.
+const VS_STATS = [
+  ["depth", (m) => m.depth ?? 0],
+  ["record depth", (m) => m.record_depth ?? 0],
+  ["level", (m) => m.xp?.level ?? 0],
+  ["mining XP", (m) => m.xp?.game_total ?? 0],
+  ["coins", (m) => m.coins ?? 0],
+  ["energy", (m) => m.energy?.current ?? 0],
+  ["vault level", (m) => m.vault?.level ?? 0],
+  ["pack total", (m) => packTotal(m.pack)],
+  ["skill ranks", (m) => skillRankTotal(m.skills)],
+];
+
+function vsValueCell(value, other) {
+  // The real value is plain text; the bar (scaled against the larger of
+  // the pair) is aria-hidden decoration on top of it.
+  const td = el("td", value > other ? "vs-lead" : null);
+  td.appendChild(el("span", "vs-value", String(value)));
+  const track = decorative(el("span", "vs-track"));
+  const bar = el("span", "vs-bar");
+  const peak = Math.max(value, other, 1);
+  bar.style.width = `${(Math.max(value, 0) / peak) * 100}%`;
+  track.appendChild(bar);
+  td.appendChild(track);
+  return td;
+}
+
+function renderVsComparison(a, b) {
+  const holder = document.getElementById("vs-compare");
+  holder.replaceChildren();
+  if (!a || !b) {
+    holder.appendChild(el("p", "empty",
+      "Pick two miners above to compare them."));
+    return;
+  }
+  if (a.suid === b.suid) {
+    holder.appendChild(el("p", "empty",
+      "That is the same miner twice — a miner always ties with themself. " +
+      "Pick two different miners."));
+    return;
+  }
+  const table = el("table", "vs-table");
+  table.appendChild(visuallyHidden("caption",
+    `Miner VS — ${a.display_name} versus ${b.display_name}, stat by stat`));
+  const thead = el("thead");
+  const headRow = el("tr");
+  ["Stat", a.display_name, b.display_name].forEach((c) => {
+    const th = el("th", null, c);
+    th.scope = "col";
+    headRow.appendChild(th);
+  });
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+  const tbody = el("tbody");
+  for (const [label, read] of VS_STATS) {
+    const tr = el("tr");
+    const th = el("th", null, label);
+    th.scope = "row";
+    tr.appendChild(th);
+    const va = read(a);
+    const vb = read(b);
+    tr.appendChild(vsValueCell(va, vb));
+    tr.appendChild(vsValueCell(vb, va));
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  holder.appendChild(table);
+}
+
+function renderVs(miners) {
+  const selectA = document.getElementById("vs-a");
+  const selectB = document.getElementById("vs-b");
+  const bySuid = new Map(miners.map((m) => [String(m.suid), m]));
+  for (const select of [selectA, selectB]) {
+    select.replaceChildren();
+    const none = document.createElement("option");
+    none.value = "";
+    none.textContent = "— pick a miner —";
+    select.appendChild(none);
+    for (const m of miners) {
+      const option = document.createElement("option");
+      option.value = String(m.suid);
+      option.textContent = m.display_name;
+      select.appendChild(option);
+    }
+  }
+  const repaint = () => renderVsComparison(
+    bySuid.get(selectA.value) || null, bySuid.get(selectB.value) || null);
+  selectA.addEventListener("change", repaint);
+  selectB.addEventListener("change", repaint);
+  repaint(); // honest "pick two miners" state before any choice
+}
+
 /* --- top-level render ------------------------------------------------------ */
 
 function render(views) {
@@ -689,13 +1012,17 @@ function render(views) {
   renderMinimap(views.minimap);
   renderBoardTabs(views.leaderboards);
   renderInventory(views.inventory);
+  renderAchievements(views.achievements);
+  renderVs(miners);
   const cards = document.getElementById("miner-cards");
   cards.replaceChildren();
-  miners.forEach((m) => cards.appendChild(renderMinerCard(m, views.world)));
+  miners.forEach((m) =>
+    cards.appendChild(renderMinerCard(m, views.world, views.staleness)));
 
   for (const id of ["depth-ladder-section", "depth-race-section",
                     "minimap-section", "leaderboard-section",
-                    "inventory-browser-section", "miners-section"]) {
+                    "inventory-browser-section", "achievements-section",
+                    "vs-section", "miners-section"]) {
     document.getElementById(id).hidden = false;
   }
 }
@@ -736,7 +1063,8 @@ function renderMyMiner(me, views) {
     ? (views?.miners || []).find((m) => m.suid === me.miner.suid)
     : null;
   if (shaped) {
-    holder.replaceChildren(renderMinerCard(shaped, views.world));
+    holder.replaceChildren(
+      renderMinerCard(shaped, views.world, views.staleness));
   } else if (me.miner) {
     note.textContent =
       `Signed in as ${me.user_id} — miner found, but the views service ` +
@@ -921,6 +1249,7 @@ async function fetchMe() {
 }
 
 async function boot() {
+  console.log(CONSOLE_GREETING); // a hello for whoever opens the shaft
   let views = null;
   try {
     const res = await fetch("/api/views");
