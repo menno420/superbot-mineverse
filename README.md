@@ -80,7 +80,7 @@ suite passes with no secrets present.
 | `data/` | committed sample snapshot JSON — the only data source in stage 0/1 |
 | `server/` | stdlib-only Python 3.10 backend: `GET /api/snapshot` + static file serving |
 | `web/` | vanilla HTML/JS/CSS frontend, no build step |
-| `schemas/` | versioned read-contract JSON Schemas (`mining_snapshot.v1.schema.json` — the machine twin of `docs/mining-data-contract.md`) |
+| `schemas/` | versioned contract JSON Schemas: read (`mining_snapshot.v1.schema.json` ↔ `docs/mining-data-contract.md`) + write (`mining_action.v1.schema.json`, `mining_action_response.v1.schema.json` ↔ `docs/mining-write-contract.md`) |
 | `tests/` | pytest: API routes + payload sanity |
 | `control/` | fleet coordination bus: manager orders in, session status out |
 | `docs/` | working agreements, architecture, current state, capabilities |
