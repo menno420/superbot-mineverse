@@ -77,6 +77,45 @@ snapshot only via the data contract (no bot Postgres, no bot token);
   provisioning the six OAuth/write env secrets (merge before provisioning
   so sign-in never runs without the browser binding).
 
+## Follow-up — reviewer-confirmed defect fixes (2026-07-11, later)
+
+Two defects raised on PR #42 review, fixed as follow-up commits on this same
+branch (CSRF fix untouched — verified correct):
+
+- **DEFECT 1 (MED) — validator silently ignored unimplemented schema keywords.**
+  `server/snapshot_validation.py`: `_check` ignored any JSON-Schema keyword it
+  did not implement, so the runtime validator drifted from CI. Proven case:
+  `biomes` has `maxItems: 4`, but a snapshot with 5000 entries PASSED runtime
+  while CI's jsonschema rejected it. Fix (both halves): (1) implemented the
+  stdlib size/length family — `maxItems`/`minItems` (arrays),
+  `maxLength`/`minLength` (strings), `maxProperties`/`minProperties` (objects);
+  the committed schema uses `maxItems`, the rest are covered for parity. (2)
+  Added a **fail-loud drift guard**: `_check` now refuses (invalid → 503 + a
+  logged warning naming the keyword) any *validation* keyword not in the
+  explicit `_HANDLED_KEYWORDS` set, unless it is in the explicit
+  `_NOOP_KEYWORDS` annotation allow-list (`$schema`, `$id`, `$anchor`,
+  `$comment`, `$defs`, `definitions`, `title`, `description`, `examples`,
+  `default`, `readOnly`, `writeOnly`, `deprecated`, `format`). Confirmed the
+  committed valid sample still validates clean.
+
+- **DEFECT 2 (LOW/MED) — /api/me was a fourth, unvalidated snapshot load path.**
+  `server/app.py` `_find_miner` loaded the snapshot with no structural check;
+  a valid-JSON-but-non-object snapshot (`[]`) raised `AttributeError` → HTTP 500
+  for a signed-in user. `_serve_me` now loads + validates via the existing
+  `_snapshot_is_valid` (honest 503 + log, same as the read routes) and passes
+  the validated snapshot into `_find_miner` (now a pure lookup that cannot
+  raise). Confirmed no other unvalidated snapshot load sites remain (the four:
+  `_serve_snapshot`, `_serve_views`, `_serve_action`, `_serve_me`).
+
+- **Tests (regression — fail before / pass after):** `tests/test_snapshot_validation.py`
+  +6 (maxItems reject + within-bound accept, full size/length family via
+  synthetic schemas, fail-loud on unimplemented keyword with warning assertion,
+  no-op annotation keywords tolerated, HTTP 503 on a maxItems-violating
+  snapshot); `tests/test_auth.py` +1 (`/api/me` with a `[]` snapshot → 503 for
+  a signed-in user, not 500).
+- verify: `python3 -m pytest -q` → **356 passed, 1 skipped** (was 349 + 1; +7);
+  `python3 bootstrap.py check --strict` → exit 0.
+
 ## 💡 Session idea
 
 `make_state_binding` recomputes a keyed MAC over the raw `state` string;

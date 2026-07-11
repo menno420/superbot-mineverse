@@ -409,6 +409,18 @@ class MineverseHandler(SimpleHTTPRequestHandler):
                 },
             )
             return
+        # Fourth snapshot load path: like /api/snapshot, /api/views and
+        # /api/action, refuse a missing/corrupt/non-conformant snapshot with an
+        # honest 503 instead of crashing on it (a valid-JSON but non-object
+        # snapshot such as ``[]`` would otherwise raise AttributeError → 500).
+        try:
+            snapshot = json.loads(self.snapshot_path.read_bytes())
+        except (OSError, ValueError):
+            self._send_json(503, {"error": "snapshot unavailable"})
+            return
+        if not self._snapshot_is_valid(snapshot):
+            self._send_json(503, {"error": "snapshot unavailable"})
+            return
         self._send_json(
             200,
             {
@@ -416,7 +428,7 @@ class MineverseHandler(SimpleHTTPRequestHandler):
                 "auth_configured": True,
                 "writes_configured": writes,
                 "user_id": user_id,
-                "miner": self._find_miner(user_id),
+                "miner": self._find_miner(snapshot, user_id),
             },
         )
 
@@ -431,12 +443,13 @@ class MineverseHandler(SimpleHTTPRequestHandler):
             return None
         return auth.read_session_user_id(config, morsel.value)
 
-    def _find_miner(self, user_id: str) -> dict | None:
-        """Exact string match of the Discord user id against miners[].suid."""
-        try:
-            snapshot = json.loads(self.snapshot_path.read_bytes())
-        except (OSError, ValueError):
-            return None
+    def _find_miner(self, snapshot: dict, user_id: str) -> dict | None:
+        """Exact string match of the Discord user id against miners[].suid.
+
+        ``snapshot`` is the already-validated v1 payload (see ``_serve_me``): the
+        v1 structural check guarantees it is an object with a ``miners`` list, so
+        this lookup can never raise on a malformed snapshot.
+        """
         for miner in snapshot.get("miners") or []:
             if miner.get("suid") == user_id:
                 return miner

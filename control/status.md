@@ -1,6 +1,8 @@
 # superbot-mineverse · status
-updated: 2026-07-11T23:27:20Z
+updated: 2026-07-11T23:51:34Z
 phase: SECURITY SLICE IN FLIGHT — login-CSRF fix + runtime snapshot validation on branch security/oauth-csrf-snapshot-validation, shipped as PR #42 (READY, awaiting green + owner merge). Founding day was wrapped/archived (docs/retro/archive-ready-2026-07-11.md); this is a fresh security slice on top.
+
+follow-up (2026-07-11T23:51Z): two reviewer-confirmed defects on PR #42 fixed as new commits on the same branch (CSRF fix untouched). (1) snapshot_validation `_check` now implements the size/length keywords (maxItems/minItems, maxLength/minLength, maxProperties/minProperties) AND fails loud on any unimplemented *validation* keyword (drift guard, explicit no-op annotation allow-list) — closes the maxItems runtime-vs-CI drift. (2) `/api/me` (`_serve_me`/`_find_miner`) now routes through the same validation → honest 503 as the read routes, no longer 500s on a non-object (`[]`) snapshot. Suite now 356 passed + 1 skipped (+7); `bootstrap check --strict` exit 0. Details in .sessions/2026-07-11-oauth-csrf-snapshot-validation.md (Follow-up section). PR #42 stays READY; auto-merge NOT armed.
 flagship-stage: web read/write contract prepared through ladder (d) PREPARED; live-prod is owner-flag-gated. This PR hardens the sign-in path BEFORE the six OAuth/write secrets are provisioned.
 health: green
 kit: v1.8.0 · check: green   # python3 bootstrap.py check --strict → exit 0 with the completed session card in tree

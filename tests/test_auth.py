@@ -467,6 +467,23 @@ def test_me_signed_in_without_matching_miner_is_honest_null(serve):
     assert me["miner"] is None
 
 
+def test_me_signed_in_with_non_object_snapshot_is_503_not_500(serve, tmp_path):
+    """A valid-JSON but non-object snapshot (``[]``) must not 500 the /api/me
+    miner lookup for a signed-in user — it is the fourth snapshot load path and
+    must route through the same validation → honest 503 as the read routes.
+    """
+    config = make_config()
+    bad_snapshot = tmp_path / "snapshot.json"
+    bad_snapshot.write_text("[]")  # valid JSON, not a v1 snapshot object
+    cookie = auth.make_session_value(config, KNOWN_SUID)
+    status, _, body = get(
+        serve(auth_config=config, snapshot_path=bad_snapshot) + "/api/me",
+        headers={"Cookie": f"{auth.SESSION_COOKIE}={cookie}"},
+    )
+    assert status == 503
+    assert json.loads(body)["error"] == "snapshot unavailable"
+
+
 # --- /auth/logout -----------------------------------------------------------
 
 
