@@ -51,6 +51,7 @@ python3 -m pytest -q
 | `data/` | committed sample snapshot JSON — the only data source in stage 0/1 |
 | `server/` | stdlib-only Python 3.10 backend: `GET /api/snapshot` + static file serving |
 | `web/` | vanilla HTML/JS/CSS frontend, no build step |
+| `schemas/` | versioned read-contract JSON Schemas (`mining_snapshot.v1.schema.json` — the machine twin of `docs/mining-data-contract.md`) |
 | `tests/` | pytest: API routes + payload sanity |
 | `control/` | fleet coordination bus: manager orders in, session status out |
 | `docs/` | working agreements, architecture, current state, capabilities |
