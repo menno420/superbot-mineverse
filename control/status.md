@@ -1,41 +1,28 @@
 # superbot-mineverse · status
-updated: 2026-07-11T10:24:00Z
-phase: DEEPENING — micro-polish (PR #23) MERGED: read side now renders the ENTIRE v1 contract, the deepening well is dry; no in-flight lanes — all remaining work externally blocked (bot-lane FLAGs 1+2, owner env vars, pytest ruleset edit); loop cadence slows ~15→~60 min while blocked
+updated: 2026-07-11T18:21:00Z
+phase: POLISH + ROBUSTNESS SHIPPED — PRs #32 (housekeeping) / #33 (a11y+responsive) / #34 (server robustness) all merged on green; pytest is now a VERIFIED-BLOCKING required check on main (owner flipped it 2026-07-11); no in-flight lanes — remaining work externally blocked (bot-lane FLAGs 1+2, owner env vars); loop stays at blocked cadence ~60 min
 health: green
-kit: v1.8.0 · check: green · engaged: yes   # check --strict GREEN; engaged = no unrendered banners + live CI gate (substrate-gate required context on main ruleset) + session loop engaged — all met
-last-shipped: MICRO-POLISH MERGED — PR #23 2026-07-11T04:04Z: suid identity line, guild_id in the header, xp.game on the card face, additive-keys defensive tests; pytest 187→191 (+1 conformance skip), all green. MILESTONE: the read side now renders the ENTIRE v1 contract — every required miner field of mining_snapshot.v1 is painted somewhere in the web views; the deepening well is dry. Prior: PR #21 (deepening slice 2, full required-field coverage), #20 (heartbeat), #19 (conformance seam), #18 (deepening slice 1), #17 (heartbeat), #16 (stage d prep), #15, #13/#14 (stage c), #12, #11 (stage b), #10/#8/#7 (stage a), #9, #6, #5, #4, #3, #2, #1.
+kit: v1.8.0 · check: green · engaged: yes   # check --strict GREEN; engaged = no unrendered banners + live CI gate (substrate-gate + pytest both required contexts on main ruleset) + session loop engaged — all met
+last-shipped: THREE-PR BATCH 2026-07-11 — PR #32 housekeeping: 10 session cards normalized to family-level model names + docs/current-state.md rewritten to match reality. PR #33 a11y/responsive: ARIA tab pattern, landmarks, table captions/scope, reduced-motion support, narrow-viewport reflow, +15 tests. PR #34 server robustness: utf-8 charsets on every Content-Type, sha256 ETag/304 conditional caching on /api/snapshot + /api/views, honest 405 (with Allow) and 404 responses, malformed-snapshot 500 guard, +36 tests. Suite now 242 passed + 1 conformance skip; strict check green. Prior: #29 (self-review), #28, #27 (ORDER 001), #26, #23 (micro-polish — read side renders the ENTIRE v1 contract), #21, #20, #19, #18, #17, #16, #15, #13/#14, #12, #11, #10/#8/#7, #9, #6, #5, #4, #3, #2, #1.
 blockers: none
 orders: acked=001,002 done=001,002
-⚑ needs-owner: 2 items — (1) provision the six env vars to switch sign-in on (and, for test-guild write mode, the write-endpoint pair); (2) make pytest a required (blocking) status check on main. Structured OWNER-ACTION blocks below. Bot-lane FLAGs below stay informational until the manager picks them up.
-notes: coordinator heartbeat, boot session cse_017yrng4qx2LcLNqKb5AGoe8 — HONEST STATE: no in-flight lanes; all remaining work is externally blocked: (1) Builder-lane FLAG 1 (READ relay projection) + FLAG 2 (WRITE endpoint) — specs on main; (2) owner env vars (six names) + pytest required-check ruleset edit; (3) audit-trail e2e + real-endpoint conformance run once (1)/(2) exist. LOOP CADENCE: no active orders; externally blocked on Builder-lane FLAGs + owner items; chain links ~60 min (a link is already armed for 05:16Z), failsafe cron every 2h unchanged; inbox checked each wake. Ladder line, both OWNER-ACTION blocks, and both bot-lane ⚑ FLAGs carried verbatim below (this Project is this file's SOLE writer; overwritten whole, never appended). Housekeeping this heartbeat: removed released claim control/claims/claude-micro-polish-identity-xp.md (rode PR #23; deletion rides this control-lane PR per pattern).
+⚑ needs-owner: 1 item — provision the six env vars to switch sign-in on (and, for test-guild write mode, the write-endpoint pair). Structured OWNER-ACTION block below. The pytest-required-check ask is RESOLVED/VERIFIED (owner did it 2026-07-11 — see the resolved block below). Bot-lane FLAGs below stay informational until the manager picks them up.
+notes: coordinator heartbeat, session cse_017yrng4qx2LcLNqKb5AGoe8 — HONEST STATE: no in-flight lanes; all remaining work is externally blocked: (1) Builder-lane FLAG 1 (READ relay projection) + FLAG 2 (WRITE endpoint) — specs on main; (2) owner env vars (six names); (3) stage-5 live-prod owner flag; (4) audit-trail e2e + real-endpoint conformance run once (1)/(2) exist. LOOP CADENCE: blocked pace — chain links ~60 min (current link fires 18:27Z), failsafe cron every 2h unchanged; inbox checked each wake. OWNER-ACTION 1 and both bot-lane ⚑ FLAGs carried verbatim below (this Project is this file's SOLE writer; overwritten whole, never appended). Housekeeping this heartbeat: removed released claims control/claims/claude-web-a11y-responsive.md (rode PR #33) and control/claims/claude-server-robustness.md (rode PR #34); deletions ride this control-lane PR per pattern. ORDER 002 self-review (window 2026-07-10 20:00Z → 2026-07-11 10:20Z) lives in git history of this file (PR #29 / commit 2f2d33a) — summary: 24 PRs merged on green in ~3h, one classifier denial recorded+complied, one false alarm corrected, gitignore regression fixed in PR #5, nothing shipped red.
 
-## ORDER 002 — DONE
+## PYTEST GATE — RESOLVED/VERIFIED 2026-07-11 (was OWNER-ACTION 2)
 
-ORDER 002 (P1 self-review) ACKED + DONE this commit — see Self-review
-2026-07-11 section below.
-
-## ORDER 001 — DONE
-
-ORDER 001 DONE — PR #27 merged 04:23Z (head 0c11372, 3/3 checks green):
-card scaffold in bootstrap.py already emits the 📊 Model: line (marker in
-substrate.config.json); family-level standing rule documented in
-.sessions/README.md; executing session's committed card carries
-"📊 Model: fable-5". Done-when satisfied. Follow-up idea (not ordered):
-older cards carry drifted model spellings.
-
-## Micro-polish — MERGED (PR #23 2026-07-11T04:04Z)
-
-- suid identity line, guild_id in the header, xp.game on the card face,
-  additive-keys defensive tests; pytest 187 → 191 plus 1 conformance skip,
-  all green.
-- MILESTONE: the read side now renders the ENTIRE v1 contract — with PR #21's
-  full required-field coverage plus this slice's identity/xp paint, nothing
-  in schemas/mining_snapshot.v1.schema.json is fetched-but-unpainted. The
-  deepening well is dry.
-- LADDER: 0 ✓ · (a) ✓ · (b) ✓ · (c) ✓ web-side · (d) PREPARED ✓ — live-prod
-  remains OWNER-FLAG-GATED (never agent-decided). Test-guild read-write still
-  waits on: Builder lane WRITE endpoint (FLAG 2) + READ relay projection
-  (FLAG 1) + owner env vars (OWNER-ACTION 1).
+RESOLVED: the owner made pytest a required (blocking) status check on the
+main ruleset on 2026-07-11. VERIFIED with merge-timing evidence — merges now
+wait for pytest: PR #32 merged 2s AFTER its pytest check-run completed;
+PR #33 merged 2s after; PR #34 merged 3s after. (Contrast the pre-fix gap:
+PR #16 merged 28s BEFORE pytest finished.) Every future merge is test-gated
+with zero coordinator babysitting. Original ask preserved for the record:
+WHAT: make pytest blocking: add the pytest workflow as a required status check on main. — DONE by owner 2026-07-11.
+WHERE: Settings → Rules → Rulesets → main ruleset → "Require status checks to pass" (context `pytest`). — DONE.
+HOW: add context exactly `pytest`. — DONE.
+WHY-IT-MATTERS: previously a PR whose tests fail could still merge; now it cannot.
+UNBLOCKS: unblocked — every merge is test-gated (evidence above).
+VERIFIED-NEEDED: verified done — PRs #32/#33/#34 each merged only seconds after pytest completed (2s/2s/3s), never before.
 
 ## ⚑ OWNER-ACTION 1 — switch sign-in on (and test-guild write mode)
 
@@ -45,15 +32,6 @@ HOW: set the variables above in the server's environment; OAUTH_REDIRECT_URI mus
 WHY-IT-MATTERS: until the OAuth four exist, players cannot sign in — the site runs in degraded (read-only, anonymous) mode by design; until the write pair exists, the action UI stays in TEST ECONOMY degraded mode with no live write path.
 UNBLOCKS: the My-miner signed-in view goes live on server restart with the OAuth vars; test-guild write mode goes live once the write pair is set and the bot endpoint (FLAG 2) ships.
 VERIFIED-NEEDED: agent sessions have no access to the host environment or the Discord Developer Portal — only the owner can provision secrets; code paths verified in degraded mode plus tests (130 passing with zero env vars).
-
-## ⚑ OWNER-ACTION 2 — make pytest blocking
-
-WHAT: make pytest blocking: add the pytest workflow as a required status check on main.
-WHERE: Settings → Rules → Rulesets → main ruleset (already requires substrate-gate) → "Require status checks to pass".
-HOW: add context exactly `pytest`.
-WHY-IT-MATTERS: today a PR whose tests fail can still merge; substrate-gate is required but pytest is advisory. NEW EVIDENCE: PR #16 auto-merged on substrate-gate alone — pytest went green 28s AFTER the merge landed.
-UNBLOCKS: every future merge is test-gated with zero coordinator babysitting.
-VERIFIED-NEEDED: coordinator's one ruleset-modification attempt was classifier-denied (recorded in the gate-audit history); ruleset edits are an owner-only surface. Proof once flipped: next PR's merged_at ≥ pytest check-run completed_at (PR #16 shows the current gap live).
 
 ## ⚑ FLAG 1 — superbot manager / bot lane — READ relay (carry verbatim)
 
@@ -93,85 +71,32 @@ endpoint.
 ## IN FLIGHT
 
 - (none) — no in-flight lanes; every remaining backlog item is externally
-  blocked on the bot-lane FLAGs and/or the OWNER-ACTION items above.
+  blocked on the bot-lane FLAGs and/or the owner items above.
+
+## Externally pending (unchanged)
+
+- Builder-lane FLAG 1 (READ relay projection) + FLAG 2 (WRITE endpoint) —
+  specs above, on main.
+- Owner env vars — the six names in OWNER-ACTION 1.
+- Stage-5 live-prod owner flag — untouched, owner-only, never agent-decided.
+- Once the real endpoint exists: audit-trail e2e verification (3-step
+  procedure in docs/live-prod-cutover.md) + conformance run of
+  tests/test_actions.py via SHIM_CONFORMANCE_BASE_URL.
 
 ## Ladder + deepening backlog
 
 - Ladder: 0 ✓ · (a) ✓ · (b) ✓ · (c) ✓ web-side · (d) PREPARED ✓ — live-prod
   is OWNER-FLAG-GATED, never agent-decided; test-guild read-write pending
   FLAG 1 + FLAG 2 + owner env vars.
-- Backlog (never-idle): audit-trail end-to-end verification (waits on the
-  Builder lane's real endpoint; 3-step procedure in
-  docs/live-prod-cutover.md); conformance run of tests/test_actions.py
-  against the real endpoint via SHIM_CONFORMANCE_BASE_URL once it exists —
-  both wait on the Builder lane; more contract fields, views, and tests as
-  they surface.
+- Backlog (never-idle): audit-trail end-to-end verification and the
+  real-endpoint conformance run (both wait on the Builder lane); more
+  contract fields, views, and tests as they surface.
 
 ## Routine + chain (verbatim record)
 
 Failsafe: trig_01K8xmAKYS5S2HLy1HPANM7j cron 20 */2 * * * (unchanged, every
 2h at :20).
 Chain link: re-armed each wake as run_once triggers from worker seats —
-current link trig_011MdW27wgVhfdXG15ibw1mr fires 11:21Z; cadence returns to
-~15 min when new orders or unblocked work appear; send_later is
-self-session-only on worker seats (no target param).
-
-## Self-review 2026-07-11 (ORDER 002, window 2026-07-10 20:00Z → 2026-07-11 10:20Z)
-
-### 1. What went wrong (each with citation)
-
-- CLASSIFIER DENIAL (coordinator): an attempt to spawn a worker to add a
-  required status check to main's ruleset was denied by the auto-mode
-  permission classifier ("Modify Shared Resources — persistent change to
-  shared repo-wide configuration"). Recorded, complied, not retried; became
-  moot (see next item). No repo artifact — coordinator session log.
-- FALSE ALARM, CORRECTED: ORDER 000 lane flagged "substrate-gate is NOT a
-  required check" after PRs #2/#3 merged seconds post-arming. A read-only
-  probe DISPROVED it: main's ruleset requires context ["substrate-gate"]
-  (evidence: PR #5's enable-auto-merge job read rules/branches/main
-  server-side; PR #5 merged only after gate success). Flag withdrawn, team
-  memory corrected same hour.
-- REAL GAP CONFIRMED INSTEAD: pytest is NOT a required context — PR #10
-  merged the same second its pytest run completed; PR #16 merged 28s before
-  pytest finished. Standing OWNER-ACTION (see below). All merged work did
-  pass pytest after the fact; nothing shipped red.
-- GITIGNORE REGRESSION: PR #3's squash dropped a .gitignore entry, causing a
-  recurring untracked guard-telemetry file; root-caused and fixed in PR #5.
-- MERGE RACE: deepening slice-2 lane raced the stage-(d) lane on
-  docs/current-state.md; resolved by rebase onto main (PR #21), no loss.
-- TRIGGER-ARM ERROR: one create_trigger call failed "run_once_at must be in
-  the future" (worker guessed the time); retried successfully within the
-  same task; workers now check date -u first.
-- BRIEFING DRIFT (minor): the backlog lane was briefed "10 unrendered-banner
-  findings" but ORDER 000 had already fixed most — actual remaining was 1
-  stale session-log draft (PR #6 took strict check RED→GREEN).
-- Red CI runs on merged work: none. Guard fires: none beyond the classifier
-  denial above.
-
-### 2. Requiring owner attention (click-level)
-
-- ⚑ Make pytest blocking: GitHub → Settings → Rules → Rulesets → main
-  ruleset (already requires substrate-gate) → "Require status checks to
-  pass" → add context exactly `pytest`. Until then, merges wait only on
-  substrate-gate.
-- ⚑ Provision six host env vars when you want sign-in / test-guild writes
-  live: DISCORD_OAUTH_CLIENT_ID, DISCORD_OAUTH_CLIENT_SECRET,
-  OAUTH_REDIRECT_URI, WEB_SESSION_SIGNING_KEY, MINING_WRITE_ENDPOINT,
-  MINING_WRITE_SHARED_SECRET (values never committed; degraded mode until
-  set).
-- ⚑ Two bot-lane FLAGs await the superbot/Builder lane (full specs in this
-  file): READ relay (v1 snapshot per schemas/mining_snapshot.v1.schema.json)
-  and WRITE action endpoint (audited — mining_workflow emits zero
-  emit_audit_action today, the handler layer must add it; test-guild
-  allowlist only).
-- Decide-and-flag risks taken: none affecting live prod; the stage-5
-  live-prod flag remains untouched and owner-only. Spend/publish items:
-  none.
-
-### 3. Health (one line)
-
-24 PRs merged on green in ~3h — walking skeleton → read contract v1 →
-Discord OAuth → write contract v1 (test-guild, mock shim) → live-prod
-cutover prep → full contract view coverage (191 tests + 1 conditional skip)
-→ ORDER 001 done; now blocked-pace on Builder-lane endpoints + the owner
-items above.
+current link fires 18:27Z (trigger ids recorded in the coordinator log);
+cadence returns to ~15 min when new orders or unblocked work appear;
+send_later is self-session-only on worker seats (no target param).
