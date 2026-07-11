@@ -1,10 +1,14 @@
-/* Mineverse stage-1 frontend — fetches /api/snapshot and renders it.
- * Field names mirror superbot's mining_player_state (mining_inventory,
- * depth, position, equipment, gear_wear, vault, vault_level, energy,
- * coins, skills, structures) + game_xp_service (xp). */
+/* Mineverse frontend — renders the deepened read views from /api/views
+ * (server/views.py shapes the snapshot server-side so pytest covers every
+ * render path; this file only paints). Field names mirror superbot's
+ * mining_player_state (mining_inventory, depth, position, equipment,
+ * gear_wear, vault, vault_level, energy, coins) + game_xp_service (xp). */
 
 "use strict";
 
+// Contract-documented biome display names (docs/mining-data-contract.md):
+// consumers carry fallbacks for when the optional world-shape hints are
+// absent. The ladder gets honest server-side "depth N" labels instead.
 const FALLBACK_BIOMES = ["Surface", "Cavern", "the Deep", "the Magma core"];
 const BIOME_ICONS = ["🌳", "🪨", "💎", "🌋"];
 
@@ -28,24 +32,42 @@ function biomeLabel(depth, biomes) {
   return `${BIOME_ICONS[idx] || ""} ${names[idx]}`.trim();
 }
 
-function itemList(store) {
-  const entries = Object.entries(store || {});
+/* --- miner cards (gear / pack / vault panels, shaped server-side) ------- */
+
+function groupedItemList(group) {
+  // group = {ores: [[name, qty]...], other: [[name, qty]...]} — ore tiers
+  // stone→diamond first (server-ordered), then the rest alphabetically.
+  const entries = [...(group?.ores || []), ...(group?.other || [])];
   if (!entries.length) return [el("p", "empty", "(empty)")];
+  const oreCount = (group?.ores || []).length;
   const ul = el("ul", "items");
-  for (const [name, qty] of entries.sort((a, b) => b[1] - a[1])) {
-    ul.appendChild(el("li", null, `${qty}× ${name}`));
+  entries.forEach(([name, qty], i) => {
+    ul.appendChild(el("li", i < oreCount ? "ore" : null, `${qty}× ${name}`));
+  });
+  return [ul];
+}
+
+function gearList(gear) {
+  // gear = [{slot, item|null, wear|null}] — every schema slot, always.
+  if (!Array.isArray(gear) || !gear.length) {
+    return [el("p", "empty", "(no gear data)")];
+  }
+  const ul = el("ul", "items gear-list");
+  for (const { slot, item, wear } of gear) {
+    const li = el("li", item ? null : "slot-empty");
+    li.appendChild(el("span", "slot-name", slot));
+    li.appendChild(el("span", null, item
+      ? ` ${item}${wear !== null && wear !== undefined ? ` · wear ${wear}` : ""}`
+      : " — empty"));
+    ul.appendChild(li);
   }
   return [ul];
 }
 
-function kvList(store, formatter) {
-  const entries = Object.entries(store || {});
-  if (!entries.length) return [el("p", "empty", "(none)")];
-  const ul = el("ul", "items");
-  for (const [key, value] of entries) {
-    ul.appendChild(el("li", null, formatter(key, value)));
-  }
-  return [ul];
+function vaultTierPips(level, levelMax) {
+  const filled = "●".repeat(Math.max(0, Math.min(level, levelMax)));
+  const hollow = "○".repeat(Math.max(0, levelMax - level));
+  return `${filled}${hollow}`;
 }
 
 function section(card, title, nodes) {
@@ -53,83 +75,183 @@ function section(card, title, nodes) {
   nodes.forEach((n) => card.appendChild(n));
 }
 
-function renderMinerCard(miner, maxDepth, biomes) {
+function renderMinerCard(miner, world) {
   const card = el("article", "card");
-  card.appendChild(el("h3", null, miner.display_name || `miner ${miner.suid}`));
+  card.appendChild(el("h3", null, miner.display_name));
   card.appendChild(
     el("p", "depth-line",
-      `Depth ${miner.depth}/${maxDepth} — ${biomeLabel(miner.depth, biomes)}` +
-      (miner.position ? ` · at (${miner.position.x}, ${miner.position.y})` : "")),
+      `Depth ${miner.depth}/${world.max_depth} — ` +
+      `${biomeLabel(miner.depth, world.biomes)}` +
+      (miner.position ? ` · at (${miner.position.x}, ${miner.position.y})` : "") +
+      ` · record depth ${miner.record_depth}`),
   );
   const xp = miner.xp || {};
+  const energy = miner.energy || {};
   card.appendChild(
     el("p", "xp-line",
       `Level ${xp.level ?? "?"} · ${xp.game_total ?? 0} mining XP · ` +
-      `${miner.coins ?? 0} 🪙 · energy ${miner.energy ? miner.energy.current : "?"}`),
+      `${miner.coins ?? 0} 🪙 · energy ${energy.current ?? "?"}/${energy.max ?? "?"}`),
   );
-  section(card, "Gear", kvList(miner.equipment, (slot, item) => {
-    const wear = miner.gear_wear && miner.gear_wear[item];
-    return `${slot}: ${item}${wear !== undefined ? ` (durability ${wear})` : ""}`;
-  }));
-  section(card, "Pack", itemList(miner.mining_inventory));
-  section(card, `Vault (level ${miner.vault_level ?? 0})`, itemList(miner.vault));
+  section(card, "Gear", gearList(miner.gear));
+  section(card, "Pack", groupedItemList(miner.pack));
+  const vault = miner.vault || {};
+  const vaultTitle = el("h4", null, `Vault · level ${vault.level ?? 0} `);
+  vaultTitle.appendChild(
+    el("span", "vault-pips", vaultTierPips(vault.level ?? 0, vault.level_max ?? 0)));
+  card.appendChild(vaultTitle);
+  groupedItemList(vault).forEach((n) => card.appendChild(n));
   return card;
 }
 
-function renderDepthRace(miners, maxDepth, biomes) {
+/* --- depth race (relative bar view, kept alongside the ladder) ---------- */
+
+function renderDepthRace(miners, world) {
   const race = document.getElementById("depth-race");
   race.replaceChildren();
   for (const miner of [...miners].sort((a, b) => b.depth - a.depth)) {
     const row = el("div", "race-row");
-    row.appendChild(el("span", "race-name", miner.display_name || miner.suid));
+    row.appendChild(el("span", "race-name", miner.display_name));
     const track = el("div", "race-track");
     const bar = el("div", "race-bar");
-    bar.style.width = `${maxDepth ? (miner.depth / maxDepth) * 100 : 0}%`;
+    bar.style.width =
+      `${world.max_depth ? (miner.depth / world.max_depth) * 100 : 0}%`;
     track.appendChild(bar);
     row.appendChild(track);
-    row.appendChild(el("span", "race-depth", biomeLabel(miner.depth, biomes)));
+    row.appendChild(el("span", "race-depth", biomeLabel(miner.depth, world.biomes)));
     race.appendChild(row);
   }
 }
 
-function renderLeaderboard(miners) {
-  const tbody = document.querySelector("#leaderboard tbody");
-  tbody.replaceChildren();
-  const ranked = [...miners].sort(
-    (a, b) => b.depth - a.depth || (b.xp?.game_total ?? 0) - (a.xp?.game_total ?? 0),
-  );
-  ranked.forEach((miner, i) => {
-    const tr = el("tr");
-    [i + 1, miner.display_name || miner.suid, miner.depth,
-     miner.xp?.game_total ?? 0, miner.xp?.level ?? "?", miner.coins ?? 0]
-      .forEach((cell) => tr.appendChild(el("td", null, String(cell))));
-    tbody.appendChild(tr);
-  });
+/* --- depth/biome ladder (bands 0–3, current + record markers) ----------- */
+
+function renderLadder(ladder) {
+  const holder = document.getElementById("depth-ladder");
+  holder.replaceChildren();
+  for (const band of ladder || []) {
+    const row = el("div", "ladder-band");
+    const label = el("div", "ladder-label");
+    label.appendChild(el("span", "ladder-biome",
+      `${BIOME_ICONS[band.depth] || ""} ${band.biome}`.trim()));
+    label.appendChild(el("span", "ladder-depth", `depth ${band.depth}`));
+    row.appendChild(label);
+    const chips = el("div", "ladder-chips");
+    for (const name of band.here) {
+      chips.appendChild(el("span", "chip", name));
+    }
+    for (const name of band.record_only) {
+      chips.appendChild(el("span", "chip record", `${name} · record`));
+    }
+    if (!band.here.length && !band.record_only.length) {
+      chips.appendChild(el("span", "empty", "(nobody here)"));
+    }
+    row.appendChild(chips);
+    holder.appendChild(row);
+  }
 }
 
-function render(snapshot) {
-  // READ contract v1 envelope (docs/mining-data-contract.md):
-  // schema_version, generated_at, guild_id, miners[] (+ optional
-  // max_depth/biomes world-shape hints, fallbacks below).
+/* --- leaderboards (tabbed: depth · XP level · coins) --------------------- */
+
+const BOARD_TABS = [
+  ["depth", "Depth"],
+  ["xp_level", "XP level"],
+  ["coins", "Coins"],
+];
+
+function renderBoard(board) {
+  const table = document.getElementById("leaderboard");
+  const thead = table.querySelector("thead");
+  const tbody = table.querySelector("tbody");
+  thead.replaceChildren();
+  tbody.replaceChildren();
+  const headRow = el("tr");
+  ["#", "Miner", ...(board?.columns || [])]
+    .forEach((c) => headRow.appendChild(el("th", null, c)));
+  thead.appendChild(headRow);
+  for (const row of board?.rows || []) {
+    const tr = el("tr");
+    row.forEach((cell) => tr.appendChild(el("td", null, String(cell))));
+    tbody.appendChild(tr);
+  }
+}
+
+function renderBoardTabs(leaderboards) {
+  const tabs = document.getElementById("board-tabs");
+  tabs.replaceChildren();
+  let active = BOARD_TABS[0][0];
+  const buttons = new Map();
+  const select = (key) => {
+    active = key;
+    for (const [k, b] of buttons) b.classList.toggle("active", k === active);
+    renderBoard(leaderboards?.[active]);
+  };
+  for (const [key, label] of BOARD_TABS) {
+    const button = el("button", "board-tab", label);
+    button.type = "button";
+    button.addEventListener("click", () => select(key));
+    buttons.set(key, button);
+    tabs.appendChild(button);
+  }
+  select(active);
+}
+
+/* --- inventory browser (guild matrix: item × miner, ores first) --------- */
+
+function renderInventory(matrix) {
+  const holder = document.getElementById("inventory-browser");
+  holder.replaceChildren();
+  if (!matrix || !matrix.rows || !matrix.rows.length) {
+    holder.appendChild(el("p", "empty", "(no items carried by anyone)"));
+    return;
+  }
+  const table = el("table", "inventory-table");
+  const thead = el("thead");
+  const headRow = el("tr");
+  ["Item", "Total", ...matrix.columns]
+    .forEach((c) => headRow.appendChild(el("th", null, c)));
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+  const tbody = el("tbody");
+  for (const row of matrix.rows) {
+    const tr = el("tr");
+    row.forEach((cell, i) => {
+      const td = el("td", null, i >= 2 && cell === 0 ? "·" : String(cell));
+      if (i === 0) td.className = "item-name";
+      if (i === 1) td.className = "item-total";
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  holder.appendChild(table);
+}
+
+/* --- top-level render ------------------------------------------------------ */
+
+function render(views) {
+  // /api/views is the snapshot (READ contract v1) shaped server-side —
+  // schema_version/generated_at pass through for the meta line.
   const meta = document.getElementById("snapshot-meta");
   meta.textContent =
-    `snapshot v${snapshot.schema_version ?? "?"} · ` +
-    `generated ${snapshot.generated_at || "unknown"}`;
+    `snapshot v${views.schema_version ?? "?"} · ` +
+    `generated ${views.generated_at || "unknown"}`;
 
-  const miners = snapshot.miners || [];
+  const miners = views.miners || [];
   if (!miners.length) {
     showBanner("Snapshot loaded, but it contains no miners.", false);
     return;
   }
-  const maxDepth = snapshot.max_depth ?? FALLBACK_BIOMES.length - 1;
 
-  renderDepthRace(miners, maxDepth, snapshot.biomes);
-  renderLeaderboard(miners);
+  renderLadder(views.ladder);
+  renderDepthRace(miners, views.world);
+  renderBoardTabs(views.leaderboards);
+  renderInventory(views.inventory);
   const cards = document.getElementById("miner-cards");
   cards.replaceChildren();
-  miners.forEach((m) => cards.appendChild(renderMinerCard(m, maxDepth, snapshot.biomes)));
+  miners.forEach((m) => cards.appendChild(renderMinerCard(m, views.world)));
 
-  for (const id of ["depth-race-section", "leaderboard-section", "miners-section"]) {
+  for (const id of ["depth-ladder-section", "depth-race-section",
+                    "leaderboard-section", "inventory-browser-section",
+                    "miners-section"]) {
     document.getElementById(id).hidden = false;
   }
 }
@@ -158,15 +280,24 @@ function renderAuthControls(me) {
   }
 }
 
-function renderMyMiner(me, snapshot) {
+function renderMyMiner(me, views) {
   if (!me || !me.signed_in) return;
   const section = document.getElementById("my-miner-section");
   const note = document.getElementById("my-miner-note");
   const holder = document.getElementById("my-miner-card");
   section.hidden = false;
-  if (me.miner) {
-    const maxDepth = snapshot?.max_depth ?? FALLBACK_BIOMES.length - 1;
-    holder.replaceChildren(renderMinerCard(me.miner, maxDepth, snapshot?.biomes));
+  // /api/me returns the raw miner; the shaped twin (gear/pack/vault
+  // panels) comes from /api/views by suid — same snapshot file underneath.
+  const shaped = me.miner
+    ? (views?.miners || []).find((m) => m.suid === me.miner.suid)
+    : null;
+  if (shaped) {
+    holder.replaceChildren(renderMinerCard(shaped, views.world));
+  } else if (me.miner) {
+    note.textContent =
+      `Signed in as ${me.user_id} — miner found, but the views service ` +
+      "is unavailable, so the detailed card cannot render.";
+    note.hidden = false;
   } else {
     note.textContent =
       `Signed in as ${me.user_id} — no miner found in this snapshot.`;
@@ -183,8 +314,6 @@ function renderMyMiner(me, snapshot) {
  * buttons render disabled and nothing else changes. */
 
 const DISABLED_TOOLTIP = "Writes not configured — read-only mode";
-const EQUIP_SLOTS = ["tool", "light", "charm", "weapon", "shield",
-                     "helmet", "chestplate", "leggings", "boots"];
 
 function newActionId() {
   if (window.crypto && typeof crypto.randomUUID === "function") {
@@ -259,7 +388,7 @@ function textInput(placeholder) {
   return input;
 }
 
-function renderActionPanel(me) {
+function renderActionPanel(me, views) {
   if (!me || !me.signed_in) return; // panel lives inside the my-miner view
   const panel = document.getElementById("action-panel");
   const note = document.getElementById("action-note");
@@ -312,7 +441,9 @@ function renderActionPanel(me) {
   const equipItem = textInput("item (e.g. iron pickaxe)");
   const equipSlot = document.createElement("select");
   equipSlot.className = "action-input";
-  for (const slot of EQUIP_SLOTS) {
+  // Slot list is schema-derived server-side (/api/views `slots`) — the
+  // dropdown can never drift from the contract's closed enum.
+  for (const slot of views?.slots || []) {
     const option = document.createElement("option");
     option.value = slot;
     option.textContent = slot;
@@ -346,20 +477,20 @@ async function fetchMe() {
 }
 
 async function boot() {
-  let snapshot = null;
+  let views = null;
   try {
-    const res = await fetch("/api/snapshot");
+    const res = await fetch("/api/views");
     if (!res.ok) throw new Error(`API responded ${res.status}`);
-    snapshot = await res.json();
-    render(snapshot);
+    views = await res.json();
+    render(views);
   } catch (err) {
     showBanner(`Snapshot unavailable — ${err.message}. Nothing to render.`, true);
   }
   const me = await fetchMe();
   renderAuthControls(me);
-  renderMyMiner(me, snapshot);
+  renderMyMiner(me, views);
   renderTestEconomyBadge(me);
-  renderActionPanel(me);
+  renderActionPanel(me, views);
 }
 
 boot();

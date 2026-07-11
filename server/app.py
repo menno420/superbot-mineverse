@@ -7,6 +7,10 @@ no secrets in the repo):
   (``data/sample_snapshot.json``) as ``application/json``.  A missing or
   unreadable snapshot returns an honest ``503 {"error": "snapshot
   unavailable"}`` instead of a blank 200.
+- ``GET /api/views`` — the same snapshot shaped for the frontend's
+  deepened read views (``server/views.py``: gear/vault/pack panels,
+  depth ladder, leaderboards, inventory browser).  Same honest 503 when
+  the snapshot is missing or corrupt.
 - ``GET /auth/login`` / ``/auth/callback`` / ``/auth/logout`` and
   ``GET /api/me`` — Discord OAuth2 sign-in for READ personalization only
   (stage b, docs/auth.md).  Configured exclusively via host env vars; with
@@ -37,16 +41,18 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 try:
-    from server import actions, auth
+    from server import actions, auth, views
 except ImportError:  # direct script execution: python3 server/app.py
     import actions  # type: ignore[no-redef]
     import auth  # type: ignore[no-redef]
+    import views  # type: ignore[no-redef]
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SNAPSHOT_PATH = REPO_ROOT / "data" / "sample_snapshot.json"
 WEB_ROOT = REPO_ROOT / "web"
 
 API_SNAPSHOT = "/api/snapshot"
+API_VIEWS = "/api/views"
 API_ME = "/api/me"
 API_ACTION = "/api/action"
 MAX_ACTION_BODY_BYTES = 64 * 1024
@@ -87,6 +93,8 @@ class MineverseHandler(SimpleHTTPRequestHandler):
         route, _, query = self.path.partition("?")
         if route == API_SNAPSHOT:
             self._serve_snapshot()
+        elif route == API_VIEWS:
+            self._serve_views()
         elif route == API_ME:
             self._serve_me()
         elif route == AUTH_LOGIN:
@@ -190,6 +198,22 @@ class MineverseHandler(SimpleHTTPRequestHandler):
         if not isinstance(request["params"], dict):
             return None
         return request
+
+    def _serve_views(self) -> None:
+        """Derived read projection of the snapshot (server/views.py).
+
+        Read-only, no state: the same snapshot ``/api/snapshot`` relays
+        verbatim, shaped for the frontend's deepened views.  Missing or
+        corrupt snapshot answers the same honest 503.
+        """
+        try:
+            snapshot = json.loads(self.snapshot_path.read_bytes())
+            if not isinstance(snapshot, dict):
+                raise ValueError("snapshot is not a JSON object")
+        except (OSError, ValueError):
+            self._send_json(503, {"error": "snapshot unavailable"})
+            return
+        self._send_json(200, views.build_views(snapshot))
 
     def _serve_snapshot(self) -> None:
         try:
