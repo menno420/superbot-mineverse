@@ -1,6 +1,6 @@
 # Session 2026-07-11 — cave visual theme (fun & visuals PR 1)
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 
 ## Plan
 
@@ -52,6 +52,47 @@ HTML/JS/CSS, no build step, no new dependencies, no network calls;
 `control/status.md` / `control/inbox.md` untouched; the reduced-motion
 guard, `.visually-hidden`, `:focus-visible` and narrow-viewport blocks
 pinned by tests/test_web_a11y.py stay byte-intact.
+
+## Close-out
+
+- `web/style.css` (+118): biome tint variables (`--biome-0..3`) and
+  `band-depth-0..3` layered strata gradients (dirt lip → stone shade →
+  biome tint over the panel, solid biome left edge);
+  `@keyframes lantern-flicker` glow on `header h1` with a static
+  text-shadow base (the existing global reduced-motion guard zeroes the
+  animation, leaving that steady glow); page-depth body gradient;
+  mine-shaft fusing of `#depth-ladder` bands into one strata column; ore
+  rarity text tints `.tier-stone..diamond`; `.wear-track`/`.wear-bar`
+  green→amber→red durability styles + `.gear-broken`; `.podium-1..3` row
+  washes + `.medal`. The pinned reduced-motion, `.visually-hidden`,
+  `:focus-visible` and `max-width: 30rem` blocks are byte-untouched.
+- `web/app.js` (+245/-15): new `prefersReducedMotion()` (the file's
+  first `window.matchMedia` use) and `svgSpan()` decorative-SVG seam;
+  `ORE_TIER_COLORS` + `oreIconSVG(name)` (six tiers, distinct colors,
+  unknown items get no icon) used in pack/vault ore entries and
+  inventory row headers; `minerAvatarSVG()`/`recordFlagSVG()` on ladder
+  chips with chip text ("Name", "Name · record", "(nobody here)")
+  preserved; `bandTintClass()` applied to ladder + mini-map bands;
+  `vaultChestSVG(level, levelMax)` stepped fill + aria-hidden pips +
+  visually-hidden "vault level N of M"; `lanternSVG(fraction)` 5-step
+  glow (skipped when energy unknown; label, as-of line and `.low`
+  untouched); `wearBar(wear)` — accumulated wear (0 = pristine, no
+  schema max) fills toward a 100 display cap, cracked icon + hidden
+  "(broken)" at the cap, "· wear N" text kept; podium medals
+  (aria-hidden, rank number stays cell text) and `countUpCell` — score
+  columns count up, gated by `prefersReducedMotion()`, always ending on
+  the exact server value.
+- `tests/test_web_visuals.py` (new, 203 lines): 15 served-bytes pins in
+  the test_web_a11y.py style — biome tints, flicker keyframes + a
+  re-pin of the reduced-motion guard, shaft/avatar/flag hooks, six ore
+  tiers + unknown-item null, chest/lantern/durability with their text
+  equivalents, podium markup, the matchMedia helper and the
+  exact-final-value count-up lines.
+- verify: `python3 -m pytest -q` → 257 passed, 1 skipped (was 242 + 1);
+  `python3 bootstrap.py check --strict` → all checks passed.
+- Claim `control/claims/claude-fun-visual-theme.md` rides this PR;
+  removal is deferred to this lane's final PR, per the established
+  pattern.
 
 ## 💡 Session idea
 
