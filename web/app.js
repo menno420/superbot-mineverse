@@ -27,6 +27,13 @@ function showBanner(message, isError) {
   banner.hidden = false;
 }
 
+function biomeName(depth, biomes) {
+  // Plain biome name, no emoji — for surfaces that want text only
+  // (e.g. the canvas share card, where emoji glyphs are unreliable).
+  const names = Array.isArray(biomes) && biomes.length ? biomes : FALLBACK_BIOMES;
+  return names[Math.max(0, Math.min(depth, names.length - 1))];
+}
+
 function biomeLabel(depth, biomes) {
   const names = Array.isArray(biomes) && biomes.length ? biomes : FALLBACK_BIOMES;
   const idx = Math.max(0, Math.min(depth, names.length - 1));
@@ -121,14 +128,33 @@ function startDiamondRain() {
     dismissDiamondRain, reduced ? DIAMOND_FLASH_MS : DIAMOND_RAIN_MS);
 }
 
+function konamiNextProgress(progress, key, sequence) {
+  // Pure KMP-style step. The keys seen so far are sequence[0..progress-1]
+  // followed by `key`; the next progress is the LONGEST prefix of the
+  // sequence that is a suffix of that input. A plain reset-to-0-or-1 on
+  // mismatch loses real progress — e.g. a third ArrowUp after ↑↑ must
+  // keep progress 2, not fall back to 1. Ten keys, so the scan is free.
+  for (let len = Math.min(progress + 1, sequence.length); len > 0; len--) {
+    if (sequence[len - 1] !== key) continue;
+    let matches = true;
+    for (let i = 0; i < len - 1; i++) {
+      if (sequence[i] !== sequence[progress - len + 1 + i]) {
+        matches = false;
+        break;
+      }
+    }
+    if (matches) return len;
+  }
+  return 0;
+}
+
 function onKonamiKeydown(event) {
   if (event.key === "Escape") {
     dismissDiamondRain();
     return;
   }
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
-  if (key === KONAMI_SEQUENCE[konamiProgress]) konamiProgress += 1;
-  else konamiProgress = key === KONAMI_SEQUENCE[0] ? 1 : 0;
+  konamiProgress = konamiNextProgress(konamiProgress, key, KONAMI_SEQUENCE);
   if (konamiProgress === KONAMI_SEQUENCE.length) {
     konamiProgress = 0;
     startDiamondRain();
@@ -459,6 +485,19 @@ function vaultTierPips(level, levelMax) {
   return `${filled}${hollow}`;
 }
 
+function tableHeadRow(cells) {
+  // Shared scoped column-header row for every hand-rolled table
+  // (leaderboard, inventory matrix, VS view): text in, one <tr> of
+  // scope=col <th>s out — the three builders can't drift apart on scope.
+  const tr = el("tr");
+  for (const cell of cells) {
+    const th = el("th", null, cell);
+    th.scope = "col";
+    tr.appendChild(th);
+  }
+  return tr;
+}
+
 function section(card, title, nodes) {
   card.appendChild(el("h4", null, title));
   nodes.forEach((n) => card.appendChild(n));
@@ -473,6 +512,174 @@ function snapshotIsStale(staleness) {
   if (typeof epoch !== "number") return false;
   const age = Math.floor(Date.now() / 1000) - epoch;
   return age >= (staleness?.stale_after_seconds ?? 180);
+}
+
+/* --- share card (canvas → PNG download, fully client-side) ---------------
+ * A real <button> on every miner card draws the miner's headline stats
+ * onto an OFFSCREEN canvas (cave palette mirrored from style.css, gem
+ * flourish reusing the oreIconSVG geometry + ORE_TIER_COLORS) and saves
+ * it as a PNG via a temporary <a download>. No network, no dependency;
+ * the drawing is a single static frame, so there is nothing to gate on
+ * reduced motion — no animation is ever created. */
+
+const SHARE_CARD_WIDTH = 640;
+const SHARE_CARD_HEIGHT = 360;
+
+// Canvas twin of the style.css cave palette (canvas can't read CSS vars
+// from a stylesheet it isn't attached to, so the hexes are mirrored).
+const SHARE_CARD_THEME = {
+  bgTop: "#17141f", // --bg
+  bgBottom: "#0e0c14", // --bg-deep
+  panel: "#221d2e", // --panel
+  edge: "#3a3350", // --edge
+  text: "#e8e4f2", // --text
+  muted: "#a79fc0", // --muted
+  accent: "#f5a83c", // --accent
+};
+
+function shareCardGearLines(gear) {
+  // Key gear = equipped slots only, capped so the card never overflows.
+  return (Array.isArray(gear) ? gear : [])
+    .filter((entry) => entry && entry.item)
+    .slice(0, 4)
+    .map(({ slot, item, wear }) =>
+      `${slot}: ${item}${typeof wear === "number" ? ` · wear ${wear}` : ""}`);
+}
+
+function shareCardLines(miner, world) {
+  // Pure text-shaping seam: everything the canvas paints, as strings
+  // (emoji-free — canvas glyph support for emoji is unreliable), kept
+  // separate so the painter stays dumb and the content stays greppable.
+  const xp = miner.xp || {};
+  return {
+    title: miner.display_name,
+    subtitle: `suid ${miner.suid ?? "unknown"}`,
+    stats: [
+      `Depth ${miner.depth}/${world?.max_depth ?? "?"} — ` +
+        `${biomeName(miner.depth, world?.biomes)}` +
+        ` · record depth ${miner.record_depth}`,
+      `Level ${xp.level ?? "?"} · ${xp.game_total ?? 0} ${xp.game ?? "?"} XP · ` +
+        `${miner.coins ?? 0} coins`,
+    ],
+    gear: shareCardGearLines(miner.gear),
+    footer: "Mineverse — read-only mining economy viewer",
+  };
+}
+
+function drawShareCardGem(ctx, x, y, size, color) {
+  // Same gem geometry as oreIconSVG (diamond polygon + white glint),
+  // scaled from that icon's 10×10 viewBox onto the canvas.
+  const s = size / 10;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(x + 5 * s, y + 0.5 * s);
+  ctx.lineTo(x + 9.5 * s, y + 4 * s);
+  ctx.lineTo(x + 5 * s, y + 9.5 * s);
+  ctx.lineTo(x + 0.5 * s, y + 4 * s);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "rgba(255, 255, 255, 0.25)";
+  ctx.beginPath();
+  ctx.moveTo(x + 5 * s, y + 0.5 * s);
+  ctx.lineTo(x + 9.5 * s, y + 4 * s);
+  ctx.lineTo(x + 5 * s, y + 4 * s);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawShareCard(canvas, miner, world) {
+  const t = SHARE_CARD_THEME;
+  const ctx = canvas.getContext("2d");
+  const w = canvas.width;
+  const h = canvas.height;
+  const lines = shareCardLines(miner, world);
+  // Backdrop: the page's "deeper is darker" gradient, one static frame.
+  const backdrop = ctx.createLinearGradient(0, 0, 0, h);
+  backdrop.addColorStop(0, t.bgTop);
+  backdrop.addColorStop(1, t.bgBottom);
+  ctx.fillStyle = backdrop;
+  ctx.fillRect(0, 0, w, h);
+  // Panel with the cave edge, like every .card on the page.
+  ctx.fillStyle = t.panel;
+  ctx.fillRect(16, 16, w - 32, h - 32);
+  ctx.strokeStyle = t.edge;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(16, 16, w - 32, h - 32);
+  // Title (accent, like .card h3) + the suid identity line.
+  ctx.fillStyle = t.accent;
+  ctx.font = "bold 30px system-ui, sans-serif";
+  ctx.fillText(lines.title, 40, 64);
+  ctx.fillStyle = t.muted;
+  ctx.font = "13px system-ui, sans-serif";
+  ctx.fillText(lines.subtitle, 40, 86);
+  // Headline stats.
+  ctx.fillStyle = t.text;
+  ctx.font = "17px system-ui, sans-serif";
+  lines.stats.forEach((line, i) => ctx.fillText(line, 40, 126 + i * 28));
+  // Key gear.
+  ctx.fillStyle = t.muted;
+  ctx.font = "bold 12px system-ui, sans-serif";
+  ctx.fillText("KEY GEAR", 40, 204);
+  ctx.fillStyle = t.text;
+  ctx.font = "15px system-ui, sans-serif";
+  const gearLines = lines.gear.length ? lines.gear : ["(no gear equipped)"];
+  gearLines.forEach((line, i) => ctx.fillText(line, 40, 228 + i * 22));
+  // Ore-tier gem flourish, stone → diamond, bottom right.
+  const tiers = Object.entries(ORE_TIER_COLORS);
+  tiers.forEach(([, color], i) => {
+    drawShareCardGem(ctx, w - 44 - (tiers.length - i) * 30, h - 72, 22, color);
+  });
+  // Footer.
+  ctx.fillStyle = t.muted;
+  ctx.font = "12px system-ui, sans-serif";
+  ctx.fillText(lines.footer, 40, h - 42);
+}
+
+function shareCardFileName(miner) {
+  const base = String(miner.display_name || "miner")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `mineverse-${base || "miner"}-card.png`;
+}
+
+function downloadCanvasPNG(canvas, fileName) {
+  const save = (href, revoke) => {
+    const link = document.createElement("a");
+    link.href = href;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    if (revoke) URL.revokeObjectURL(href);
+  };
+  if (typeof canvas.toBlob === "function") {
+    canvas.toBlob((blob) => {
+      if (blob) save(URL.createObjectURL(blob), true);
+      else save(canvas.toDataURL("image/png"), false); // rare toBlob failure
+    }, "image/png");
+  } else {
+    save(canvas.toDataURL("image/png"), false); // older browsers
+  }
+}
+
+function shareCardButton(miner, world) {
+  // Real <button> → keyboard-activatable + focus-visible for free. The
+  // aria-label starts with the visible text (label-in-name) and says
+  // honestly what happens: a PNG image gets downloaded.
+  const button = el("button", "share-button", "Download card (PNG)");
+  button.type = "button";
+  button.setAttribute("aria-label",
+    `Download card (PNG) — save ${miner.display_name}'s miner card ` +
+    "as a PNG image");
+  button.addEventListener("click", () => {
+    const canvas = document.createElement("canvas"); // offscreen, never in DOM
+    canvas.width = SHARE_CARD_WIDTH;
+    canvas.height = SHARE_CARD_HEIGHT;
+    drawShareCard(canvas, miner, world);
+    downloadCanvasPNG(canvas, shareCardFileName(miner));
+  });
+  return button;
 }
 
 function renderMinerCard(miner, world, staleness) {
@@ -524,6 +731,7 @@ function renderMinerCard(miner, world, staleness) {
     visuallyHidden("span", ` vault level ${vaultLevel} of ${vaultLevelMax}`));
   card.appendChild(vaultTitle);
   groupedItemList(vault).forEach((n) => card.appendChild(n));
+  card.appendChild(shareCardButton(miner, world));
   return card;
 }
 
@@ -689,13 +897,7 @@ function renderBoard(board) {
   const tbody = table.querySelector("tbody");
   thead.replaceChildren();
   tbody.replaceChildren();
-  const headRow = el("tr");
-  ["#", "Miner", ...(board?.columns || [])].forEach((c) => {
-    const th = el("th", null, c);
-    th.scope = "col";
-    headRow.appendChild(th);
-  });
-  thead.appendChild(headRow);
+  thead.appendChild(tableHeadRow(["#", "Miner", ...(board?.columns || [])]));
   (board?.rows || []).forEach((row, rank) => {
     const tr = el("tr", rank < MEDALS.length ? `podium podium-${rank + 1}` : null);
     row.forEach((cell, i) => {
@@ -782,13 +984,7 @@ function renderInventory(matrix) {
     "caption",
     "Inventory browser — quantity of each item carried, per miner"));
   const thead = el("thead");
-  const headRow = el("tr");
-  ["Item", "Total", ...matrix.columns].forEach((c) => {
-    const th = el("th", null, c);
-    th.scope = "col";
-    headRow.appendChild(th);
-  });
-  thead.appendChild(headRow);
+  thead.appendChild(tableHeadRow(["Item", "Total", ...matrix.columns]));
   table.appendChild(thead);
   const tbody = el("tbody");
   for (const row of matrix.rows) {
@@ -941,13 +1137,7 @@ function renderVsComparison(a, b) {
   table.appendChild(visuallyHidden("caption",
     `Miner VS — ${a.display_name} versus ${b.display_name}, stat by stat`));
   const thead = el("thead");
-  const headRow = el("tr");
-  ["Stat", a.display_name, b.display_name].forEach((c) => {
-    const th = el("th", null, c);
-    th.scope = "col";
-    headRow.appendChild(th);
-  });
-  thead.appendChild(headRow);
+  thead.appendChild(tableHeadRow(["Stat", a.display_name, b.display_name]));
   table.appendChild(thead);
   const tbody = el("tbody");
   for (const [label, read] of VS_STATS) {

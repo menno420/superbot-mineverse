@@ -539,6 +539,21 @@ button.tool-row {
 /* idle miners (stale snapshot — the 💤 next to the card title) */
 .idle-mark { font-size: 0.9em; }
 
+/* share card: a real button on each miner card that downloads the
+   canvas-drawn PNG — same cave-button look as the rest of the page */
+button.share-button {
+  margin-top: 0.8rem;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--edge);
+  border-radius: 0.5rem;
+  background: var(--bg);
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+button.share-button:hover { border-color: var(--accent); }
+
 /* miner VS */
 .vs-controls {
   display: flex;
