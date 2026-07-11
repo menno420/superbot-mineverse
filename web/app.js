@@ -33,6 +33,31 @@ function biomeLabel(depth, biomes) {
   return `${BIOME_ICONS[idx] || ""} ${names[idx]}`.trim();
 }
 
+function visuallyHidden(tag, text) {
+  // Screen-reader-only text alternative (styled by .visually-hidden).
+  return el(tag, "visually-hidden", text);
+}
+
+function decorative(node) {
+  // Purely visual — hidden from assistive tech; a text alternative
+  // conveying the same info must sit next to it.
+  node.setAttribute("aria-hidden", "true");
+  return node;
+}
+
+function bandLabel(depth, biome) {
+  // Shared ladder/mini-map band label: the biome emoji is decorative
+  // (the biome NAME carries the meaning), so it is aria-hidden.
+  const label = el("div", "ladder-label");
+  const biomeSpan = el("span", "ladder-biome");
+  const icon = BIOME_ICONS[depth];
+  if (icon) biomeSpan.appendChild(decorative(el("span", null, `${icon} `)));
+  biomeSpan.appendChild(document.createTextNode(biome));
+  label.appendChild(biomeSpan);
+  label.appendChild(el("span", "ladder-depth", `depth ${depth}`));
+  return label;
+}
+
 /* --- snapshot staleness (header) ----------------------------------------- */
 
 function formatAge(seconds) {
@@ -134,7 +159,8 @@ function energyMeter(energy) {
   const current = energy?.current;
   const max = energy?.max;
   row.appendChild(el("span", "energy-label", `⚡ ${current ?? "?"}/${max ?? "?"}`));
-  const track = el("div", "energy-track");
+  // The bar repeats the current/max numbers graphically — decorative.
+  const track = decorative(el("div", "energy-track"));
   const bar = el("div", "energy-bar");
   const known = typeof current === "number" && typeof max === "number" && max > 0;
   bar.style.width = known
@@ -206,12 +232,16 @@ function renderDepthRace(miners, world) {
   for (const miner of [...miners].sort((a, b) => b.depth - a.depth)) {
     const row = el("div", "race-row");
     row.appendChild(el("span", "race-name", miner.display_name));
-    const track = el("div", "race-track");
+    // The bar is a graphical repeat of the depth — decorative; the
+    // visually-hidden line carries the same info for screen readers.
+    const track = decorative(el("div", "race-track"));
     const bar = el("div", "race-bar");
     bar.style.width =
       `${world.max_depth ? (miner.depth / world.max_depth) * 100 : 0}%`;
     track.appendChild(bar);
     row.appendChild(track);
+    row.appendChild(
+      visuallyHidden("span", `depth ${miner.depth} of ${world.max_depth}, `));
     row.appendChild(el("span", "race-depth", biomeLabel(miner.depth, world.biomes)));
     race.appendChild(row);
   }
@@ -224,11 +254,7 @@ function renderLadder(ladder) {
   holder.replaceChildren();
   for (const band of ladder || []) {
     const row = el("div", "ladder-band");
-    const label = el("div", "ladder-label");
-    label.appendChild(el("span", "ladder-biome",
-      `${BIOME_ICONS[band.depth] || ""} ${band.biome}`.trim()));
-    label.appendChild(el("span", "ladder-depth", `depth ${band.depth}`));
-    row.appendChild(label);
+    row.appendChild(bandLabel(band.depth, band.biome));
     const chips = el("div", "ladder-chips");
     for (const name of band.here) {
       chips.appendChild(el("span", "chip", name));
@@ -276,14 +302,18 @@ function renderMinimap(minimap) {
     const unplotted = panel.unplotted || [];
     if (!points.length && !unplotted.length) continue; // empty band: skip
     const band = el("div", "minimap-band");
-    const label = el("div", "ladder-label");
-    label.appendChild(el("span", "ladder-biome",
-      `${BIOME_ICONS[panel.depth] || ""} ${panel.biome}`.trim()));
-    label.appendChild(el("span", "ladder-depth", `depth ${panel.depth}`));
-    band.appendChild(label);
+    band.appendChild(bandLabel(panel.depth, panel.biome));
     const body = el("div", "minimap-body");
     if (panel.bounds) {
-      body.appendChild(minimapPlot(panel));
+      // The 2-D plot is decorative for assistive tech; the
+      // visually-hidden list below conveys the same positions as text.
+      body.appendChild(decorative(minimapPlot(panel)));
+      const alt = visuallyHidden("ul");
+      for (const point of points) {
+        alt.appendChild(
+          el("li", null, `${point.name} at (${point.x}, ${point.y})`));
+      }
+      body.appendChild(alt);
     } else {
       body.appendChild(el("p", "empty", "(no plottable positions here)"));
     }
@@ -313,8 +343,11 @@ function renderBoard(board) {
   thead.replaceChildren();
   tbody.replaceChildren();
   const headRow = el("tr");
-  ["#", "Miner", ...(board?.columns || [])]
-    .forEach((c) => headRow.appendChild(el("th", null, c)));
+  ["#", "Miner", ...(board?.columns || [])].forEach((c) => {
+    const th = el("th", null, c);
+    th.scope = "col";
+    headRow.appendChild(th);
+  });
   thead.appendChild(headRow);
   for (const row of board?.rows || []) {
     const tr = el("tr");
@@ -324,19 +357,52 @@ function renderBoard(board) {
 }
 
 function renderBoardTabs(leaderboards) {
+  // WAI-ARIA tabs: role=tablist lives on the static #board-tabs holder
+  // (web/index.html); each button is a role=tab controlling the one
+  // #leaderboard-panel. Roving tabindex + arrow keys move between tabs.
   const tabs = document.getElementById("board-tabs");
+  const panel = document.getElementById("leaderboard-panel");
+  const caption = document.getElementById("leaderboard-caption");
   tabs.replaceChildren();
   let active = BOARD_TABS[0][0];
   const buttons = new Map();
-  const select = (key) => {
+  const select = (key, focus) => {
     active = key;
-    for (const [k, b] of buttons) b.classList.toggle("active", k === active);
+    let activeLabel = key;
+    for (const [k, label] of BOARD_TABS) if (k === key) activeLabel = label;
+    for (const [k, b] of buttons) {
+      const selected = k === active;
+      b.classList.toggle("active", selected);
+      b.setAttribute("aria-selected", String(selected));
+      b.tabIndex = selected ? 0 : -1; // roving tabindex
+    }
+    panel.setAttribute("aria-labelledby", `board-tab-${active}`);
+    caption.textContent = `Leaderboard — miners ranked by ${activeLabel}`;
     renderBoard(leaderboards?.[active]);
+    if (focus) buttons.get(active).focus();
+  };
+  const keys = BOARD_TABS.map(([key]) => key);
+  const onTabKeydown = (event) => {
+    const idx = keys.indexOf(active);
+    let next = null;
+    if (event.key === "ArrowRight") next = keys[(idx + 1) % keys.length];
+    else if (event.key === "ArrowLeft") {
+      next = keys[(idx - 1 + keys.length) % keys.length];
+    } else if (event.key === "Home") next = keys[0];
+    else if (event.key === "End") next = keys[keys.length - 1];
+    if (next !== null) {
+      event.preventDefault();
+      select(next, true);
+    }
   };
   for (const [key, label] of BOARD_TABS) {
     const button = el("button", "board-tab", label);
     button.type = "button";
+    button.id = `board-tab-${key}`;
+    button.setAttribute("role", "tab");
+    button.setAttribute("aria-controls", "leaderboard-panel");
     button.addEventListener("click", () => select(key));
+    button.addEventListener("keydown", onTabKeydown);
     buttons.set(key, button);
     tabs.appendChild(button);
   }
@@ -353,20 +419,31 @@ function renderInventory(matrix) {
     return;
   }
   const table = el("table", "inventory-table");
+  table.appendChild(visuallyHidden(
+    "caption",
+    "Inventory browser — quantity of each item carried, per miner"));
   const thead = el("thead");
   const headRow = el("tr");
-  ["Item", "Total", ...matrix.columns]
-    .forEach((c) => headRow.appendChild(el("th", null, c)));
+  ["Item", "Total", ...matrix.columns].forEach((c) => {
+    const th = el("th", null, c);
+    th.scope = "col";
+    headRow.appendChild(th);
+  });
   thead.appendChild(headRow);
   table.appendChild(thead);
   const tbody = el("tbody");
   for (const row of matrix.rows) {
     const tr = el("tr");
     row.forEach((cell, i) => {
-      const td = el("td", null, i >= 2 && cell === 0 ? "·" : String(cell));
-      if (i === 0) td.className = "item-name";
-      if (i === 1) td.className = "item-total";
-      tr.appendChild(td);
+      // First column is the row header (the item name).
+      const tag = i === 0 ? "th" : "td";
+      const node = el(tag, null, i >= 2 && cell === 0 ? "·" : String(cell));
+      if (i === 0) {
+        node.className = "item-name";
+        node.scope = "row";
+      }
+      if (i === 1) node.className = "item-total";
+      tr.appendChild(node);
     });
     tbody.appendChild(tr);
   }
