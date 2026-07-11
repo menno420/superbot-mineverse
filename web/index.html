@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mineverse — mining economy viewer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>⛏️ Mineverse</h1>
+    <p class="subtitle">Read-only view over the superbot mining economy — stage-1 walking skeleton (committed sample data)</p>
+    <p id="snapshot-meta" class="meta"></p>
+  </header>
+
+  <main>
+    <p id="status-banner" class="banner" hidden></p>
+
+    <section id="depth-race-section" hidden>
+      <h2>Depth race</h2>
+      <div id="depth-race"></div>
+    </section>
+
+    <section id="leaderboard-section" hidden>
+      <h2>Leaderboard</h2>
+      <table id="leaderboard">
+        <thead>
+          <tr><th>#</th><th>Miner</th><th>Depth</th><th>Mining XP</th><th>Level</th><th>Coins</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section id="miners-section" hidden>
+      <h2>Miners</h2>
+      <div id="miner-cards" class="cards"></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Stage 1: no auth, no database, no live data — everything renders from <code>data/sample_snapshot.json</code>.</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

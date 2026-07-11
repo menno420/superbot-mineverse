@@ -1,9 +1,3 @@
-> ⚠️ **UNRENDERED SLOTS BELOW — run `python3 bootstrap.py ask`.**
-> Every `${...}` token in this file is an unfilled interview slot, not
-> project truth. Fill: `bootstrap answer <slot> <value...>`, then
-> `bootstrap render --live` (fills in place and removes this banner).
-> Prose without `${...}` tokens is live guidance already.
-
 # superbot-mineverse — collaboration model
 
 > **Status:** `binding`
@@ -69,5 +63,5 @@ decide-and-flag, PL-002 never-wait, PL-007 enforce-don't-exhort) and
 
 ## Drift & staleness
 
-- When a doc and a source file disagree: ${drift_resolution}
-- Staleness review cadence: ${staleness_review}
+- When a doc and a source file disagree: Source code wins over docs: when a doc contradicts merged code, fix the doc in the same session, note the correction in docs/current-state.md
+- Staleness review cadence: Docs untouched past the kit staleness window (14 days) get re-verified against live source by the next session that reads them

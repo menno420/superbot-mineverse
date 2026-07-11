@@ -1,9 +1,3 @@
-> ⚠️ **UNRENDERED SLOTS BELOW — run `python3 bootstrap.py ask`.**
-> Every `${...}` token in this file is an unfilled interview slot, not
-> project truth. Fill: `bootstrap answer <slot> <value...>`, then
-> `bootstrap render --live` (fills in place and removes this banner).
-> Prose without `${...}` tokens is live guidance already.
-
 # superbot-mineverse — runtime contracts
 
 > **Status:** `binding`
@@ -28,7 +22,7 @@ queue bounds, cache coherence.)
 
 ## Mutation seam
 
-${mutation_seam}
+Stage 1 is read-only end to end: the web app serves a committed snapshot and has no write path. All repo mutations go branch -> PR -> substrate-gate green -> squash merge; direct pushes to main are blocked
 
 ## Failure modes
 
