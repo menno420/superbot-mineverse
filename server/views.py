@@ -352,7 +352,7 @@ COIN_MAGNATE_THRESHOLD = 10_000
 # Tool Breaker: any gear_wear entry at/over the frontend's wear display
 # cap (web/app.js WEAR_DISPLAY_MAX = 100). The contract gives accumulated
 # wear no schema maximum, so the display cap is the "visibly broken" line.
-# No sample miner is there yet — an honest zero-state.
+# Sample: RustyRelic's battered pickaxe sits at 117; nobody else is close.
 TOOL_BREAKER_WEAR = 100
 
 # Balanced Build: at least this many skills, with the max−min level

@@ -147,11 +147,35 @@ def test_fully_geared_empty_or_missing_equipment():
     assert "fully_geared" not in earned({"equipment": "everything"})
 
 
-def test_no_sample_miner_is_fully_geared(snapshot):
-    # The honest zero-state the spec calls out: nobody in the committed
-    # sample fills all 9 slots.
+def _sample_miner(snapshot, name):
+    return next(
+        m for m in snapshot["miners"] if m["display_name"] == name
+    )
+
+
+def test_gear_goblin_is_the_only_fully_geared_sample_miner(snapshot):
+    # GearGoblin was added so this badge has a live earner; everyone
+    # else still has open slots.
     for miner in snapshot["miners"]:
-        assert "fully_geared" not in earned(miner), miner["display_name"]
+        expected = miner["display_name"] == "GearGoblin"
+        assert ("fully_geared" in earned(miner)) is expected, \
+            miner["display_name"]
+
+
+def test_gear_goblin_fills_exactly_the_nine_schema_slots(snapshot):
+    goblin = _sample_miner(snapshot, "GearGoblin")
+    assert set(goblin["equipment"]) == set(views.equipment_slots())
+    assert all(goblin["equipment"].values())
+
+
+def test_gear_goblin_boundary_any_slot_emptied_loses_the_badge(snapshot):
+    goblin = _sample_miner(snapshot, "GearGoblin")
+    assert earned(goblin) == ["fully_geared"]  # that badge, and only it
+    for slot in views.equipment_slots():
+        stripped = dict(goblin, equipment={
+            k: v for k, v in goblin["equipment"].items() if k != slot
+        })
+        assert "fully_geared" not in earned(stripped), slot
 
 
 # --- Tool Breaker: any gear_wear at/over the display cap -------------------------
@@ -172,10 +196,28 @@ def test_tool_breaker_empty_missing_or_malformed_wear():
     assert "tool_breaker" not in earned({"gear_wear": {"pickaxe": "worn"}})
 
 
-def test_no_sample_miner_broke_a_tool(snapshot):
-    # Honest zero-state: the sample's highest wear is 58 (< the 100 cap).
+def test_rusty_relic_is_the_only_tool_breaker_sample_miner(snapshot):
+    # RustyRelic was added so this badge has a live earner; everyone
+    # else's gear stays under the 100-wear display cap.
     for miner in snapshot["miners"]:
-        assert "tool_breaker" not in earned(miner), miner["display_name"]
+        expected = miner["display_name"] == "RustyRelic"
+        assert ("tool_breaker" in earned(miner)) is expected, \
+            miner["display_name"]
+
+
+def test_rusty_relic_wear_is_at_or_over_the_cap(snapshot):
+    relic = _sample_miner(snapshot, "RustyRelic")
+    assert max(relic["gear_wear"].values()) >= views.TOOL_BREAKER_WEAR
+    assert earned(relic) == ["tool_breaker"]  # that badge, and only it
+
+
+def test_rusty_relic_boundary_one_below_the_cap_loses_the_badge(snapshot):
+    relic = _sample_miner(snapshot, "RustyRelic")
+    capped = dict(relic, gear_wear={
+        item: min(wear, views.TOOL_BREAKER_WEAR - 1)
+        for item, wear in relic["gear_wear"].items()
+    })
+    assert "tool_breaker" not in earned(capped)
 
 
 # --- Balanced Build: ≥2 skills, spread ≤ 1 ---------------------------------------
@@ -253,6 +295,8 @@ SAMPLE_WINNERS = {
     "CavernCrawler": ["packrat"],
     "PebblePicker": [],  # honest zero-state
     "MagmaMaven": ["deep_diver", "coin_magnate"],
+    "GearGoblin": ["fully_geared"],
+    "RustyRelic": ["tool_breaker"],
 }
 
 
@@ -269,6 +313,18 @@ def test_sample_result_is_varied_and_non_empty(built):
     earned_sets = [tuple(row["earned"]) for row in rows]
     assert any(earned_sets), "sample snapshot must yield some badges"
     assert len(set(earned_sets)) > 1, "sample badges must vary across miners"
+
+
+def test_every_catalog_achievement_has_a_sample_earner(built):
+    # The demo guarantee this slice exists for: every badge in the
+    # catalog is earned by at least one committed sample miner, so the
+    # achievements panel never shows an earner-less row.
+    earned_union = {
+        badge
+        for row in built["achievements"]["miners"]
+        for badge in row["earned"]
+    }
+    assert earned_union == {e["id"] for e in views.ACHIEVEMENT_CATALOG}
 
 
 def test_earned_lists_follow_catalog_order(built):
