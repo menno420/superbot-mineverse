@@ -1,11 +1,19 @@
 :root {
   --bg: #17141f;
+  --bg-deep: #0e0c14;
   --panel: #221d2e;
   --edge: #3a3350;
   --text: #e8e4f2;
   --muted: #a79fc0;
   --accent: #f5a83c;
+  --glow: rgba(245, 168, 60, 0.45);
   --bar: linear-gradient(90deg, #6cc46c, #f5a83c, #e2543e);
+  /* biome tints, depth bands 0–3: Surface (green/earth), Cavern (stone
+     grey-blue), the Deep (crystal purple), the Magma core (ember red) */
+  --biome-0: #7dc46c;
+  --biome-1: #7d93b8;
+  --biome-2: #9d7bd8;
+  --biome-3: #e2543e;
 }
 
 * { box-sizing: border-box; }
@@ -318,6 +326,116 @@ button.action-button:disabled {
 }
 input.action-input[type="number"] { max-width: 6rem; }
 #action-result.error { color: #ffb4a6; }
+
+/* --- cave visual theme ---------------------------------------------------
+ * Pure-CSS decoration over the semantic markup: biome-tinted depth bands,
+ * a lantern-flicker glow on the header, the mine-shaft strata stack, ore
+ * rarity tints, gear durability bars and the leaderboard podium. All
+ * motion here is CSS keyframes, so the global prefers-reduced-motion
+ * guard above zeroes it to a static end state — no JS gate needed. */
+
+/* lantern flicker: subtle warm glow breathing on the header title */
+@keyframes lantern-flicker {
+  0%, 100% { text-shadow: 0 0 8px var(--glow); }
+  38% { text-shadow: 0 0 13px var(--glow); }
+  44% { text-shadow: 0 0 5px rgba(245, 168, 60, 0.25); }
+  52% { text-shadow: 0 0 11px var(--glow); }
+  73% { text-shadow: 0 0 7px rgba(245, 168, 60, 0.35); }
+}
+header h1 {
+  text-shadow: 0 0 8px var(--glow); /* static base — reduced-motion state */
+  animation: lantern-flicker 4s ease-in-out infinite;
+}
+
+/* deepen the page itself: darker toward the bottom, lamplight up top */
+body {
+  background:
+    radial-gradient(60rem 22rem at 50% -8rem, rgba(245, 168, 60, 0.06), transparent),
+    linear-gradient(180deg, var(--bg), var(--bg-deep) 90rem);
+  background-attachment: fixed;
+  background-color: var(--bg-deep);
+}
+
+/* biome-tinted depth bands (ladder + mini-map): layered gradients —
+   dirt lip at the top edge, stone shading below, biome tint over the
+   panel base — plus a solid biome edge on the left */
+.band-depth-0, .band-depth-1, .band-depth-2, .band-depth-3 {
+  border-left: 3px solid var(--band-tint);
+  background:
+    linear-gradient(180deg, rgba(58, 51, 80, 0.55) 0, rgba(58, 51, 80, 0) 22%),
+    linear-gradient(180deg, rgba(14, 12, 20, 0) 55%, rgba(14, 12, 20, 0.45) 100%),
+    linear-gradient(180deg, var(--band-glow-hi), var(--band-glow-lo)),
+    var(--panel);
+}
+.band-depth-0 {
+  --band-tint: var(--biome-0);
+  --band-glow-hi: rgba(125, 196, 108, 0.16);
+  --band-glow-lo: rgba(125, 196, 108, 0.04);
+}
+.band-depth-1 {
+  --band-tint: var(--biome-1);
+  --band-glow-hi: rgba(125, 147, 184, 0.16);
+  --band-glow-lo: rgba(125, 147, 184, 0.04);
+}
+.band-depth-2 {
+  --band-tint: var(--biome-2);
+  --band-glow-hi: rgba(157, 123, 216, 0.16);
+  --band-glow-lo: rgba(157, 123, 216, 0.04);
+}
+.band-depth-3 {
+  --band-tint: var(--biome-3);
+  --band-glow-hi: rgba(226, 84, 62, 0.16);
+  --band-glow-lo: rgba(226, 84, 62, 0.04);
+}
+
+/* mine-shaft cross-section: the ladder's bands fuse into one continuous
+   strata column (side view), Surface on top, Magma core at the bottom */
+#depth-ladder .ladder-band { margin: 0; border-radius: 0; }
+#depth-ladder .ladder-band + .ladder-band { border-top: 0; }
+#depth-ladder .ladder-band:first-child { border-radius: 0.5rem 0.5rem 0 0; }
+#depth-ladder .ladder-band:last-child { border-radius: 0 0 0.5rem 0.5rem; }
+
+/* inline-SVG decoration spans (all aria-hidden, text sits next to them) */
+.ore-icon, .miner-avatar, .record-flag,
+.vault-chest, .energy-lantern, .cracked-icon {
+  display: inline-flex;
+  vertical-align: middle;
+}
+.ore-icon, .miner-avatar, .record-flag { margin-right: 0.3rem; }
+.cracked-icon { margin-left: 0.25rem; }
+
+/* ore rarity text tints (matched to the SVG icon fills in app.js) */
+.card .items .ore.tier-stone, .inventory-table .item-name.tier-stone { color: #9aa0a6; }
+.card .items .ore.tier-bronze, .inventory-table .item-name.tier-bronze { color: #c07f45; }
+.card .items .ore.tier-iron, .inventory-table .item-name.tier-iron { color: #aeb6c2; }
+.card .items .ore.tier-silver, .inventory-table .item-name.tier-silver { color: #eceff4; }
+.card .items .ore.tier-gold, .inventory-table .item-name.tier-gold { color: #f5c842; }
+.card .items .ore.tier-diamond, .inventory-table .item-name.tier-diamond { color: #7de8e0; }
+
+/* gear durability: wear bar (accumulated wear fills toward broken) */
+.wear-track {
+  display: inline-block;
+  width: 3.2rem;
+  height: 0.35rem;
+  margin-left: 0.4rem;
+  background: var(--bg);
+  border: 1px solid var(--edge);
+  border-radius: 0.2rem;
+  overflow: hidden;
+  vertical-align: middle;
+}
+.wear-bar { display: block; height: 100%; }
+.wear-bar.wear-ok { background: #6cc46c; }
+.wear-bar.wear-worn { background: #f5a83c; }
+.wear-bar.wear-critical { background: #e2543e; }
+.gear-list .gear-broken { color: #ffb4a6; }
+
+/* leaderboard podium: top-3 row washes + medal marks (rank stays text) */
+.podium td:first-child { font-weight: 600; }
+.podium-1 { background: rgba(245, 200, 66, 0.08); }
+.podium-2 { background: rgba(236, 239, 244, 0.06); }
+.podium-3 { background: rgba(192, 127, 69, 0.08); }
+.medal { font-size: 0.95em; }
 
 /* narrow viewports (~360px phones): panels reflow to a single column */
 @media (max-width: 30rem) {
