@@ -7,14 +7,24 @@ server on ephemeral ports, exactly like CI. Every shim response is
 validated against schemas/mining_action_response.v1.schema.json and every
 proposal the tests craft against schemas/mining_action.v1.schema.json, so
 the shim IS the executable form of docs/mining-write-contract.md.
+
+Opt-in conformance seam (docs/live-prod-cutover.md §1): setting
+SHIM_CONFORMANCE_BASE_URL points the ``shim`` fixture — and therefore the
+same contract fixtures — at an EXTERNAL executor (the real bot-side
+endpoint) instead of the in-process shim, signing with
+MINING_WRITE_SHARED_SECRET (override: SHIM_CONFORMANCE_SECRET). With the
+env vars unset — the default, and the only mode CI ever runs — nothing in
+this file reads the network beyond loopback or any env var.
 """
 
 import http.client
 import json
+import os
 import sys
 import threading
 import time
 import urllib.parse
+import uuid
 from pathlib import Path
 
 import pytest
@@ -31,7 +41,39 @@ from tests.shim.shim_bot import (  # noqa: E402
     make_shim_server,
 )
 
-TEST_SECRET = "shim-test-secret-not-a-secret"
+# --- conformance seam (opt-in, docs/live-prod-cutover.md §1) -----------------
+#
+# Default (env vars unset — CI, fresh clones): everything in this file runs
+# against the in-process shim on loopback, hermetically, exactly as before.
+#
+# Set SHIM_CONFORMANCE_BASE_URL (scheme://host[:port] — the tests append
+# /relay/mining/action themselves) and the ``shim`` fixture yields that
+# EXTERNAL executor instead, so the same contract fixtures exercise the real
+# bot-side endpoint. The signing secret then comes from
+# MINING_WRITE_SHARED_SECRET (the contract's canonical env name,
+# server/actions.py ENV_SECRET) or its override SHIM_CONFORMANCE_SECRET —
+# for when the shell already carries a web-host secret that differs from the
+# conformance target's. Secret VALUES are never printed anywhere.
+CONFORMANCE_BASE_URL = (
+    os.environ.get("SHIM_CONFORMANCE_BASE_URL") or ""
+).rstrip("/") or None
+CONFORMANCE_MODE = CONFORMANCE_BASE_URL is not None
+_CONFORMANCE_SECRET = (
+    os.environ.get("SHIM_CONFORMANCE_SECRET")
+    or os.environ.get(actions.ENV_SECRET)
+    or None
+)
+if CONFORMANCE_MODE and _CONFORMANCE_SECRET is None:
+    pytest.exit(
+        "SHIM_CONFORMANCE_BASE_URL is set but no signing secret is available:"
+        " export MINING_WRITE_SHARED_SECRET (or SHIM_CONFORMANCE_SECRET) with"
+        " the conformance target's test-guild secret",
+        returncode=4,
+    )
+
+TEST_SECRET = (
+    _CONFORMANCE_SECRET if CONFORMANCE_MODE else "shim-test-secret-not-a-secret"
+)
 TEST_GUILD_ID = "987654321098765432"  # the committed sample snapshot's guild
 DEEPDELVER = "100000000000000001"  # depth 3, 41 energy, 18450 coins
 PEBBLEPICKER = "100000000000000004"  # depth 0 — ascend must be vetoed
@@ -52,6 +94,11 @@ _uuid_counter = iter(range(1, 10_000))
 
 
 def new_action_id():
+    if CONFORMANCE_MODE:
+        # A real executor retains idempotency keys for ≥24 h ACROSS runs
+        # (contract § "Idempotency") — the deterministic counter below would
+        # replay yesterday's sweep as `replayed_action` 409s. Random per run.
+        return str(uuid.uuid4())
     return f"00000000-0000-4000-8000-{next(_uuid_counter):012d}"
 
 
@@ -77,7 +124,15 @@ def assert_response_conforms(payload):
 
 @pytest.fixture()
 def shim():
-    """A running shim on an ephemeral port; yields (state, base_url)."""
+    """Yields (state, base_url) — the in-process shim on an ephemeral port.
+
+    In conformance mode (SHIM_CONFORMANCE_BASE_URL set) it yields
+    (None, <external base URL>) instead: same fixtures, real executor.
+    Tests guard their in-memory assertions on ``state is not None``.
+    """
+    if CONFORMANCE_MODE:
+        yield None, CONFORMANCE_BASE_URL
+        return
     server, state = make_shim_server(port=0, secret=TEST_SECRET)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -110,7 +165,12 @@ def serve():
 
 def post(url, body: bytes, headers=None):
     parsed = urllib.parse.urlsplit(url)
-    conn = http.client.HTTPConnection(parsed.hostname, parsed.port, timeout=5)
+    conn_cls = (
+        http.client.HTTPSConnection
+        if parsed.scheme == "https"  # an https conformance target
+        else http.client.HTTPConnection
+    )
+    conn = conn_cls(parsed.hostname, parsed.port, timeout=5)
     try:
         conn.request("POST", parsed.path or "/", body=body, headers=headers or {})
         res = conn.getresponse()
@@ -242,12 +302,14 @@ def test_vault_deposit_and_withdraw_move_coins(shim):
     status, payload = send(base, make_proposal("vault_deposit", {"amount": 500}))
     assert status == 200
     delta = payload["result"]["state_delta"]
-    assert delta["coins"] == 17950
-    assert delta["vault"]["coins"] == 500
+    if state is not None:  # absolute coin totals assume the per-test-fresh
+        assert delta["coins"] == 17950  # snapshot (earlier sweep tests sell)
+    assert delta["vault"]["coins"] == 500  # only this test touches the vault
+    coins_after_deposit = delta["coins"]
     status, payload = send(base, make_proposal("vault_withdraw", {"amount": 200}))
     assert status == 200
     delta = payload["result"]["state_delta"]
-    assert delta["coins"] == 18150
+    assert delta["coins"] == coins_after_deposit + 200
     assert delta["vault"]["coins"] == 300
 
 
@@ -273,6 +335,29 @@ def test_economy_rejections_are_422(shim):
     assert payload["reason_code"] == "economy_rejection"
 
 
+# --- conformance vs the REAL endpoint (opt-in via SHIM_CONFORMANCE_BASE_URL) --
+
+
+@pytest.mark.skipif(
+    not CONFORMANCE_MODE,
+    reason="SHIM_CONFORMANCE_BASE_URL not set; conformance-vs-real-endpoint "
+    "run skipped (hermetic CI default)",
+)
+def test_conformance_target_is_reachable_and_speaks_v1(shim):
+    """Reachability smoke for the EXTERNAL executor: one UNSIGNED probe must
+    draw the contract's pre-auth rejection — signature-first verification
+    means it can never execute anything and is never audited (the same
+    handshake as ``scripts/readiness_check.py --probe``)."""
+    state, base = shim
+    assert state is None  # the fixture handed us the external target
+    status, payload = post(
+        base + ACTION_PATH, b"{}", headers={"Content-Type": "application/json"}
+    )
+    assert status == 401
+    assert payload["reason_code"] == "invalid_signature"
+    assert_response_conforms(payload)
+
+
 # --- transport auth against the shim ----------------------------------------
 
 
@@ -283,7 +368,8 @@ def test_shim_rejects_bad_signature(shim):
     assert status == 401
     assert payload["reason_code"] == "invalid_signature"
     assert_response_conforms(payload)
-    assert state.audit_log == []  # unattributable — never audited
+    if state is not None:  # in-memory evidence — in-process shim only
+        assert state.audit_log == []  # unattributable — never audited
 
 
 def test_shim_rejects_wrong_secret(shim):
@@ -349,7 +435,8 @@ def test_shim_rejects_guild_off_the_allowlist(shim):
     )
     assert status == 403
     assert payload["reason_code"] == "guild_not_allowed"
-    assert state.audit_log[-1]["outcome"] == "rejected:guild_not_allowed"
+    if state is not None:  # in-memory evidence — in-process shim only
+        assert state.audit_log[-1]["outcome"] == "rejected:guild_not_allowed"
 
 
 def test_shim_rejects_unknown_actor(shim):
@@ -374,10 +461,11 @@ def test_replay_returns_original_response_without_reexecuting(shim):
     stripped = dict(second)
     stripped["replayed"] = False
     assert stripped == first  # the ORIGINAL response, verbatim
-    # Executed exactly once: energy dropped 41 → 40, not 39; one audit row.
-    miner = state.snapshot["miners"][0]
-    assert miner["energy"]["current"] == 40
-    assert len(state.audit_log) == 1
+    if state is not None:  # in-memory evidence — in-process shim only
+        # Executed exactly once: energy dropped 41 → 40, not 39; one audit row.
+        miner = state.snapshot["miners"][0]
+        assert miner["energy"]["current"] == 40
+        assert len(state.audit_log) == 1
 
 
 def test_action_id_reuse_with_different_body_is_409(shim):
@@ -387,7 +475,8 @@ def test_action_id_reuse_with_different_body_is_409(shim):
     status, payload = send(base, make_proposal("descend", {}, action_id=action_id))
     assert status == 409
     assert payload["reason_code"] == "replayed_action"
-    assert state.audit_log[-1]["outcome"] == "rejected:replayed_action"
+    if state is not None:  # in-memory evidence — in-process shim only
+        assert state.audit_log[-1]["outcome"] == "rejected:replayed_action"
     # And the original response is still intact for a genuine replay.
     status, payload = send(base, make_proposal("mine", {}, action_id=action_id))
     assert status == 200
@@ -402,12 +491,19 @@ def test_rejected_outcomes_replay_too(shim):
     status_2, second = send(base, proposal)
     assert (status_1, status_2) == (422, 422)
     assert second["replayed"] is True
-    assert len(state.audit_log) == 1  # the replay was not re-audited
+    if state is not None:  # in-memory evidence — in-process shim only
+        assert len(state.audit_log) == 1  # the replay was not re-audited
 
 
 # --- the audit log -------------------------------------------------------------
 
 
+@pytest.mark.skipif(
+    CONFORMANCE_MODE,
+    reason="audit rows live in the in-process shim's memory; against the real"
+    " endpoint, audit verification is the cutover checklist's manual step"
+    " (docs/live-prod-cutover.md §1)",
+)
 def test_every_authenticated_action_is_audited_with_the_contract_fields(shim):
     state, base = shim
     proposal = make_proposal("sell", {"item": "gold", "quantity": 2})
@@ -502,9 +598,12 @@ def test_signed_in_mine_end_to_end(stack):
     assert status == 200
     assert_response_conforms(payload)
     assert payload["status"] == "accepted"
-    assert payload["result"]["state_delta"]["energy"]["current"] == 40
-    # The suid on the audit row came from the VERIFIED cookie, server-side.
-    assert state.audit_log[-1]["suid"] == DEEPDELVER
+    delta = payload["result"]["state_delta"]
+    assert set(delta) == {"mining_inventory", "energy", "xp"}  # a mine delta
+    if state is not None:  # per-test-fresh snapshot → absolute energy holds,
+        assert delta["energy"]["current"] == 40  # 41 - 1
+        # The suid on the audit row came from the VERIFIED cookie, server-side.
+        assert state.audit_log[-1]["suid"] == DEEPDELVER
 
 
 def test_me_reports_writes_configured_on_the_enabled_stack(stack):
@@ -524,7 +623,8 @@ def test_action_requires_a_signed_in_session(stack):
     status, payload = post(base + "/api/action", browser_body("mine", {}))
     assert status == 401
     assert payload == {"error": "sign-in required"}
-    assert state.audit_log == []  # nothing ever reached the shim
+    if state is not None:  # in-memory evidence — in-process shim only
+        assert state.audit_log == []  # nothing ever reached the shim
 
 
 def test_browser_cannot_assert_suid_or_guild(stack):
@@ -537,7 +637,8 @@ def test_browser_cannot_assert_suid_or_guild(stack):
         )
         assert status == 400, extra
         assert payload == {"error": "invalid action request"}
-    assert state.audit_log == []
+    if state is not None:  # in-memory evidence — in-process shim only
+        assert state.audit_log == []
 
 
 def test_contract_rejections_relay_verbatim(stack):

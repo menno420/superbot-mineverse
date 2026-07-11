@@ -295,4 +295,9 @@ guess.
   `server/`, keeping the backend stdlib-only).
 - The real bot-side endpoint is built in the superbot repo against this
   document; its done-criterion is that the shim's contract fixtures
-  validate against the real endpoint's behavior.
+  validate against the real endpoint's behavior — run them against it
+  with the opt-in `SHIM_CONFORMANCE_BASE_URL` env seam in
+  `tests/test_actions.py` (secret: `MINING_WRITE_SHARED_SECRET`, override
+  `SHIM_CONFORMANCE_SECRET`); procedure and fine print:
+  docs/live-prod-cutover.md §1. Env vars unset (CI) → the suite stays
+  hermetic and loopback-only.
