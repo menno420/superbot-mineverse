@@ -1,24 +1,25 @@
 # superbot-mineverse · status
-updated: 2026-07-11T03:25:30Z
-phase: DEEPENING — read-views slice 1 (PR #18) + conformance seam (PR #19) MERGED; deepening slice 2 in flight; ladder PREPARED through (d) — live-prod remains OWNER-FLAG-GATED; test-guild read-write waits on bot lanes + owner env vars
+updated: 2026-07-11T03:58:00Z
+phase: DEEPENING — read-views slice 2 (PR #21) MERGED: EVERY required miner field now renders; micro-polish slice in flight; ladder PREPARED through (d) — live-prod remains OWNER-FLAG-GATED; test-guild read-write waits on bot lanes + owner env vars
 health: green
 kit: v1.8.0 · check: green · engaged: yes   # check --strict GREEN; engaged = no unrendered banners + live CI gate (substrate-gate required context on main ruleset) + session loop engaged — all met
-last-shipped: READ-VIEWS DEEPENING + CONFORMANCE SEAM MERGED — PR #18 (8bccd0f) ~2026-07-11T03:07Z: schema-derived GET /api/views; vault panel with tier pips, ore-tier-sorted inventory browser, depth/biome ladder with current+record chips, tabbed depth/XP/coins leaderboards, 9-slot gear panel with wear; tests 130→163. PR #19 (6995920) ~2026-07-11T03:18Z: conformance seam — opt-in SHIM_CONFORMANCE_BASE_URL (+ optional SHIM_CONFORMANCE_SECRET) in tests/test_actions.py so the shim contract fixtures can point at a real endpoint; hermetic default with honest skip; cutover + write-contract docs updated. Both merged on green. Prior: PR #17 (heartbeat), #16 (stage d prep), #15, #13/#14 (stage c), #12, #11 (stage b), #10/#8/#7 (stage a), #9, #6, #5, #4, #3, #2, #1.
+last-shipped: READ-VIEWS DEEPENING SLICE 2 MERGED — PR #21 (a2672dc) 2026-07-11T03:40Z: skills panel + structures panel, per-depth-band position mini-map, snapshot-staleness UX with 180s threshold, energy meter; tests 163→187, all green; all shaping schema-derived. COVERAGE MILESTONE: every required miner field of mining_snapshot.v1 now renders in the web views. Prior: PR #20 (heartbeat), #19 (conformance seam), #18 (deepening slice 1), #17 (heartbeat), #16 (stage d prep), #15, #13/#14 (stage c), #12, #11 (stage b), #10/#8/#7 (stage a), #9, #6, #5, #4, #3, #2, #1.
 blockers: none
 orders: acked= done=
 ⚑ needs-owner: 2 items — (1) provision the six env vars to switch sign-in on (and, for test-guild write mode, the write-endpoint pair); (2) make pytest a required (blocking) status check on main. Structured OWNER-ACTION blocks below. Bot-lane FLAGs below stay informational until the manager picks them up.
-notes: coordinator heartbeat, boot session cse_017yrng4qx2LcLNqKb5AGoe8 — deepening slice 1 + conformance seam MERGED record, ladder prepared, owner-action blocks + both bot-lane FLAGs carried verbatim, in-flight (deepening slice 2) + backlog + routine/chain verbatim records below (this Project is this file's SOLE writer; overwritten whole, never appended). Housekeeping this heartbeat: removed released claim control/claims/claude-conformance-env-seam.md.
+notes: coordinator heartbeat, boot session cse_017yrng4qx2LcLNqKb5AGoe8 — deepening slice 2 MERGED record (full required-field coverage), remaining micro view gaps + micro-polish dispatch, ladder prepared, owner-action blocks + both bot-lane FLAGs carried verbatim, in-flight + backlog + routine/chain verbatim records below (this Project is this file's SOLE writer; overwritten whole, never appended). Housekeeping this heartbeat: removed released claim control/claims/claude-slice2-deep-views.md (rode PR #21; deletion deferred to this control-lane PR per pattern).
 
-## Deepening slice 1 + conformance seam — MERGED (PR #18 8bccd0f ~03:07Z, PR #19 6995920 ~03:18Z)
+## Deepening slice 2 — MERGED (PR #21 a2672dc 2026-07-11T03:40Z)
 
-- PR #18 read-views deepening: schema-derived GET /api/views; vault panel with
-  tier pips; ore-tier-sorted inventory browser; depth/biome ladder with
-  current + record chips; tabbed depth/XP/coins leaderboards; 9-slot gear
-  panel with wear. Tests 130 → 163, all green.
-- PR #19 conformance seam: SHIM_CONFORMANCE_BASE_URL (+ optional
-  SHIM_CONFORMANCE_SECRET) switch in the shim contract fixtures — hermetic
-  default byte-identical with honest skip; docs/live-prod-cutover.md +
-  docs/mining-write-contract.md updated for the cutover conformance run.
+- Skills panel + structures panel; per-depth-band position mini-map;
+  snapshot-staleness UX with 180s threshold; energy meter. Tests 163 → 187,
+  all green; all view shaping schema-derived (no hand-listed fields).
+- COVERAGE MILESTONE: every required miner field in
+  schemas/mining_snapshot.v1.schema.json now renders somewhere in the web
+  views.
+- Remaining view gaps (micro): suid and guild_id are fetched but unpainted;
+  xp.game is not on the card face. Micro-polish slice dispatched — see IN
+  FLIGHT.
 - LADDER: 0 ✓ · (a) ✓ · (b) ✓ · (c) ✓ web-side · (d) PREPARED ✓ — live-prod
   remains OWNER-FLAG-GATED (never agent-decided). Test-guild read-write still
   waits on: Builder lane WRITE endpoint (FLAG 2) + READ relay projection
@@ -79,8 +80,8 @@ endpoint.
 
 ## IN FLIGHT
 
-- Deepening slice 2 (skills view, structures view, position map, staleness
-  UX) — dispatched 2026-07-11T03:24Z, session cse_01DkfNLwT4rdoduVxvDRAXuV.
+- Micro-polish slice (paint suid + guild_id, surface xp.game on the card
+  face) — dispatched 2026-07-11T03:56Z, session cse_014zpnwjGjP4ETFJ3wiZcVEv.
 
 ## Ladder + deepening backlog
 
@@ -90,12 +91,13 @@ endpoint.
 - Backlog (never-idle): audit-trail end-to-end verification (waits on the
   Builder lane's real endpoint; 3-step procedure in
   docs/live-prod-cutover.md); conformance run of tests/test_actions.py
-  against the real endpoint via SHIM_CONFORMANCE_BASE_URL once it exists;
-  more contract fields, views, and tests as they surface.
+  against the real endpoint via SHIM_CONFORMANCE_BASE_URL once it exists —
+  both wait on the Builder lane; more contract fields, views, and tests as
+  they surface.
 
 ## Routine + chain (verbatim record)
 
 Failsafe: trig_01K8xmAKYS5S2HLy1HPANM7j cron 20 */2 * * * (next 04:20Z).
 Chain link: re-armed each wake as run_once triggers from worker seats —
-current link fires ~03:38Z (id in coordinator log); send_later is
+current link fires ~04:11Z (id in coordinator log); send_later is
 self-session-only on worker seats (no target param).
