@@ -13,6 +13,7 @@ import sys
 import threading
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -57,6 +58,16 @@ def test_xp_fields_come_from_the_schema():
     assert "level" in views.xp_fields()
 
 
+def test_position_fields_come_from_the_schema():
+    assert views.position_fields() == list(_MINER_PROPS["position"]["required"])
+    assert set(views.position_fields()) == {"x", "y"}
+
+
+def test_energy_fields_come_from_the_schema():
+    assert views.energy_fields() == list(_MINER_PROPS["energy"]["required"])
+    assert "updated_at" in views.energy_fields()
+
+
 def test_bounds_come_from_the_schema():
     assert views.vault_level_max() == _MINER_PROPS["vault_level"]["maximum"]
     assert views.depth_max() == _MINER_PROPS["depth"]["maximum"]
@@ -85,6 +96,179 @@ def test_group_items_unknown_items_never_dropped():
 def test_group_items_empty_and_missing_stores():
     assert views.group_items({}) == {"ores": [], "other": []}
     assert views.group_items(None) == {"ores": [], "other": []}
+
+
+# --- skills + structures panels (rank_counts) -----------------------------
+
+
+def test_rank_counts_orders_by_value_then_name():
+    ranked = views.rank_counts({"luck": 3, "mining": 5, "endurance": 3})
+    assert ranked == [["mining", 5], ["endurance", 3], ["luck", 3]]
+
+
+def test_rank_counts_unknown_names_never_dropped():
+    assert views.rank_counts({"mystery skill": 1}) == [["mystery skill", 1]]
+
+
+def test_rank_counts_empty_and_missing_stores():
+    assert views.rank_counts({}) == []
+    assert views.rank_counts(None) == []
+
+
+def test_rank_counts_drops_only_non_integer_values():
+    ranked = views.rank_counts({"mining": 2, "bogus": "three", "luck": 1})
+    assert ranked == [["mining", 2], ["luck", 1]]
+
+
+def test_shaped_miner_skills_and_structures(snapshot, built):
+    delver = built["miners"][0]  # DeepDelver: mining 4, luck 2
+    assert delver["skills"] == [["mining", 4], ["luck", 2]]
+    maven = next(
+        m for m in built["miners"] if m["display_name"] == "MagmaMaven"
+    )
+    assert maven["structures"] == [
+        ["forge", 4], ["home", 2], ["campfire", 1], ["dock", 1],
+    ]
+
+
+def test_shaped_miner_empty_skills_and_structures(built):
+    pebble = next(
+        m for m in built["miners"] if m["display_name"] == "PebblePicker"
+    )
+    assert pebble["skills"] == []
+    assert pebble["structures"] == []
+
+
+# --- position shaping (mini-map input) -------------------------------------
+
+
+def test_shape_position_carries_the_schema_fields(snapshot):
+    position = views.shape_position(snapshot["miners"][0])
+    assert position == {"x": 4, "y": -2}
+    assert set(position) == set(views.position_fields())
+
+
+def test_shape_position_missing_or_malformed_is_none():
+    assert views.shape_position({}) is None
+    assert views.shape_position({"position": "nowhere"}) is None
+    assert views.shape_position({"position": {"x": 1}}) is None
+    assert views.shape_position({"position": {"x": 1, "y": "two"}}) is None
+
+
+def test_shape_position_ignores_extra_open_fields():
+    # The contract keeps position OPEN beyond x/y — extras never break it.
+    miner = {"position": {"x": 2, "y": 3, "discovered": 7}}
+    assert views.shape_position(miner) == {"x": 2, "y": 3}
+
+
+# --- energy shaping ---------------------------------------------------------
+
+
+def test_shape_energy_carries_schema_fields_and_bound(snapshot):
+    energy = views.shape_energy(snapshot["miners"][0])
+    assert energy["current"] == 41
+    assert energy["updated_at"] == 1783728000
+    assert energy["max"] == views.energy_max()
+    assert set(energy) == set(views.energy_fields()) | {"max"}
+
+
+def test_shape_energy_tolerates_missing_meter():
+    energy = views.shape_energy({})
+    assert energy["max"] == views.energy_max()
+    assert all(
+        energy[field] is None for field in views.energy_fields()
+    )
+
+
+# --- position mini-map ------------------------------------------------------
+
+
+def test_minimap_has_a_panel_per_depth(snapshot, built):
+    minimap = built["minimap"]
+    assert [panel["depth"] for panel in minimap] == [0, 1, 2, 3]
+    assert [panel["biome"] for panel in minimap] == snapshot["biomes"]
+
+
+def test_minimap_plots_miners_at_their_band(built):
+    by_depth = {panel["depth"]: panel for panel in built["minimap"]}
+    deep = by_depth[3]  # DeepDelver (4,-2) + MagmaMaven (-6,-6)
+    assert {p["name"] for p in deep["points"]} == {"DeepDelver", "MagmaMaven"}
+    delver = next(p for p in deep["points"] if p["name"] == "DeepDelver")
+    assert (delver["x"], delver["y"]) == (4, -2)
+    assert deep["bounds"] == {
+        "min_x": -6, "max_x": 4, "min_y": -6, "max_y": -2,
+    }
+    assert deep["unplotted"] == []
+
+
+def test_minimap_lists_unplottable_miners_honestly():
+    miners = [
+        {"display_name": "Lost", "depth": 1, "position": {"x": "?", "y": 0}},
+        {"display_name": "Found", "depth": 1, "position": {"x": 5, "y": 5}},
+    ]
+    panel = views.build_minimap(miners, 1, [])[1]
+    assert panel["unplotted"] == ["Lost"]
+    assert [p["name"] for p in panel["points"]] == ["Found"]
+    assert panel["bounds"] == {
+        "min_x": 5, "max_x": 5, "min_y": 5, "max_y": 5,
+    }
+
+
+def test_minimap_empty_band_has_no_bounds():
+    # No points → bounds None (the frontend shows an empty state instead
+    # of inventing a grid), and the biome label falls back like the ladder.
+    empty = views.build_minimap([], 3, [])
+    assert all(p["bounds"] is None and p["points"] == [] for p in empty)
+    assert [p["biome"] for p in empty] == [
+        "depth 0", "depth 1", "depth 2", "depth 3",
+    ]
+
+
+# --- snapshot staleness ------------------------------------------------------
+
+
+def test_parse_generated_at_utc_z_form(snapshot):
+    expected = int(
+        datetime(2026, 7, 11, 12, 0, 0, tzinfo=timezone.utc).timestamp()
+    )
+    assert views.parse_generated_at("2026-07-11T12:00:00Z") == expected
+    assert views.parse_generated_at(snapshot["generated_at"]) == expected
+
+
+def test_parse_generated_at_offset_and_naive_forms_agree():
+    z = views.parse_generated_at("2026-07-11T12:00:00Z")
+    assert views.parse_generated_at("2026-07-11T12:00:00+00:00") == z
+    # No offset → read as UTC, per the contract ("ISO 8601 UTC instant").
+    assert views.parse_generated_at("2026-07-11T12:00:00") == z
+
+
+def test_parse_generated_at_unknown_is_none():
+    assert views.parse_generated_at(None) is None
+    assert views.parse_generated_at(1783728000) is None
+    assert views.parse_generated_at("not a timestamp") is None
+
+
+def test_staleness_block_ships_prose_thresholds(snapshot, built):
+    staleness = built["staleness"]
+    assert staleness["generated_at"] == snapshot["generated_at"]
+    assert staleness["generated_at_epoch"] == views.parse_generated_at(
+        snapshot["generated_at"]
+    )
+    assert staleness["cadence_seconds"] == views.SNAPSHOT_CADENCE_SECONDS == 60
+    assert (
+        staleness["stale_after_seconds"]
+        == views.STALE_AFTER_SECONDS
+        == 3 * views.SNAPSHOT_CADENCE_SECONDS
+    )
+
+
+def test_staleness_block_unknown_timestamp_is_honest():
+    staleness = views.build_staleness({})
+    assert staleness["generated_at"] is None
+    assert staleness["generated_at_epoch"] is None
+    garbled = views.build_staleness({"generated_at": "yesterday-ish"})
+    assert garbled["generated_at"] == "yesterday-ish"  # shown verbatim
+    assert garbled["generated_at_epoch"] is None  # but age stays unknown
 
 
 # --- gear panel ----------------------------------------------------------
@@ -262,10 +446,17 @@ def test_build_views_envelope(snapshot, built):
 
 def test_build_views_shaped_miner_carries_all_panels(built):
     miner = built["miners"][0]
-    for panel in ("gear", "pack", "vault", "xp", "energy"):
+    for panel in ("gear", "pack", "vault", "xp", "energy",
+                  "skills", "structures", "position"):
         assert panel in miner
     assert miner["energy"]["max"] == views.energy_max()
     assert set(miner["xp"]) == set(views.xp_fields())
+
+
+def test_build_views_carries_minimap_and_staleness(built):
+    assert "minimap" in built
+    assert "staleness" in built
+    assert len(built["minimap"]) == len(built["ladder"])
 
 
 def test_build_views_empty_snapshot_renders_empty_states():
@@ -292,9 +483,13 @@ def test_build_views_empty_snapshot_renders_empty_states():
 def test_build_views_never_crashes_on_garbage():
     built = views.build_views({"miners": "not-a-list"})
     assert built["miners"] == []
+    assert built["staleness"]["generated_at_epoch"] is None
     built = views.build_views({"miners": [None, 42, {}]})
     assert len(built["miners"]) == 1  # only the dict survives, shaped
     assert built["miners"][0]["coins"] == 0
+    assert built["miners"][0]["position"] is None
+    assert built["miners"][0]["skills"] == []
+    assert built["miners"][0]["structures"] == []
 
 
 def test_build_views_is_json_serializable(built):
@@ -374,3 +569,16 @@ def test_frontend_wires_the_new_sections(serve):
         assert anchor in html, f"index.html missing {anchor}"
     _, _, js = fetch(base + "/app.js")
     assert b"/api/views" in js
+
+
+def test_frontend_wires_the_slice2_sections(serve):
+    """Smoke: mini-map, staleness line, skills/structures/energy anchors."""
+    base = serve()
+    _, _, html = fetch(base + "/")
+    for anchor in (b"minimap", b"snapshot-staleness"):
+        assert anchor in html, f"index.html missing {anchor}"
+    _, _, js = fetch(base + "/app.js")
+    for anchor in (b"renderMinimap", b"renderStaleness", b"energyMeter",
+                   b"Skills", b"Structures", b"stale_after_seconds",
+                   b"generated_at_epoch"):
+        assert anchor in js, f"app.js missing {anchor}"

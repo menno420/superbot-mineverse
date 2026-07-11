@@ -14,6 +14,7 @@
     </div>
     <p class="subtitle">Read-only view over the superbot mining economy — committed sample data + optional Discord sign-in for a personal view</p>
     <p id="snapshot-meta" class="meta"></p>
+    <p id="snapshot-staleness" class="staleness" hidden></p>
   </header>
 
   <main>
@@ -40,6 +41,12 @@
     <section id="depth-race-section" hidden>
       <h2>Depth race</h2>
       <div id="depth-race"></div>
+    </section>
+
+    <section id="minimap-section" hidden>
+      <h2>Mini-map</h2>
+      <p class="meta">Miner positions (x, y) per depth band, as of the snapshot — miners whose position is unknown are listed, never guessed</p>
+      <div id="minimap"></div>
     </section>
 
     <section id="leaderboard-section" hidden>

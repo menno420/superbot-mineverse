@@ -2,7 +2,8 @@
  * (server/views.py shapes the snapshot server-side so pytest covers every
  * render path; this file only paints). Field names mirror superbot's
  * mining_player_state (mining_inventory, depth, position, equipment,
- * gear_wear, vault, vault_level, energy, coins) + game_xp_service (xp). */
+ * gear_wear, vault, vault_level, energy, coins, skills, structures) +
+ * game_xp_service (xp). */
 
 "use strict";
 
@@ -30,6 +31,48 @@ function biomeLabel(depth, biomes) {
   const names = Array.isArray(biomes) && biomes.length ? biomes : FALLBACK_BIOMES;
   const idx = Math.max(0, Math.min(depth, names.length - 1));
   return `${BIOME_ICONS[idx] || ""} ${names[idx]}`.trim();
+}
+
+/* --- snapshot staleness (header) ----------------------------------------- */
+
+function formatAge(seconds) {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
+  return `${Math.floor(seconds / 86400)}d`;
+}
+
+function renderStaleness(staleness) {
+  // Age is computed HERE, against the browser clock, once per page load —
+  // no live ticking. The server only ships generated_at (+ its epoch) and
+  // the contract-prose thresholds (60 s cadence, stale beyond ~180 s —
+  // docs/mining-data-contract.md § Delivery expectations).
+  const line = document.getElementById("snapshot-staleness");
+  line.hidden = false;
+  line.classList.remove("fresh", "warn", "stale");
+  const epoch = staleness?.generated_at_epoch;
+  if (typeof epoch !== "number") {
+    line.classList.add("warn");
+    line.textContent =
+      "⚠ snapshot age unknown — generated_at is missing or unreadable";
+    return;
+  }
+  const age = Math.floor(Date.now() / 1000) - epoch;
+  const threshold = staleness?.stale_after_seconds ?? 180;
+  const cadence = staleness?.cadence_seconds ?? 60;
+  if (age < 0) {
+    line.classList.add("warn");
+    line.textContent =
+      `⚠ snapshot timestamped ${formatAge(-age)} in the future — check clocks`;
+  } else if (age >= threshold) {
+    line.classList.add("stale");
+    line.textContent =
+      `⚠ STALE — snapshot ${formatAge(age)} old, expected every ` +
+      `${cadence}s (age as of page load)`;
+  } else {
+    line.classList.add("fresh");
+    line.textContent = `snapshot ${formatAge(age)} old (age as of page load)`;
+  }
 }
 
 /* --- miner cards (gear / pack / vault panels, shaped server-side) ------- */
@@ -64,6 +107,49 @@ function gearList(gear) {
   return [ul];
 }
 
+function rankedList(pairs, format) {
+  // pairs = [[name, value]...] — highest value first (server-ordered);
+  // skill/structure names are contract-open, so everything renders as-is.
+  if (!Array.isArray(pairs) || !pairs.length) {
+    return [el("p", "empty", "(none)")];
+  }
+  const ul = el("ul", "items");
+  for (const [name, value] of pairs) {
+    ul.appendChild(el("li", null, format(name, value)));
+  }
+  return [ul];
+}
+
+function formatEpochUTC(epoch) {
+  // Unix epoch seconds -> "2026-07-11 12:00 UTC" — snapshot data,
+  // rendered verbatim, never ticked forward.
+  return `${new Date(epoch * 1000).toISOString().slice(0, 16).replace("T", " ")} UTC`;
+}
+
+function energyMeter(energy) {
+  // energy = {current, updated_at, max} — schema-shaped server-side
+  // (max is the contract's 0–60 bound). Strictly "as of" presentation:
+  // no regen simulation, no live ticking.
+  const row = el("div", "energy-row");
+  const current = energy?.current;
+  const max = energy?.max;
+  row.appendChild(el("span", "energy-label", `⚡ ${current ?? "?"}/${max ?? "?"}`));
+  const track = el("div", "energy-track");
+  const bar = el("div", "energy-bar");
+  const known = typeof current === "number" && typeof max === "number" && max > 0;
+  bar.style.width = known
+    ? `${Math.max(0, Math.min(current / max, 1)) * 100}%`
+    : "0%";
+  if (known && current / max <= 0.2) bar.classList.add("low");
+  track.appendChild(bar);
+  row.appendChild(track);
+  row.appendChild(el("span", "energy-asof",
+    typeof energy?.updated_at === "number"
+      ? `as of ${formatEpochUTC(energy.updated_at)}`
+      : "as of snapshot (update time unknown)"));
+  return row;
+}
+
 function vaultTierPips(level, levelMax) {
   const filled = "●".repeat(Math.max(0, Math.min(level, levelMax)));
   const hollow = "○".repeat(Math.max(0, levelMax - level));
@@ -86,14 +172,18 @@ function renderMinerCard(miner, world) {
       ` · record depth ${miner.record_depth}`),
   );
   const xp = miner.xp || {};
-  const energy = miner.energy || {};
   card.appendChild(
     el("p", "xp-line",
       `Level ${xp.level ?? "?"} · ${xp.game_total ?? 0} mining XP · ` +
-      `${miner.coins ?? 0} 🪙 · energy ${energy.current ?? "?"}/${energy.max ?? "?"}`),
+      `${miner.coins ?? 0} 🪙`),
   );
+  card.appendChild(energyMeter(miner.energy));
   section(card, "Gear", gearList(miner.gear));
   section(card, "Pack", groupedItemList(miner.pack));
+  section(card, "Skills",
+    rankedList(miner.skills, (name, rank) => `${name} · rank ${rank}`));
+  section(card, "Structures",
+    rankedList(miner.structures, (name, count) => `${count}× ${name}`));
   const vault = miner.vault || {};
   const vaultTitle = el("h4", null, `Vault · level ${vault.level ?? 0} `);
   vaultTitle.appendChild(
@@ -146,6 +236,60 @@ function renderLadder(ladder) {
     }
     row.appendChild(chips);
     holder.appendChild(row);
+  }
+}
+
+/* --- position mini-map (per depth band, server-shaped points) ------------ */
+
+const MINIMAP_PAD = 1; // plot margin, in grid cells, around the outer points
+
+function minimapPlot(panel) {
+  // panel.bounds is the integer envelope of the band's points; each point
+  // lands proportionally inside it (padded so nobody sits on the border).
+  const plot = el("div", "minimap-plot");
+  const spanX = (panel.bounds.max_x - panel.bounds.min_x) + 2 * MINIMAP_PAD;
+  const spanY = (panel.bounds.max_y - panel.bounds.min_y) + 2 * MINIMAP_PAD;
+  for (const point of panel.points) {
+    const dot = el("span", "minimap-point");
+    dot.style.left =
+      `${(((point.x - panel.bounds.min_x) + MINIMAP_PAD) / spanX) * 100}%`;
+    dot.style.top =
+      `${(((point.y - panel.bounds.min_y) + MINIMAP_PAD) / spanY) * 100}%`;
+    dot.title = `${point.name} at (${point.x}, ${point.y})`;
+    dot.appendChild(
+      el("span", "minimap-name", `${point.name} (${point.x}, ${point.y})`));
+    plot.appendChild(dot);
+  }
+  return plot;
+}
+
+function renderMinimap(minimap) {
+  const holder = document.getElementById("minimap");
+  holder.replaceChildren();
+  for (const panel of minimap || []) {
+    const points = panel.points || [];
+    const unplotted = panel.unplotted || [];
+    if (!points.length && !unplotted.length) continue; // empty band: skip
+    const band = el("div", "minimap-band");
+    const label = el("div", "ladder-label");
+    label.appendChild(el("span", "ladder-biome",
+      `${BIOME_ICONS[panel.depth] || ""} ${panel.biome}`.trim()));
+    label.appendChild(el("span", "ladder-depth", `depth ${panel.depth}`));
+    band.appendChild(label);
+    const body = el("div", "minimap-body");
+    if (panel.bounds) {
+      body.appendChild(minimapPlot(panel));
+    } else {
+      body.appendChild(el("p", "empty", "(no plottable positions here)"));
+    }
+    for (const name of unplotted) {
+      body.appendChild(el("p", "empty", `${name} — position unknown`));
+    }
+    band.appendChild(body);
+    holder.appendChild(band);
+  }
+  if (!holder.children.length) {
+    holder.appendChild(el("p", "empty", "(no miner positions to plot)"));
   }
 }
 
@@ -234,6 +378,7 @@ function render(views) {
   meta.textContent =
     `snapshot v${views.schema_version ?? "?"} · ` +
     `generated ${views.generated_at || "unknown"}`;
+  renderStaleness(views.staleness);
 
   const miners = views.miners || [];
   if (!miners.length) {
@@ -243,6 +388,7 @@ function render(views) {
 
   renderLadder(views.ladder);
   renderDepthRace(miners, views.world);
+  renderMinimap(views.minimap);
   renderBoardTabs(views.leaderboards);
   renderInventory(views.inventory);
   const cards = document.getElementById("miner-cards");
@@ -250,8 +396,8 @@ function render(views) {
   miners.forEach((m) => cards.appendChild(renderMinerCard(m, views.world)));
 
   for (const id of ["depth-ladder-section", "depth-race-section",
-                    "leaderboard-section", "inventory-browser-section",
-                    "miners-section"]) {
+                    "minimap-section", "leaderboard-section",
+                    "inventory-browser-section", "miners-section"]) {
     document.getElementById(id).hidden = false;
   }
 }
