@@ -51,8 +51,9 @@ ruleset, so merges now wait for green tests, not just the substrate gate.
 
 (Verify against live source control — this section is a dated snapshot.)
 
-- Nothing in flight. The deepening well is dry; remaining work is
-  externally blocked (see below).
+- Nothing in flight. The founding day is wrapped and archived
+  (2026-07-11 — see `docs/retro/archive-ready-2026-07-11.md`); remaining
+  work is externally blocked (see below).
 
 ## Externally pending (not agent-actionable here)
 
@@ -65,9 +66,27 @@ ruleset, so merges now wait for green tests, not just the substrate gate.
   (OWNER-ACTION 1 in `control/status.md`).
 - **Stage-(d) live-prod owner flag** — owner adds prod guild ids to the
   bot-side allowlist AND says so via a `control/inbox.md` ORDER.
+- **PR #31 (owner-side)** — the owner's Codex-authored pre-provisioning
+  security report is OPEN awaiting the owner's own review/merge; it is not
+  a claude/* lane and no agent session owns it.
 
 ## Recently shipped (newest first)
 
+- 2026-07-11 — fun mop-up (PRs #39, #40): canvas PNG share card on every
+  miner card, Konami longest-prefix fix (pure `konamiNextProgress`),
+  shared `tableHeadRow` helper; sample data enriched with GearGoblin
+  (fully-geared) and RustyRelic (tool-breaker) so all 7 achievements have
+  live earners. Note: the snapshot schema has NO `last_broken` field
+  (`additionalProperties: false`) — high `gear_wear` is the broken-tool
+  representation. Suite now 327 passed + 1 conditional skip.
+- 2026-07-11 — fun pass (PRs #36, #37): cave visual theme (mine-shaft
+  cross-section, ore rarity icons, chest/lantern/durability, podium),
+  server-derived achievements (additive key in `build_views`), Konami
+  diamond rain, easter-egg toast, miner VS view, cave-art 404 —
+  JSON API behavior byte-identical.
+- 2026-07-11 — polish + robustness (PRs #32–#35): a11y + responsive pass,
+  server charsets/ETag/304, housekeeping; pytest gate verified BLOCKING
+  empirically on each of these merges (merged_at ≥ pytest completed_at).
 - 2026-07-11 — housekeeping: session-card model spellings normalized to
   family-level names per the `.sessions/README.md` standing rule; this
   ledger refreshed.

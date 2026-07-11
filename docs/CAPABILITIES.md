@@ -66,3 +66,36 @@ Format: `- YYYY-MM-DD · capability|wall · finding · evidence · workaround`.
 
 (Hand-filled by sessions, per the discovery rule. Seed walls/capabilities
 above came from the fleet's lived 2026-07 findings; local ones go here.)
+
+- 2026-07-11 · wall · the orchestrator/coordinator seat lacks GitHub MCP
+  tools AND Bash; worker seats have both · coordinator sessions this day
+  could not run git/GitHub operations directly — every such op succeeded
+  only when routed through a spawned worker · route all git/GitHub work
+  through worker seats; the coordinator plans and delegates.
+- 2026-07-11 · wall · direct HTTPS to `api.github.com` is proxy-blocked
+  (sharpens the seed wall above) · verbatim proxy response: 403 "GitHub
+  access is not enabled for this session. An org admin must connect the
+  Claude GitHub App..." · GitHub MCP tools are the path — but they are
+  scoped to THIS repo only (`menno420/superbot` was denied); for read-only
+  oracle checks of OTHER public repos, `raw.githubusercontent.com` and
+  `github.com` tree pages fetch fine through the proxy.
+- 2026-07-11 · wall · `gh` CLI is absent in these containers · `gh` not
+  found on PATH when attempted · use GitHub MCP tools (this repo) or plain
+  git over HTTPS.
+- 2026-07-11 · capability · cross-session scheduling works despite
+  `send_later` being SELF-SESSION-ONLY (it has no target parameter) ·
+  verified live while running the day's coordinator/worker chain · to wake
+  ANOTHER session, use `create_trigger` with `persistent_session_id` +
+  `run_once_at` — it fires as a user turn into that session; `send_later`
+  only wakes the calling session.
+- 2026-07-11 · wall · branch-protection/ruleset modification is
+  classifier-denied on agent seats · auto-mode permission classifier denial,
+  verbatim reason: "Modify Shared Resources" (attempt: adding a required
+  status check to main's ruleset) · owner-only surface — route as a
+  click-level ⚑ OWNER-ACTION; the owner performed this one on 2026-07-11.
+- 2026-07-11 · capability · PR auto-merge arms at creation on `claude/*`
+  branches · exercised on effectively every merged PR this day (#1–#40
+  ledger); required contexts are `substrate-gate` + `pytest` (pytest added
+  by the owner 2026-07-11, verified BLOCKING empirically on PRs #32–#35 via
+  merged_at ≥ pytest completed_at) · open the PR ready (not draft), arm
+  auto-merge immediately, let the required contexts gate the merge.
