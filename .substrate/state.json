@@ -59,13 +59,18 @@
     },
     "doc_roots": {
       "question_id": "Q-007",
-      "source": "derived",
+      "source": "confirmed:user",
       "value": "docs"
     },
     "drift_resolution": {
       "question_id": "Q-011",
       "source": "user",
       "value": "Source code wins over docs: when a doc contradicts merged code, fix the doc in the same session, note the correction in docs/current-state.md"
+    },
+    "integration_mode": {
+      "question_id": "Q-001",
+      "source": "user",
+      "value": "guided"
     },
     "mutation_seam": {
       "question_id": "Q-009",
@@ -94,7 +99,7 @@
     },
     "project_name": {
       "question_id": "Q-002",
-      "source": "derived",
+      "source": "confirmed:user",
       "value": "superbot-mineverse"
     },
     "review_ritual": {
@@ -115,14 +120,15 @@
   },
   "slots": {
     "architecture_layers": "filled",
-    "doc_roots": "provisional",
+    "doc_roots": "filled",
     "drift_resolution": "filled",
+    "integration_mode": "filled",
     "mutation_seam": "filled",
     "new_area_ownership": "filled",
     "owner_profile": "filled",
     "ownership_model": "filled",
     "primary_language": "filled",
-    "project_name": "provisional",
+    "project_name": "filled",
     "review_ritual": "filled",
     "staleness_review": "filled",
     "verify_command": "filled"
