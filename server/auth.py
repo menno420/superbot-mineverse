@@ -48,6 +48,7 @@ ENV_REDIRECT_URI = "OAUTH_REDIRECT_URI"
 ENV_SIGNING_KEY = "WEB_SESSION_SIGNING_KEY"
 
 SESSION_COOKIE = "mineverse_session"
+STATE_COOKIE = "mineverse_oauth_state"  # per-browser CSRF binding for the login round-trip
 STATE_TTL_SECONDS = 10 * 60  # login round-trip budget
 SESSION_TTL_SECONDS = 7 * 24 * 3600  # one week of read personalization
 HTTP_TIMEOUT_SECONDS = 10
@@ -171,6 +172,40 @@ def make_state(config: AuthConfig, *, now: float | None = None) -> str:
 def verify_state(config: AuthConfig, token: str, *, now: float | None = None) -> bool:
     payload = verify_payload(config.key, token, now=now)
     return payload is not None and payload.get("purpose") == "oauth-state"
+
+
+# --- per-browser CSRF binding (login sets it, callback requires it) ---------
+#
+# The signed ``state`` above proves the token was minted by THIS server and is
+# unexpired — but nothing binds it to the browser that started the flow, so any
+# server-minted token works from any browser within its TTL (login-CSRF). The
+# binding below closes that: ``/auth/login`` drops a cookie carrying a keyed MAC
+# of the very state it hands to Discord, and ``/auth/callback`` recomputes that
+# MAC from the returned state and constant-time-compares it to the cookie. An
+# attacker cannot forge the cookie (it needs the signing key) and cannot read a
+# victim's HttpOnly cookie, so a state pasted into a different browser fails the
+# compare. Stateless — no server-side store, same as the signed state itself.
+
+
+def make_state_binding(config: AuthConfig, state: str) -> str:
+    """The login-cookie value binding a browser to its ``state`` (keyed MAC).
+
+    Unforgeable without ``config.key``; carries no secret of its own, so it is
+    safe to hand to the browser. Expiry is enforced by the state's own ``exp``
+    (``verify_state``) and the cookie's ``Max-Age``.
+    """
+    return _b64url_encode(_mac(config.key, b"oauth-state-binding:" + state.encode("utf-8")))
+
+
+def verify_state_binding(config: AuthConfig, state: str, cookie_value: str) -> bool:
+    """Constant-time check that ``cookie_value`` is the binding for ``state``.
+
+    Rejects a missing/empty state or cookie outright; otherwise compares the
+    recomputed binding against the cookie with :func:`hmac.compare_digest`.
+    """
+    if not state or not cookie_value:
+        return False
+    return hmac.compare_digest(make_state_binding(config, state), cookie_value)
 
 
 # --- session cookie ---------------------------------------------------------

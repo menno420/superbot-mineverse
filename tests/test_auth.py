@@ -78,6 +78,20 @@ def cookie_from(headers):
     return set_cookie.split(";", 1)[0]  # "name=value"
 
 
+def state_binding_cookie(config, state):
+    """The Cookie-header value binding a browser to ``state`` (what login sets)."""
+    return f"{auth.STATE_COOKIE}={auth.make_state_binding(config, state)}"
+
+
+def login(base):
+    """Do /auth/login; return (state, cookie_header) for the callback round-trip."""
+    _, headers, _ = get(base + "/auth/login")
+    state = urllib.parse.parse_qs(
+        urllib.parse.urlsplit(headers["Location"]).query
+    )["state"][0]
+    return state, cookie_from(headers)  # cookie_from → "mineverse_oauth_state=..."
+
+
 # --- signed-token unit tests (state + cookie share the format) ------------
 
 
@@ -192,15 +206,15 @@ def test_full_callback_flow_sets_valid_cookie_and_me_maps_miner(
     base = serve(auth_config=config)
     calls = stub_discord(monkeypatch)
 
-    # 1. login hands out the state
-    _, headers, _ = get(base + "/auth/login")
-    state = urllib.parse.parse_qs(
-        urllib.parse.urlsplit(headers["Location"]).query
-    )["state"][0]
+    # 1. login hands out the state AND the per-browser binding cookie
+    state, state_cookie = login(base)
 
-    # 2. callback exchanges the code and sets the signed session cookie
+    # 2. callback (carrying the binding cookie) exchanges the code and sets the
+    #    signed session cookie
     query = urllib.parse.urlencode({"code": "auth-code-1", "state": state})
-    status, headers, _ = get(base + f"/auth/callback?{query}")
+    status, headers, _ = get(
+        base + f"/auth/callback?{query}", headers={"Cookie": state_cookie}
+    )
     assert status == 302
     assert headers["Location"] == "/"
     set_cookie = headers["Set-Cookie"]
@@ -229,7 +243,10 @@ def test_callback_secure_flag_follows_https_redirect_uri(serve, monkeypatch):
     stub_discord(monkeypatch)
     state = auth.make_state(config)
     query = urllib.parse.urlencode({"code": "c", "state": state})
-    _, headers, _ = get(base + f"/auth/callback?{query}")
+    _, headers, _ = get(
+        base + f"/auth/callback?{query}",
+        headers={"Cookie": state_binding_cookie(config, state)},
+    )
     assert "Secure" in headers["Set-Cookie"]
 
 
@@ -260,8 +277,12 @@ def test_callback_rejects_missing_code(serve, monkeypatch):
     config = make_config()
     base = serve(auth_config=config)
     stub_discord(monkeypatch)
-    query = urllib.parse.urlencode({"state": auth.make_state(config)})
-    status, _, body = get(base + f"/auth/callback?{query}")
+    state = auth.make_state(config)
+    query = urllib.parse.urlencode({"state": state})
+    status, _, body = get(
+        base + f"/auth/callback?{query}",
+        headers={"Cookie": state_binding_cookie(config, state)},
+    )
     assert status == 400
     assert json.loads(body)["error"] == "missing authorization code"
 
@@ -281,10 +302,114 @@ def test_callback_discord_failure_is_502(serve, monkeypatch):
         raise OSError("simulated discord outage")
 
     monkeypatch.setattr(auth, "exchange_code", boom)
-    query = urllib.parse.urlencode({"code": "c", "state": auth.make_state(config)})
-    status, _, body = get(base + f"/auth/callback?{query}")
+    state = auth.make_state(config)
+    query = urllib.parse.urlencode({"code": "c", "state": state})
+    status, _, body = get(
+        base + f"/auth/callback?{query}",
+        headers={"Cookie": state_binding_cookie(config, state)},
+    )
     assert status == 502
     assert json.loads(body)["error"] == "discord token exchange failed"
+
+
+# --- login-CSRF binding (per-browser state cookie) --------------------------
+
+
+def test_state_binding_round_trip_and_forgery():
+    config = make_config()
+    state = auth.make_state(config)
+    binding = auth.make_state_binding(config, state)
+    assert auth.verify_state_binding(config, state, binding)
+    # A binding minted for a different state must not match this one.
+    other = auth.make_state(config)
+    assert not auth.verify_state_binding(config, state, auth.make_state_binding(config, other))
+    # Empty / missing halves reject cleanly (never raise).
+    assert not auth.verify_state_binding(config, state, "")
+    assert not auth.verify_state_binding(config, "", binding)
+    # Without the signing key the binding is unforgeable.
+    attacker = make_config()
+    attacker.signing_key = "attacker-key-not-the-server-key"
+    assert not auth.verify_state_binding(config, state, auth.make_state_binding(attacker, state))
+
+
+def test_login_sets_httponly_state_binding_cookie(serve):
+    config = make_config()
+    status, headers, _ = get(serve(auth_config=config) + "/auth/login")
+    assert status == 302
+    set_cookie = headers["Set-Cookie"]
+    assert set_cookie.startswith(f"{auth.STATE_COOKIE}=")
+    assert "HttpOnly" in set_cookie
+    assert "SameSite=Lax" in set_cookie
+    assert "Secure" not in set_cookie  # http:// redirect URI → no Secure flag
+    # The cookie is the binding for the exact state handed to Discord.
+    state = urllib.parse.parse_qs(
+        urllib.parse.urlsplit(headers["Location"]).query
+    )["state"][0]
+    binding = cookie_from(headers).split("=", 1)[1]
+    assert auth.verify_state_binding(config, state, binding)
+
+
+def test_login_state_cookie_secure_on_https_redirect_uri(serve):
+    config = make_config(redirect_uri="https://mineverse.example/auth/callback")
+    _, headers, _ = get(serve(auth_config=config) + "/auth/login")
+    assert "Secure" in headers["Set-Cookie"]
+
+
+def test_callback_rejects_missing_state_cookie(serve, monkeypatch):
+    """A valid server-minted state with NO binding cookie is login-CSRF — reject."""
+    config = make_config()
+    base = serve(auth_config=config)
+    calls = stub_discord(monkeypatch)
+    state, _ = login(base)  # a genuine, unexpired, server-minted state
+    query = urllib.parse.urlencode({"code": "c", "state": state})
+    status, headers, body = get(base + f"/auth/callback?{query}")  # no Cookie
+    assert status == 400
+    assert json.loads(body)["error"] == "invalid or expired state"
+    assert headers.get("Set-Cookie") is None
+    assert calls == []  # Discord never touched
+
+
+def test_callback_rejects_mismatched_state_cookie(serve, monkeypatch):
+    """A binding cookie from a DIFFERENT login must not unlock this state."""
+    config = make_config()
+    base = serve(auth_config=config)
+    calls = stub_discord(monkeypatch)
+    state, _ = login(base)
+    _, other_cookie = login(base)  # a second browser's binding cookie
+    query = urllib.parse.urlencode({"code": "c", "state": state})
+    status, _, body = get(base + f"/auth/callback?{query}", headers={"Cookie": other_cookie})
+    assert status == 400
+    assert json.loads(body)["error"] == "invalid or expired state"
+    assert calls == []  # Discord never touched
+
+
+def test_callback_accepts_matching_state_cookie(serve, monkeypatch):
+    """Same browser: state + its binding cookie → the flow proceeds."""
+    config = make_config()
+    base = serve(auth_config=config)
+    calls = stub_discord(monkeypatch)
+    state, state_cookie = login(base)
+    query = urllib.parse.urlencode({"code": "auth-code-9", "state": state})
+    status, headers, _ = get(base + f"/auth/callback?{query}", headers={"Cookie": state_cookie})
+    assert status == 302
+    assert headers["Location"] == "/"
+    assert calls == [("exchange", "auth-code-9"), ("fetch", "fake-access-token")]
+
+
+def test_callback_clears_state_binding_cookie_after_use(serve, monkeypatch):
+    """The spent state cookie is expired on the successful callback redirect."""
+    config = make_config()
+    base = serve(auth_config=config)
+    stub_discord(monkeypatch)
+    state, state_cookie = login(base)
+    query = urllib.parse.urlencode({"code": "c", "state": state})
+    status, headers, _ = get(base + f"/auth/callback?{query}", headers={"Cookie": state_cookie})
+    assert status == 302
+    # Two Set-Cookie headers: the session cookie AND an expired state cookie.
+    set_cookies = headers.get_all("Set-Cookie")
+    state_clear = [c for c in set_cookies if c.startswith(f"{auth.STATE_COOKIE}=")]
+    assert state_clear, "callback must clear the state binding cookie"
+    assert "Max-Age=0" in state_clear[0]
 
 
 # --- /api/me ----------------------------------------------------------------
