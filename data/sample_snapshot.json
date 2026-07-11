@@ -94,6 +94,42 @@
       "vault_level": 4,
       "skills": {"mining": 5, "luck": 3, "endurance": 2},
       "structures": {"forge": 4, "home": 2, "campfire": 1, "dock": 1}
+    },
+    {
+      "suid": "100000000000000006",
+      "guild_id": "987654321098765432",
+      "display_name": "GearGoblin",
+      "depth": 2,
+      "record_depth": 2,
+      "position": {"x": 3, "y": -4},
+      "energy": {"current": 34, "updated_at": 1783728000},
+      "coins": 5620,
+      "xp": {"game": "mining", "game_total": 2740, "shared_total": 3980, "level": 8},
+      "equipment": {"tool": "silver pickaxe", "light": "lantern", "charm": "rabbit's foot", "weapon": "iron sword", "shield": "iron shield", "helmet": "iron helmet", "chestplate": "iron chestplate", "leggings": "iron leggings", "boots": "iron boots"},
+      "gear_wear": {"silver pickaxe": 26, "iron sword": 11, "iron shield": 8},
+      "mining_inventory": {"stone": 54, "iron": 18, "silver": 7, "wood": 12, "torch": 4},
+      "vault": {"iron": 30, "silver": 9},
+      "vault_level": 2,
+      "skills": {"mining": 3, "endurance": 1},
+      "structures": {"forge": 1, "campfire": 1}
+    },
+    {
+      "suid": "100000000000000007",
+      "guild_id": "987654321098765432",
+      "display_name": "RustyRelic",
+      "depth": 1,
+      "record_depth": 2,
+      "position": {"x": -3, "y": 2},
+      "energy": {"current": 21, "updated_at": 1783727700},
+      "coins": 3150,
+      "xp": {"game": "mining", "game_total": 1980, "shared_total": 2650, "level": 7},
+      "equipment": {"tool": "battered pickaxe", "light": "torch"},
+      "gear_wear": {"battered pickaxe": 117, "torch": 5},
+      "mining_inventory": {"stone": 61, "bronze": 9, "iron": 6, "wood": 17, "torch": 2},
+      "vault": {"bronze": 14},
+      "vault_level": 1,
+      "skills": {"scavenging": 2},
+      "structures": {"campfire": 1}
     }
   ]
 }
