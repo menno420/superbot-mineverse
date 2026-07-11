@@ -1,21 +1,22 @@
 # superbot-mineverse · status
-updated: 2026-07-11T04:19:00Z
+updated: 2026-07-11T04:27:00Z
 phase: DEEPENING — micro-polish (PR #23) MERGED: read side now renders the ENTIRE v1 contract, the deepening well is dry; no in-flight lanes — all remaining work externally blocked (bot-lane FLAGs 1+2, owner env vars, pytest ruleset edit); loop cadence slows ~15→~60 min while blocked
 health: green
 kit: v1.8.0 · check: green · engaged: yes   # check --strict GREEN; engaged = no unrendered banners + live CI gate (substrate-gate required context on main ruleset) + session loop engaged — all met
 last-shipped: MICRO-POLISH MERGED — PR #23 2026-07-11T04:04Z: suid identity line, guild_id in the header, xp.game on the card face, additive-keys defensive tests; pytest 187→191 (+1 conformance skip), all green. MILESTONE: the read side now renders the ENTIRE v1 contract — every required miner field of mining_snapshot.v1 is painted somewhere in the web views; the deepening well is dry. Prior: PR #21 (deepening slice 2, full required-field coverage), #20 (heartbeat), #19 (conformance seam), #18 (deepening slice 1), #17 (heartbeat), #16 (stage d prep), #15, #13/#14 (stage c), #12, #11 (stage b), #10/#8/#7 (stage a), #9, #6, #5, #4, #3, #2, #1.
 blockers: none
-orders: acked=001 done=
+orders: acked=001 done=001
 ⚑ needs-owner: 2 items — (1) provision the six env vars to switch sign-in on (and, for test-guild write mode, the write-endpoint pair); (2) make pytest a required (blocking) status check on main. Structured OWNER-ACTION blocks below. Bot-lane FLAGs below stay informational until the manager picks them up.
-notes: coordinator heartbeat, boot session cse_017yrng4qx2LcLNqKb5AGoe8 — HONEST STATE: no in-flight lanes; all remaining work is externally blocked: (1) Builder-lane FLAG 1 (READ relay projection) + FLAG 2 (WRITE endpoint) — specs on main; (2) owner env vars (six names) + pytest required-check ruleset edit; (3) audit-trail e2e + real-endpoint conformance run once (1)/(2) exist. LOOP CADENCE: ORDER 001 active → back to FULL PACE, ~15 min chain links (failsafe cron unchanged, every 2h at :20); inbox checked each wake; the earlier ~60-min link at 05:16Z also remains armed and is harmless. Ladder line, both OWNER-ACTION blocks, and both bot-lane ⚑ FLAGs carried verbatim below (this Project is this file's SOLE writer; overwritten whole, never appended). Housekeeping this heartbeat: removed released claim control/claims/claude-micro-polish-identity-xp.md (rode PR #23; deletion rides this control-lane PR per pattern).
+notes: coordinator heartbeat, boot session cse_017yrng4qx2LcLNqKb5AGoe8 — HONEST STATE: no in-flight lanes; all remaining work is externally blocked: (1) Builder-lane FLAG 1 (READ relay projection) + FLAG 2 (WRITE endpoint) — specs on main; (2) owner env vars (six names) + pytest required-check ruleset edit; (3) audit-trail e2e + real-endpoint conformance run once (1)/(2) exist. LOOP CADENCE: no active orders; externally blocked on Builder-lane FLAGs + owner items; chain links ~60 min (a link is already armed for 05:16Z), failsafe cron every 2h unchanged; inbox checked each wake. Ladder line, both OWNER-ACTION blocks, and both bot-lane ⚑ FLAGs carried verbatim below (this Project is this file's SOLE writer; overwritten whole, never appended). Housekeeping this heartbeat: removed released claim control/claims/claude-micro-polish-identity-xp.md (rode PR #23; deletion rides this control-lane PR per pattern).
 
-## ORDER 001 — ACKED + dispatched
+## ORDER 001 — DONE
 
-ORDER 001 (model-attribution line, P3) ACKED + claimed-by coordinator,
-dispatched 2026-07-11T04:18Z to session cse_018rz1xpd1W5mhRrDK5XEtTc —
-session-card template gets a 📊 Model: line; that lane's own card
-self-reports its model family. Loop back at FULL PACE (~15 min chain) while
-an order is active.
+ORDER 001 DONE — PR #27 merged 04:23Z (head 0c11372, 3/3 checks green):
+card scaffold in bootstrap.py already emits the 📊 Model: line (marker in
+substrate.config.json); family-level standing rule documented in
+.sessions/README.md; executing session's committed card carries
+"📊 Model: fable-5". Done-when satisfied. Follow-up idea (not ordered):
+older cards carry drifted model spellings.
 
 ## Micro-polish — MERGED (PR #23 2026-07-11T04:04Z)
 
