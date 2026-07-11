@@ -334,6 +334,125 @@ def build_minimap(miners: list, max_depth: int, biomes: list) -> list[dict]:
     return panels
 
 
+# --- achievements (fun layer) — deterministic badges over snapshot data ----
+#
+# Every threshold is documented here, next to the check that uses it.
+# Achievements are a pure derivation: same snapshot in, same badges out —
+# no state, no clock, no randomness.
+
+# Packrat: total mining_inventory count at/above this. Chosen against the
+# committed sample so some miners hit it (SilverSeeker 212, CavernCrawler
+# 227) and some don't (DeepDelver 193, MagmaMaven 80, PebblePicker 51).
+PACKRAT_THRESHOLD = 200
+
+# Coin Magnate: coins at/above this. Sample: DeepDelver 18450 and
+# MagmaMaven 25990 hit; SilverSeeker 7320 and below don't.
+COIN_MAGNATE_THRESHOLD = 10_000
+
+# Tool Breaker: any gear_wear entry at/over the frontend's wear display
+# cap (web/app.js WEAR_DISPLAY_MAX = 100). The contract gives accumulated
+# wear no schema maximum, so the display cap is the "visibly broken" line.
+# No sample miner is there yet — an honest zero-state.
+TOOL_BREAKER_WEAR = 100
+
+# Balanced Build: at least this many skills, with the max−min level
+# spread at most this. Sample: SilverSeeker (mining 2, endurance 1) hits;
+# DeepDelver (spread 2) and MagmaMaven (spread 3) don't.
+BALANCED_BUILD_MIN_SKILLS = 2
+BALANCED_BUILD_MAX_SPREAD = 1
+
+# The Answer: exactly this count of any single mining_inventory item —
+# the easter-egg badge. Sample: DeepDelver carries exactly 42 stone.
+THE_ANSWER_COUNT = 42
+
+# The full catalog, in display order. The frontend renders emoji badges
+# aria-hidden with the name as the text label.
+ACHIEVEMENT_CATALOG = (
+    {"id": "deep_diver", "name": "Deep Diver", "emoji": "🌋",
+     "description": "record depth equals the world's max depth"},
+    {"id": "packrat", "name": "Packrat", "emoji": "🎒",
+     "description": f"carrying {PACKRAT_THRESHOLD}+ items in the pack"},
+    {"id": "coin_magnate", "name": "Coin Magnate", "emoji": "💰",
+     "description": f"holding {COIN_MAGNATE_THRESHOLD:,}+ coins"},
+    {"id": "fully_geared", "name": "Fully Geared", "emoji": "🛡️",
+     "description": "every equipment slot filled"},
+    {"id": "tool_breaker", "name": "Tool Breaker", "emoji": "🔨",
+     "description": f"any gear at {TOOL_BREAKER_WEAR}+ wear"},
+    {"id": "balanced_build", "name": "Balanced Build", "emoji": "⚖️",
+     "description": (f"{BALANCED_BUILD_MIN_SKILLS}+ skills within "
+                     f"{BALANCED_BUILD_MAX_SPREAD} level of each other")},
+    {"id": "the_answer", "name": "The Answer", "emoji": "🐬",
+     "description": f"exactly {THE_ANSWER_COUNT} of one pack item"},
+)
+
+
+def _int_values(store) -> list[int]:
+    """The integer values of a countMap — anything else is ignored.
+
+    Mirrors :func:`rank_counts`'s tolerance: the schema forbids
+    non-integer values, so they never count toward an achievement.
+    """
+    if not isinstance(store, dict):
+        return []
+    return [value for value in store.values() if isinstance(value, int)]
+
+
+def earned_achievements(miner: dict, max_depth) -> list[str]:
+    """Achievement ids the miner earned, in catalog order.
+
+    Pure snapshot math — every check tolerates missing or malformed
+    fields (a degraded miner simply earns nothing, never crashes).
+    """
+    inventory = _int_values(miner.get("mining_inventory"))
+    skills = _int_values(miner.get("skills"))
+    wears = _int_values(miner.get("gear_wear"))
+    equipment = miner.get("equipment")
+    equipment = equipment if isinstance(equipment, dict) else {}
+    earned = []
+    if isinstance(miner.get("record_depth"), int) \
+            and miner["record_depth"] == max_depth:
+        earned.append("deep_diver")
+    if sum(inventory) >= PACKRAT_THRESHOLD:
+        earned.append("packrat")
+    if isinstance(miner.get("coins"), int) \
+            and miner["coins"] >= COIN_MAGNATE_THRESHOLD:
+        earned.append("coin_magnate")
+    if all(equipment.get(slot) for slot in equipment_slots()):
+        earned.append("fully_geared")
+    if any(wear >= TOOL_BREAKER_WEAR for wear in wears):
+        earned.append("tool_breaker")
+    if len(skills) >= BALANCED_BUILD_MIN_SKILLS \
+            and max(skills) - min(skills) <= BALANCED_BUILD_MAX_SPREAD:
+        earned.append("balanced_build")
+    if any(count == THE_ANSWER_COUNT for count in inventory):
+        earned.append("the_answer")
+    return earned
+
+
+def build_achievements(miners: list, max_depth) -> dict:
+    """Per-miner achievement badges + the shared catalog.
+
+    An ADDITIVE key on :func:`build_views` — no existing key changes
+    shape. ``catalog`` is the ordered badge definitions (id, name,
+    emoji, description with the threshold baked into the prose);
+    ``miners`` is one ``{suid, display_name, earned}`` row per miner
+    with ``earned`` in catalog order (possibly empty — honest zero
+    state, e.g. the sample's PebblePicker).
+    """
+    return {
+        "catalog": [dict(entry) for entry in ACHIEVEMENT_CATALOG],
+        "miners": [
+            {
+                "suid": miner.get("suid"),
+                "display_name": (miner.get("display_name")
+                                 or f"miner {miner.get('suid')}"),
+                "earned": earned_achievements(miner, max_depth),
+            }
+            for miner in miners
+        ],
+    }
+
+
 def parse_generated_at(value) -> int | None:
     """``generated_at`` (ISO 8601 UTC) → unix epoch seconds, or None.
 
@@ -393,4 +512,5 @@ def build_views(snapshot: dict) -> dict:
         "minimap": build_minimap(miners, max_depth, biomes),
         "leaderboards": build_leaderboards(miners),
         "inventory": build_inventory_matrix(miners),
+        "achievements": build_achievements(miners, max_depth),
     }
