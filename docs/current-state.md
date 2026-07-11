@@ -19,7 +19,15 @@ should not be re-audited without a reported regression.)
 
 (Merged work only, newest first.)
 
-- 2026-07-11 — stage (d) PREP (this PR): owner-flag-gated live-prod
+- 2026-07-11 — read-views deepening (this PR): server-side view shaping
+  (`server/views.py`, stdlib-only) served read-only as `GET /api/views`;
+  frontend gains a depth/biome ladder (current + record markers), tabbed
+  leaderboards (depth · XP level · coins), a guild inventory browser
+  (ore tiers stone→diamond first), and deepened miner cards (all 9
+  schema-derived gear slots with wear, grouped pack, vault tier pips
+  0–6). Contracts, schemas and the write/auth paths untouched; 33 new
+  tests in `tests/test_views.py`.
+- 2026-07-11 — stage (d) PREP: owner-flag-gated live-prod
   cutover checklist (`docs/live-prod-cutover.md` — prerequisites,
   rate-limit + abuse review, rollback levers, THE FLAG: owner adds prod
   guild ids to the bot-side allowlist AND says so via a control/inbox.md

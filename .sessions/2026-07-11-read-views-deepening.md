@@ -1,6 +1,6 @@
 # Session 2026-07-11 — read-views deepening (vault, inventory, ladder, boards, gear)
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 
 ## Plan
 
@@ -56,10 +56,13 @@ in this PR's final commit.
   pack grouped ores/supplies, vault panel with tier pips 0–6); my-miner
   view reuses the shaped card by suid lookup. Empty snapshot → honest
   "no miners" banner; `/api/views` down → error banner, no crash.
-- verify: `python3 -m pytest -q` → 154 passed (116 baseline + 38 new in
+- verify: `python3 -m pytest -q` → 149 passed (116 baseline + 33 new in
   `tests/test_views.py`, incl. `/api/views` HTTP round-trips + degraded
   503s + served-frontend wiring smoke). `python3 bootstrap.py check
-  --strict` → all checks passed.
+  --strict` → all checks passed. Headless render smoke (scratchpad DOM
+  stub over the real `app.js` + real `/api/views` payloads): full,
+  signed-in, empty-guild and views-down scenarios all render without
+  throwing — honest banners on the degraded paths.
 - Schema-drift guards baked into the tests: slot list, xp fields and
   bounds are asserted EQUAL to what the schema declares (wiring test),
   so a schema edit that changes the enum breaks `tests/test_views.py`
