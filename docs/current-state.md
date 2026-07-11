@@ -8,51 +8,88 @@
 
 ## Stability baseline
 
-(Describe the accepted-stable baseline once established — what is known-good and
-should not be re-audited without a reported regression.)
+The staged ladder is shipped through stage (d) PREP; everything below is
+known-good and needs no re-audit without a reported regression:
+
+- **Stage 0 — walking skeleton** ✓: stdlib `http.server` backend
+  (`server/app.py`) serving `GET /api/snapshot` from the committed sample
+  snapshot in `data/`, plus the static vanilla HTML/JS/CSS frontend in
+  `web/`. Read-only, no database, no secrets.
+- **Stage (a) — READ contract v1** ✓: `schemas/mining_snapshot.v1.schema.json`
+  (+ prose `docs/mining-data-contract.md`) with a CI schema gate
+  (`tests/test_schema_gate.py`). The read side now renders the ENTIRE v1
+  contract — every required miner field paints somewhere in the web views
+  (`server/views.py` → `GET /api/views`, `tests/test_views.py`).
+- **Stage (b) — Discord OAuth sign-in** ✓: `identify`-scope flow, signed
+  session cookie, `/api/me` + "My miner" view (`server/auth.py`,
+  `tests/test_auth.py`).
+- **Stage (c) — WRITE contract v1, TEST GUILD ONLY** ✓ web-side:
+  `schemas/mining_action.v1.schema.json` +
+  `schemas/mining_action_response.v1.schema.json`
+  (prose `docs/mining-write-contract.md`), `POST /api/action` relay
+  (`server/actions.py` — server signs, browser never sees the secret), and a
+  dev/test bot shim (`tests/shim/shim_bot.py`) executing the contract in
+  memory (`tests/test_actions.py`).
+- **Stage (d) — live-prod cutover** PREPARED, **owner-flag-gated**: checklist
+  in `docs/live-prod-cutover.md` + mechanical readiness check
+  (`scripts/readiness_check.py`, `tests/test_readiness.py`). No agent may
+  decide-and-flag; live prod turns on only via an owner ORDER.
+
+**Degraded by default:** with zero env vars set the app runs read-only and
+anonymous, and the full test suite passes. Sign-in needs
+`DISCORD_OAUTH_CLIENT_ID`, `DISCORD_OAUTH_CLIENT_SECRET`,
+`OAUTH_REDIRECT_URI`, `WEB_SESSION_SIGNING_KEY`; test-guild write mode
+additionally needs `MINING_WRITE_ENDPOINT`, `MINING_WRITE_SHARED_SECRET`
+(names only here — values are owner-provisioned host secrets, never in
+this repo).
+
+**CI:** both `substrate-gate` AND `pytest` (the schema-gate workflow's job)
+are required status checks on main — pytest was recently added to the
+ruleset, so merges now wait for green tests, not just the substrate gate.
 
 ## In flight
 
 (Verify against live source control — this section is a dated snapshot.)
 
+- Nothing in flight. The deepening well is dry; remaining work is
+  externally blocked (see below).
+
+## Externally pending (not agent-actionable here)
+
+- **Bot-side READ relay** — the bot must emit a v1-conformant snapshot into
+  the bot→web relay (FLAG 1 in `control/status.md`).
+- **Bot-side WRITE endpoint** — HMAC-signed action-proposal endpoint with
+  audit + idempotency + test-guild allowlist (FLAG 2 in
+  `control/status.md`).
+- **Owner env vars** — the six names above, host-side only
+  (OWNER-ACTION 1 in `control/status.md`).
+- **Stage-(d) live-prod owner flag** — owner adds prod guild ids to the
+  bot-side allowlist AND says so via a `control/inbox.md` ORDER.
+
 ## Recently shipped (newest first)
 
-(Merged work only, newest first.)
-
-- 2026-07-11 — read-views deepening (this PR): server-side view shaping
-  (`server/views.py`, stdlib-only) served read-only as `GET /api/views`;
-  frontend gains a depth/biome ladder (current + record markers), tabbed
-  leaderboards (depth · XP level · coins), a guild inventory browser
-  (ore tiers stone→diamond first), and deepened miner cards (all 9
-  schema-derived gear slots with wear, grouped pack, vault tier pips
-  0–6). Contracts, schemas and the write/auth paths untouched; 33 new
-  tests in `tests/test_views.py`.
-- 2026-07-11 — stage (d) PREP: owner-flag-gated live-prod
-  cutover checklist (`docs/live-prod-cutover.md` — prerequisites,
-  rate-limit + abuse review, rollback levers, THE FLAG: owner adds prod
-  guild ids to the bot-side allowlist AND says so via a control/inbox.md
-  ORDER; no agent may decide-and-flag) + mechanical readiness check
-  (`scripts/readiness_check.py`, stdlib-only: six env vars SET/UNSET —
-  never values — plus opt-in unsigned endpoint probe;
-  `tests/test_readiness.py`). Docs + tooling ONLY — zero runtime
-  behavior change, no write path enabled; live prod stays owner-gated.
-- 2026-07-11 — PR #14 stage (c) part 2: dev/test bot shim
-  (`tests/shim/shim_bot.py`) executing the write contract in memory,
-  `POST /api/action` relay (server signs; browser never sees the secret),
-  action buttons on "My miner" (degraded by default — enabled only with
-  `MINING_WRITE_ENDPOINT` + `MINING_WRITE_SHARED_SECRET`, persistent
-  TEST ECONOMY badge when on), end-to-end tests.
-- 2026-07-11 — PR #13 WRITE contract v1 (stage c part 1, TEST GUILD
-  ONLY): `docs/mining-write-contract.md` +
-  `schemas/mining_action.v1.schema.json` +
-  `schemas/mining_action_response.v1.schema.json` + schema gate; binding
-  audit requirement on the bot-side relay.
-- 2026-07-11 — PR #11 Discord OAuth sign-in (stage b): `identify`-scope
-  flow, signed session cookie, `/api/me` + "My miner" view, degraded
-  mode.
-- 2026-07-11 — PR #7 READ contract v1: `docs/mining-data-contract.md` +
-  `schemas/mining_snapshot.v1.schema.json` + CI schema gate.
+- 2026-07-11 — housekeeping: session-card model spellings normalized to
+  family-level names per the `.sessions/README.md` standing rule; this
+  ledger refreshed.
+- 2026-07-11 — pytest made a required status check on main (ruleset edit);
+  ORDER 002 self-review + ORDER 001 model-attribution rule landed
+  (PRs #27–#30).
+- 2026-07-11 — micro-polish (PR #23): suid identity line, guild_id in the
+  header, xp.game on the card face; read side now renders the entire v1
+  contract (191 tests + 1 conditional skip).
+- 2026-07-11 — read-views deepening (PRs #18, #21): `server/views.py` +
+  `GET /api/views`, depth/biome ladder, tabbed leaderboards, guild
+  inventory browser, deepened miner cards.
+- 2026-07-11 — stage (d) PREP (PR #16): owner-flag-gated cutover checklist
+  + readiness check; docs + tooling only, zero runtime change.
+- 2026-07-11 — stage (c) (PRs #13, #14): write contract v1 schemas + gate,
+  bot shim, `POST /api/action` relay, action buttons (degraded by
+  default, TEST ECONOMY badge when on).
+- 2026-07-11 — stage (b) (PR #11): Discord OAuth sign-in, degraded mode.
+- 2026-07-11 — stage (a) (PR #7): read contract v1 + CI schema gate.
 
 ## Review rhythm
 
-Every change ships branch -> PR -> substrate-gate green -> squash merge; the owner reviews merged PRs asynchronously and docs/current-state.md is updated with each shipped PR
+Every change ships branch -> PR -> required checks green (substrate-gate +
+pytest) -> squash merge; the owner reviews merged PRs asynchronously and
+docs/current-state.md is updated with each shipped PR.

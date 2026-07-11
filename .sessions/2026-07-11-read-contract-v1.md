@@ -63,4 +63,4 @@ ORDER 000 card's `[[fill:]]` slots are still unresolved; sessions should
 budget five minutes at close to resolve auto-draft slots so the next
 previous-session review has a completed card to review.
 
-- **📊 Model:** Claude Fable 5 · standard effort · task-class: contract-formalization + CI-gate (build)
+- **📊 Model:** fable-5 · standard effort · task-class: contract-formalization + CI-gate (build)

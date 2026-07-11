@@ -72,4 +72,4 @@ Discord-user-id ↔ miner mapping an exact string compare with zero
 coercion bugs. Its deferred idea (executable staleness test) remains open —
 carried forward rather than silently dropped.
 
-- **📊 Model:** Claude Fable 5 · standard effort · task-class: auth-flow + degraded-mode hardening (build)
+- **📊 Model:** fable-5 · standard effort · task-class: auth-flow + degraded-mode hardening (build)

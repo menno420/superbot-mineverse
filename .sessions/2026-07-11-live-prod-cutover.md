@@ -99,4 +99,4 @@ is still a hand-edit — this session documented it verbatim in the
 checklist but the missing env-var seam (see guard recipe above) is now
 load-bearing for stage d and should land before the real endpoint does.
 
-- **📊 Model:** Claude Fable 5 · standard effort · task-class: cutover checklist + readiness tooling (docs+tooling, owner-gated)
+- **📊 Model:** fable-5 · standard effort · task-class: cutover checklist + readiness tooling (docs+tooling, owner-gated)

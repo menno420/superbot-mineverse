@@ -83,4 +83,4 @@ to admit the new `writes_configured` flag — exact-equality asserts on
 growing envelopes trade drift-detection for churn; subset asserts on the
 fields under test would have absorbed this additive change.
 
-- **📊 Model:** Claude Fable 5 · standard effort · task-class: contract-executable (shim + relay + UI + e2e) (build)
+- **📊 Model:** fable-5 · standard effort · task-class: contract-executable (shim + relay + UI + e2e) (build)
