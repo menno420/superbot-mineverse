@@ -1,2 +1,5 @@
 __pycache__/
 *.pyc
+
+# substrate-kit runtime telemetry (guard hooks write this locally; never commit)
+.substrate/guard-fires.jsonl
