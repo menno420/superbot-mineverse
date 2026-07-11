@@ -1,8 +1,6 @@
 # Session 2026-07-11 — stage (a) READ contract v1
 
-> **Status:** `in-progress` *(born-red — an ADDED card gates advisory in CI
-> per `.github/workflows/substrate-gate.yml`; flipped to `complete` at
-> session close per `.sessions/README.md`.)*
+> **Status:** `complete`
 
 ## Plan
 
@@ -46,6 +44,10 @@ kit-owned). Work claim: `control/claims/claude-read-contract-v1.md`.
   `tests/test_schema_gate.py::test_sample_snapshot_conforms_to_v1` at the
   relay payload fixture it emits — the validator fixture + schema path
   constant are the only two lines to touch.
+- PR https://github.com/menno420/superbot-mineverse/pull/7 merged to main
+  (squash 1120a3b); substrate-gate + pytest green, 25 tests passing. Claim
+  `control/claims/claude-read-contract-v1.md` released (deleted). This
+  close-out commit flips the card `complete`.
 
 ## 💡 Session idea
 

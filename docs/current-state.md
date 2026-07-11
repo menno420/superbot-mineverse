@@ -19,6 +19,9 @@ should not be re-audited without a reported regression.)
 
 (Merged work only, newest first.)
 
+- 2026-07-11 — PR #7 READ contract v1: `docs/mining-data-contract.md` +
+  `schemas/mining_snapshot.v1.schema.json` + CI schema gate.
+
 ## Review rhythm
 
 Every change ships branch -> PR -> substrate-gate green -> squash merge; the owner reviews merged PRs asynchronously and docs/current-state.md is updated with each shipped PR
