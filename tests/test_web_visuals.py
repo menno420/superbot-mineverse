@@ -99,7 +99,7 @@ def test_css_fuses_ladder_bands_into_a_shaft(css):
 def test_js_ships_avatar_and_record_flag_decoration(js):
     assert "function minerAvatarSVG" in js
     assert "function recordFlagSVG" in js
-    assert 'svgSpan("miner-avatar", minerAvatarSVG())' in js
+    assert 'svgSpan("miner-avatar", minerAvatarSVG(hat))' in js
     assert 'svgSpan("record-flag", recordFlagSVG())' in js
     # The chip TEXT stays the semantics: name, "· record", empty state.
     assert "`${name} · record`" in js

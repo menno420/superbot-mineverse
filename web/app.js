@@ -237,15 +237,58 @@ function oreIconSVG(name) {
     `</svg>`;
 }
 
-function minerAvatarSVG() {
+function hatSVGRects(pixels) {
+  // PURE (JSON in, string out — pinned per-CI-run by
+  // tests/test_js_logic.py): a server-derived hat pixel spec
+  // (server/views.py HAT_CATALOG `pixels`) → SVG <rect> markup drawn
+  // OVER the avatar base. Tolerant of junk: a non-array spec renders
+  // as "" (no hat), and every entry must be [x, y, w, h, "#hex"] with
+  // finite numbers and a safe hex color — anything else is skipped, so
+  // no unvetted string ever lands in markup.
+  if (!Array.isArray(pixels)) return "";
+  return pixels
+    .filter((p) => Array.isArray(p) && p.length === 5 &&
+      p.slice(0, 4).every(Number.isFinite) &&
+      typeof p[4] === "string" && /^#[0-9a-fA-F]{3,8}$/.test(p[4]))
+    .map(([x, y, w, h, color]) =>
+      `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${color}"/>`)
+    .join("");
+}
+
+function hatsByName(hats) {
+  // PURE (JSON in, JSON out — pinned by tests/test_js_logic.py):
+  // /api/views `hats` → { display_name: catalog entry }. Joins the
+  // per-miner rows to the catalog by hat id; rows with an unknown hat
+  // id or no name drop out honestly (a nameless hat can't reach a
+  // chip). display_name matches build_ladder's fallback server-side,
+  // so the join onto ladder chips is exact.
+  const catalog = Object.create(null);
+  for (const entry of (hats && Array.isArray(hats.catalog)) ? hats.catalog : []) {
+    if (entry && typeof entry.id === "string") catalog[entry.id] = entry;
+  }
+  const byName = Object.create(null);
+  for (const row of (hats && Array.isArray(hats.miners)) ? hats.miners : []) {
+    if (!row || typeof row.display_name !== "string") continue;
+    const entry = catalog[row.hat];
+    if (entry) byName[row.display_name] = entry;
+  }
+  return byName;
+}
+
+function minerAvatarSVG(hat) {
   // Pixel-style miner (helmet, face, overalls) for the depth shaft.
-  return `<svg viewBox="0 0 8 8" width="12" height="12" ` +
+  // Grid is 8×10: rows 0–1 are hat headroom, row 2 the base helmet row
+  // (server/views.py HAT_GRID_WIDTH/HEIGHT pin the same numbers). The
+  // optional server-derived cosmetic hat draws AFTER the base so its
+  // pixels layer on top.
+  return `<svg viewBox="0 0 8 10" width="12" height="15" ` +
     `shape-rendering="crispEdges" focusable="false">` +
-    `<rect x="2" y="0" width="4" height="1" fill="#f5a83c"/>` +
-    `<rect x="2" y="1" width="4" height="2" fill="#e8c9a0"/>` +
-    `<rect x="1" y="3" width="6" height="3" fill="#4a6fa5"/>` +
-    `<rect x="2" y="6" width="1" height="2" fill="#3a3350"/>` +
-    `<rect x="5" y="6" width="1" height="2" fill="#3a3350"/>` +
+    `<rect x="2" y="2" width="4" height="1" fill="#f5a83c"/>` +
+    `<rect x="2" y="3" width="4" height="2" fill="#e8c9a0"/>` +
+    `<rect x="1" y="5" width="6" height="3" fill="#4a6fa5"/>` +
+    `<rect x="2" y="8" width="1" height="2" fill="#3a3350"/>` +
+    `<rect x="5" y="8" width="1" height="2" fill="#3a3350"/>` +
+    hatSVGRects(hat ? hat.pixels : null) +
     `</svg>`;
 }
 
@@ -766,21 +809,29 @@ function bandTintClass(depth) {
   return `band-depth-${Math.max(0, Math.min(depth, 3))}`;
 }
 
-function renderLadder(ladder) {
+function renderLadder(ladder, hats) {
   // Side-view mine shaft: stacked biome-tinted strata (CSS layers the
   // dirt-lip → stone → biome gradients per band-depth class); miner
-  // avatars and record flags are aria-hidden decoration ON the chips —
-  // the chip text ("Name", "Name · record") stays the semantics.
+  // avatars, their cosmetic hats and record flags are aria-hidden
+  // decoration ON the chips — the chip text ("Name", "Name · record")
+  // stays the semantics, and the hat gets a visually-hidden text
+  // alternative carrying its label (the a11y pattern everywhere else).
   const holder = document.getElementById("depth-ladder");
   holder.replaceChildren();
+  const hatFor = hatsByName(hats);
   for (const band of ladder || []) {
     const row = el("div", `ladder-band ${bandTintClass(band.depth)}`);
     row.appendChild(bandLabel(band.depth, band.biome));
     const chips = el("div", "ladder-chips");
     for (const name of band.here) {
       const chip = el("span", "chip");
-      chip.appendChild(svgSpan("miner-avatar", minerAvatarSVG()));
+      const hat = hatFor[name];
+      chip.appendChild(svgSpan("miner-avatar", minerAvatarSVG(hat)));
       chip.appendChild(document.createTextNode(name));
+      if (hat) {
+        chip.appendChild(
+          visuallyHidden("span", `, wearing a ${hat.label}`));
+      }
       chips.appendChild(chip);
     }
     for (const name of band.record_only) {
@@ -1197,7 +1248,7 @@ function render(views) {
     return;
   }
 
-  renderLadder(views.ladder);
+  renderLadder(views.ladder, views.hats);
   renderDepthRace(miners, views.world);
   renderMinimap(views.minimap);
   renderBoardTabs(views.leaderboards);

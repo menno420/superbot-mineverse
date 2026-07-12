@@ -17,6 +17,7 @@ renders as honest empty structures, never a crash.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -453,6 +454,92 @@ def build_achievements(miners: list, max_depth) -> dict:
     }
 
 
+# --- cosmetic hats (fun layer) — deterministic per-suid avatar cosmetic ----
+#
+# Purely cosmetic: no gameplay meaning, no thresholds, nothing earned —
+# a hat is a stable visual identity derived from the miner's suid alone.
+# Derivation uses hashlib.sha256 (stable across processes, machines and
+# Python versions), NEVER the builtin hash() (salted per process since
+# PEP 456 — the same suid would change hats on every restart).
+#
+# Each catalog entry carries `pixels`: [x, y, w, h, "#rrggbb"] rects on
+# the frontend avatar's 8×10 pixel grid (web/app.js minerAvatarSVG).
+# Rows 0–1 are hat headroom above the head; row 2 is the base helmet
+# row, which a hat may overlay. The frontend's pure hatSVGRects()
+# turns these into aria-hidden <rect> markup layered over the avatar.
+
+HAT_CATALOG = (
+    {"id": "miners_helmet", "label": "miner's helmet",
+     "pixels": [[2, 1, 4, 1, "#f5a83c"], [3, 1, 1, 1, "#fff7d6"]]},
+    {"id": "hard_hat", "label": "hard hat",
+     "pixels": [[2, 1, 4, 1, "#f5c842"], [1, 2, 6, 1, "#f5c842"]]},
+    {"id": "lantern_cap", "label": "lantern cap",
+     "pixels": [[2, 1, 4, 1, "#3a3350"], [4, 0, 1, 1, "#f5c842"]]},
+    {"id": "bandana", "label": "bandana",
+     "pixels": [[2, 2, 4, 1, "#e2543e"], [6, 2, 1, 1, "#e2543e"],
+                [6, 3, 1, 1, "#e2543e"]]},
+    {"id": "tin_crown", "label": "tin crown",
+     "pixels": [[2, 2, 4, 1, "#eceff4"], [2, 1, 1, 1, "#eceff4"],
+                [5, 1, 1, 1, "#eceff4"], [3, 2, 1, 1, "#7de8e0"]]},
+    {"id": "green_beanie", "label": "green beanie",
+     "pixels": [[2, 1, 4, 1, "#5aa85a"], [2, 2, 4, 1, "#5aa85a"],
+                [4, 0, 1, 1, "#8fd18f"]]},
+    {"id": "top_hat", "label": "top hat",
+     "pixels": [[2, 0, 4, 1, "#221d2e"], [2, 1, 4, 1, "#221d2e"],
+                [1, 2, 6, 1, "#221d2e"]]},
+    {"id": "mushroom_cap", "label": "mushroom cap",
+     "pixels": [[1, 2, 6, 1, "#e2543e"], [2, 1, 4, 1, "#e2543e"],
+                [2, 2, 1, 1, "#ffffff"], [5, 1, 1, 1, "#ffffff"]]},
+)
+
+# The avatar pixel grid the catalog draws on (web/app.js minerAvatarSVG
+# viewBox) — pinned here so tests can bound-check every catalog rect.
+HAT_GRID_WIDTH = 8
+HAT_GRID_HEIGHT = 10
+
+
+def hat_index(suid) -> int:
+    """Deterministic HAT_CATALOG index for a miner suid.
+
+    sha256 of the suid's string form, first 8 digest bytes read as a
+    big-endian integer, modulo the catalog size. Same suid → same hat,
+    on every call, process and machine — no state, no clock, no
+    randomness. A missing suid still derives (from ``str(None)``), so a
+    degraded miner keeps a stable hat instead of crashing.
+    """
+    digest = hashlib.sha256(str(suid).encode("utf-8")).digest()
+    return int.from_bytes(digest[:8], "big") % len(HAT_CATALOG)
+
+
+def build_hats(miners: list) -> dict:
+    """Per-miner deterministic cosmetic hats + the shared catalog.
+
+    An ADDITIVE key on :func:`build_views` — no existing key changes
+    shape (the achievements precedent). ``catalog`` is the ordered hat
+    definitions (id, label, pixels); ``miners`` is one
+    ``{suid, display_name, hat}`` row per miner, where ``hat`` is a
+    catalog id. ``display_name`` uses the SAME fallback expression as
+    :func:`build_ladder`, so the frontend can join hats onto ladder
+    chips by name.
+    """
+    return {
+        "catalog": [
+            {"id": entry["id"], "label": entry["label"],
+             "pixels": [list(pixel) for pixel in entry["pixels"]]}
+            for entry in HAT_CATALOG
+        ],
+        "miners": [
+            {
+                "suid": miner.get("suid"),
+                "display_name": (miner.get("display_name")
+                                 or miner.get("suid") or "?"),
+                "hat": HAT_CATALOG[hat_index(miner.get("suid"))]["id"],
+            }
+            for miner in miners
+        ],
+    }
+
+
 def parse_generated_at(value) -> int | None:
     """``generated_at`` (ISO 8601 UTC) → unix epoch seconds, or None.
 
@@ -513,4 +600,5 @@ def build_views(snapshot: dict) -> dict:
         "leaderboards": build_leaderboards(miners),
         "inventory": build_inventory_matrix(miners),
         "achievements": build_achievements(miners, max_depth),
+        "hats": build_hats(miners),
     }
