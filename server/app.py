@@ -602,8 +602,11 @@ def make_server(
 
 
 def main() -> None:
+    # HOST stays loopback by default (local dev, tests); a container host
+    # (Railway) sets HOST=0.0.0.0 to accept external traffic (see Dockerfile).
+    bind_host = os.environ.get("HOST", "127.0.0.1")
     port = int(os.environ.get("PORT", "8000"))
-    server = make_server(port=port)
+    server = make_server(host=bind_host, port=port)
     host, bound_port = server.server_address[:2]
     mode = (
         "configured"
