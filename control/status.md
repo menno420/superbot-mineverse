@@ -1,13 +1,28 @@
 # superbot-mineverse · status
-updated: 2026-07-12T21:44:07Z
-phase: ORDER 003 closeout — merge verification, kit re-render check, heartbeat + owner secrets ask (branch claude/order-003-closeout). COORDINATOR-DELEGATED heartbeat write — the coordinator seat authorized this status overwrite.
+updated: 2026-07-12T23:41:43Z
+phase: heartbeat — backlog wave shipped (#47–#53), kit finding routed to kit-lab (branch claude/heartbeat-2314). COORDINATOR-DELEGATED heartbeat write — the coordinator seat authorized this status overwrite.
 health: green
 kit: v1.8.0
-last-shipped: #45 — auth: real User-Agent on Discord requests (Cloudflare 403s urllib's default); merged 2026-07-12T18:22:10Z.
+last-shipped: #53 — web: seasonal decorations (date-keyed cosmetic layer over the cave theme, backlog item 6); merged 2026-07-12.
 blockers: none
 orders: acked=001,002,003 done=001,002,003
 ⚑ needs-owner: provision the six host env secrets (block below) — the SECURITY BEFORE SECRETS gate is CLEAR (#42 in main).
-notes: .claude/CLAUDE.md verified current — `python3 bootstrap.py render` output is byte-identical to the planted file (no hand-edit, no diff). Work claim: control/claims/claude-order-003-closeout.md (deleted at session close).
+notes: interim practice (flip-race guard) — push the full stack INCLUDING the card flip BEFORE opening the PR, so the substrate gate never evaluates a PR whose card is born red. Root cause + manager-routed ask: see pointer section below.
+
+## Shipped since last heartbeat (all MERGED; suite at HEAD 030a3e9: 437 passed, 1 skipped)
+
+- #47 control: heartbeat routine record + seat parked-PR list.
+- #48 tests: JS logic harness — execute web/ pure functions in CI (backlog item 2).
+- #49 web+views: deterministic cosmetic hats on pixel avatars (backlog item 7).
+- #50 session: land stranded close-out flips for PRs #48/#49 (records fix).
+- #51 web: ambient cave audio — synthesized, muted-default, honest toggle (backlog item 5).
+- #52 docs+control: substrate-gate born-red fail-open finding (flip-race) + manager-routed outbox ask.
+- #53 web: seasonal decorations — date-keyed cosmetic layer (backlog item 6).
+
+## Kit finding pointer
+
+- Finding: docs/findings/substrate-gate-born-red-fail-open-2026-07-12.md (substrate gate fails open on PR-added cards born red — flip-race).
+- Ask: manager-routed message in control/outbox.md — awaiting kit-lab pickup.
 
 ## Truth-stamp (API-verified 2026-07-12T20:56Z)
 
@@ -28,7 +43,8 @@ notes: .claude/CLAUDE.md verified current — `python3 bootstrap.py render` outp
 
 - games #65 (truth-stamp) — READY + green; landing path: owner-click.
 - games #66 (host-adapter scoping doc) — READY + green; landing path: owner-click.
-- idle #75 (PLUG-001 adapter) — READY + green; non-author review approved 2026-07-12; landing path: owner-click.
+- idle #75 (PLUG-001 adapter) — READY + green; independently review-approved 2026-07-12; landing path: owner-click.
+- idle #76 — READY + green; independently review-approved 2026-07-12; landing path: owner-click.
 
 ## CROSS-REPO NOTES
 
@@ -52,8 +68,8 @@ RISK: OAUTH_REDIRECT_URI must exactly match the URI registered in the Discord ap
 
 ## next-2-tasks baton
 
-1. After the write pair (MINING_WRITE_ENDPOINT + MINING_WRITE_SHARED_SECRET) and the bot-lane WRITE endpoint (FLAG 2) exist: run the conformance suite against the real endpoint (tests/test_actions.py via SHIM_CONFORMANCE_BASE_URL) + the audit-trail e2e per docs/live-prod-cutover.md.
-2. Verify live sign-in end-to-end on the Railway host post-#45 (UA fix) and record the outcome in docs/current-state.md; if green, close the loop on the bot-lane READ relay (FLAG 1) so real snapshots flow through the #42 ingestion validation.
+1. kit-lab response on the born-red fail-open ask (control/outbox.md; finding docs/findings/substrate-gate-born-red-fail-open-2026-07-12.md) — apply whatever fix or guidance comes back; until then the interim flip-race guard practice (notes line) stands.
+2. Remaining groomed-backlog items are blocked on FLAGs/owner: items 1, 3, 4, 8 (docs/ideas/founding-day-groomed-backlog-2026-07-11.md) — resume when FLAG 1/2 or the owner secrets land.
 
 ## Externally pending (pointers, unchanged)
 
