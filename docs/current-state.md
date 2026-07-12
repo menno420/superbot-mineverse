@@ -72,6 +72,7 @@ ruleset, so merges now wait for green tests, not just the substrate gate.
 
 ## Recently shipped (newest first)
 
+- 2026-07-12 — ambient cave audio (backlog item 5): synthesized WebAudio cave wind + drips, muted by default (AudioContext born only in the toggle click), honest aria-pressed toggle, non-persistent; pure spec/rhythm/label seams pinned via the `js_call` harness + served-bytes pins in `tests/test_web_audio.py`; suite 415 passed + 1 skip.
 - 2026-07-12 — records housekeeping: the #48/#49 close-out flips that the
   auto-merge race stranded on their branches landed on main — both session
   cards flipped `complete`, stale claims pruned, this ledger's two shipped
