@@ -1,5 +1,5 @@
 # superbot-mineverse · status
-updated: 2026-07-12T21:03:00Z
+updated: 2026-07-12T21:44:07Z
 phase: ORDER 003 closeout — merge verification, kit re-render check, heartbeat + owner secrets ask (branch claude/order-003-closeout). COORDINATOR-DELEGATED heartbeat write — the coordinator seat authorized this status overwrite.
 health: green
 kit: v1.8.0
@@ -17,6 +17,25 @@ notes: .claude/CLAUDE.md verified current — `python3 bootstrap.py render` outp
 - PR #31 (Codex pre-provisioning security report) MERGED 2026-07-12T19:52:53Z, merge commit 52fe2ca; docs/pre-provisioning-security-report-2026-07-11.md in main.
 - Open PRs at session boot: ZERO (API list, 2026-07-12T20:56Z).
 - Local suite on main @ 52fe2ca: 359 passed, 1 skipped; `python3 bootstrap.py check --strict` → all checks passed.
+
+## ROUTINE RECORD (Q-0265)
+
+- Failsafe cron "SuperBot World failsafe wake": id trig_0131tbQZs8HKmxKR4u5ZD1Hb, cron `15 1-23/2 * * *`, bound to the live coordinator session.
+- Predecessor cron trig_01KQbKNiSVfZRWutKEWFx2q2 deleted at cutover 2026-07-12.
+- ~15-min send_later pacemaker chain active (one pending at a time).
+
+## SEAT PARKED-PR LIST
+
+- games #65 (truth-stamp) — READY + green; landing path: owner-click.
+- games #66 (host-adapter scoping doc) — READY + green; landing path: owner-click.
+- idle #75 (PLUG-001 adapter) — READY + green; non-author review approved 2026-07-12; landing path: owner-click.
+
+## CROSS-REPO NOTES
+
+Recorded here because the games/idle control status files are frozen archives.
+
+- idle ORDER 003 complete — pytest CI landed via idle #74, merged 2026-07-12T19:40Z.
+- games ORDER 002 record gap documented in games PR #65 body.
 
 ## ⚑ OWNER-ACTION — provision the six host secrets (gate cleared by #42)
 
