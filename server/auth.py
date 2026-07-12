@@ -53,6 +53,13 @@ STATE_TTL_SECONDS = 10 * 60  # login round-trip budget
 SESSION_TTL_SECONDS = 7 * 24 * 3600  # one week of read personalization
 HTTP_TIMEOUT_SECONDS = 10
 
+# discord.com sits behind Cloudflare, which rejects urllib's default
+# User-Agent ("Python-urllib/3.x") with a 403 — live-verified 2026-07-12
+# (same endpoint: curl UA -> 200, python-urllib UA -> 403; the token
+# exchange failed in production with a valid client id + secret). Every
+# Discord request must carry a real UA.
+HTTP_USER_AGENT = "mineverse-web/1.0 (+https://github.com/menno420/superbot-mineverse)"
+
 
 class AuthConfig:
     """OAuth configuration snapshot. Values may be ``None`` (degraded mode)."""
@@ -268,7 +275,10 @@ def exchange_code(config: AuthConfig, code: str) -> str:
     request = urllib.request.Request(
         DISCORD_TOKEN_URL,
         data=form,
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": HTTP_USER_AGENT,
+        },
         method="POST",
     )
     with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
@@ -282,7 +292,10 @@ def fetch_discord_user(access_token: str) -> dict:
     """``GET /api/users/@me`` with the bearer token; returns the user object."""
     request = urllib.request.Request(
         DISCORD_ME_URL,
-        headers={"Authorization": f"Bearer {access_token}"},
+        headers={
+            "Authorization": f"Bearer {access_token}",
+            "User-Agent": HTTP_USER_AGENT,
+        },
         method="GET",
     )
     with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
