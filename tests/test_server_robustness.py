@@ -190,19 +190,23 @@ def test_non_object_snapshot_is_503_on_both_read_routes(serve, tmp_path):
         assert json.loads(body) == {"error": "snapshot unavailable"}, path
 
 
-def test_snapshot_the_shaper_chokes_on_is_a_clean_500(serve, tmp_path):
-    # Valid JSON object, but shaped so views.build_views raises
-    # (equipment as a string defeats the gear panel's .get calls).
-    # Before the guard this crashed the request thread — the client saw
-    # a dropped connection instead of a status. Never a bogus 200.
+def test_structurally_invalid_snapshot_is_refused_at_ingestion(serve, tmp_path):
+    # A valid JSON object that violates the v1 READ contract (here: the whole
+    # envelope is missing and equipment is a non-mapping) is now refused at
+    # INGESTION with an honest 503 by the runtime validator, BEFORE the view
+    # shaper ever runs — so the frontend never receives shaped-but-corrupt data.
+    # (Previously this reached views.build_views and drew a 500; the ingestion
+    # guard is the earlier, stronger bite. The build_views try/except in
+    # _serve_views is kept as defense-in-depth for any structurally-valid but
+    # shaper-hostile payload.)
     bad = tmp_path / "malformed.json"
     bad.write_text(json.dumps(
         {"miners": [{"equipment": "not-a-mapping", "gear_wear": 3}]}))
     addr = serve(snapshot_path=bad, web_root=WEB_ROOT)
     status, headers, body = request(addr, "GET", "/api/views")
-    assert status == 500
+    assert status == 503
     assert headers["content-type"].startswith("application/json")
-    assert json.loads(body) == {"error": "snapshot malformed"}
+    assert json.loads(body) == {"error": "snapshot unavailable"}
 
 
 def test_missing_snapshot_stays_an_honest_503_on_views(serve, tmp_path):

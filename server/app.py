@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import urllib.parse
 from functools import partial
@@ -42,11 +43,14 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 try:
-    from server import actions, auth, views
+    from server import actions, auth, snapshot_validation, views
 except ImportError:  # direct script execution: python3 server/app.py
     import actions  # type: ignore[no-redef]
     import auth  # type: ignore[no-redef]
+    import snapshot_validation  # type: ignore[no-redef]
     import views  # type: ignore[no-redef]
+
+LOGGER = logging.getLogger("mineverse")
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SNAPSHOT_PATH = REPO_ROOT / "data" / "sample_snapshot.json"
@@ -176,10 +180,15 @@ class MineverseHandler(SimpleHTTPRequestHandler):
             return
         try:
             snapshot = json.loads(self.snapshot_path.read_bytes())
-            guild_id = snapshot["guild_id"]
-        except (OSError, ValueError, KeyError):
+        except (OSError, ValueError):
             self._send_json(503, {"error": "snapshot unavailable"})
             return
+        # Ingestion-time v1 validation before we trust the snapshot's guild_id
+        # for a signed write proposal — a malformed relay must not be relayed.
+        if not self._snapshot_is_valid(snapshot):
+            self._send_json(503, {"error": "snapshot unavailable"})
+            return
+        guild_id = snapshot["guild_id"]  # required + string, guaranteed by the check
         proposal = {
             "contract_version": actions.CONTRACT_VERSION,
             "action_id": request["action_id"],
@@ -240,9 +249,12 @@ class MineverseHandler(SimpleHTTPRequestHandler):
         """
         try:
             snapshot = json.loads(self.snapshot_path.read_bytes())
-            if not isinstance(snapshot, dict):
-                raise ValueError("snapshot is not a JSON object")
         except (OSError, ValueError):
+            self._send_json(503, {"error": "snapshot unavailable"})
+            return
+        # Same ingestion-time v1 validation as /api/snapshot: refuse to shape a
+        # snapshot that does not conform to the READ contract.
+        if not self._snapshot_is_valid(snapshot):
             self._send_json(503, {"error": "snapshot unavailable"})
             return
         try:
@@ -256,14 +268,26 @@ class MineverseHandler(SimpleHTTPRequestHandler):
         try:
             payload = self.snapshot_path.read_bytes()
             snapshot = json.loads(payload)  # never serve corrupt bytes as 200
-            if not isinstance(snapshot, dict):
-                # The contract's envelope is an object — anything else is
-                # a corrupt snapshot, not servable data.
-                raise ValueError("snapshot is not a JSON object")
         except (OSError, ValueError):
             self._send_json(503, {"error": "snapshot unavailable"})
             return
+        # Runtime v1-contract validation at ingestion: a snapshot that is valid
+        # JSON but violates the READ contract (wrong version, missing/typewrong
+        # fields, out-of-band values) is refused with an honest 503 — the future
+        # live bot→web relay is checked here, not only the committed sample in CI.
+        if not self._snapshot_is_valid(snapshot):
+            self._send_json(503, {"error": "snapshot unavailable"})
+            return
         self._serve_cacheable_json(payload)
+
+    def _snapshot_is_valid(self, snapshot: object) -> bool:
+        """True iff ``snapshot`` conforms to the v1 READ contract (logs on fail)."""
+        try:
+            snapshot_validation.validate_snapshot(snapshot)
+            return True
+        except snapshot_validation.SnapshotInvalid as exc:
+            LOGGER.warning("snapshot failed v1 validation at ingestion: %s", exc)
+            return False
 
     # --- conditional caching (committed data — a content hash is honest) --
 
@@ -306,7 +330,13 @@ class MineverseHandler(SimpleHTTPRequestHandler):
             self._send_json(503, {"error": "sign-in not configured"})
             return
         state = auth.make_state(config)
-        self._redirect(auth.build_authorize_url(config, state))
+        # Bind the login round-trip to THIS browser: the callback will require
+        # this cookie and constant-time-compare it against the returned state,
+        # so a server-minted state alone can't be replayed from another browser.
+        self._redirect(
+            auth.build_authorize_url(config, state),
+            set_cookie=self._state_cookie_header(auth.make_state_binding(config, state)),
+        )
 
     def _serve_callback(self, query: str) -> None:
         config = self.auth_config
@@ -323,6 +353,14 @@ class MineverseHandler(SimpleHTTPRequestHandler):
         if not auth.verify_state(config, state):
             self._send_json(400, {"error": "invalid or expired state"})
             return
+        # Require the per-browser binding cookie set at /auth/login and
+        # constant-time-compare it against the returned state. A missing or
+        # mismatched cookie is the same login-CSRF failure as a bad state — one
+        # opaque 400 either way, so nothing leaks WHICH check failed.
+        binding = self._state_binding_cookie()
+        if binding is None or not auth.verify_state_binding(config, state, binding):
+            self._send_json(400, {"error": "invalid or expired state"})
+            return
         code = (params.get("code") or [""])[0]
         if not code:
             self._send_json(400, {"error": "missing authorization code"})
@@ -334,7 +372,15 @@ class MineverseHandler(SimpleHTTPRequestHandler):
             self._send_json(502, {"error": "discord token exchange failed"})
             return
         cookie_value = auth.make_session_value(config, str(user["id"]))
-        self._redirect("/", set_cookie=self._session_cookie_header(cookie_value))
+        # Set the session cookie FIRST (so a single-header reader sees it) and
+        # clear the now-spent state binding cookie alongside it.
+        self._redirect(
+            "/",
+            set_cookie=[
+                self._session_cookie_header(cookie_value),
+                self._state_cookie_header("", clear=True),
+            ],
+        )
 
     def _serve_logout(self) -> None:
         self._redirect("/", set_cookie=self._session_cookie_header("", clear=True))
@@ -363,6 +409,18 @@ class MineverseHandler(SimpleHTTPRequestHandler):
                 },
             )
             return
+        # Fourth snapshot load path: like /api/snapshot, /api/views and
+        # /api/action, refuse a missing/corrupt/non-conformant snapshot with an
+        # honest 503 instead of crashing on it (a valid-JSON but non-object
+        # snapshot such as ``[]`` would otherwise raise AttributeError → 500).
+        try:
+            snapshot = json.loads(self.snapshot_path.read_bytes())
+        except (OSError, ValueError):
+            self._send_json(503, {"error": "snapshot unavailable"})
+            return
+        if not self._snapshot_is_valid(snapshot):
+            self._send_json(503, {"error": "snapshot unavailable"})
+            return
         self._send_json(
             200,
             {
@@ -370,7 +428,7 @@ class MineverseHandler(SimpleHTTPRequestHandler):
                 "auth_configured": True,
                 "writes_configured": writes,
                 "user_id": user_id,
-                "miner": self._find_miner(user_id),
+                "miner": self._find_miner(snapshot, user_id),
             },
         )
 
@@ -385,35 +443,67 @@ class MineverseHandler(SimpleHTTPRequestHandler):
             return None
         return auth.read_session_user_id(config, morsel.value)
 
-    def _find_miner(self, user_id: str) -> dict | None:
-        """Exact string match of the Discord user id against miners[].suid."""
-        try:
-            snapshot = json.loads(self.snapshot_path.read_bytes())
-        except (OSError, ValueError):
-            return None
+    def _find_miner(self, snapshot: dict, user_id: str) -> dict | None:
+        """Exact string match of the Discord user id against miners[].suid.
+
+        ``snapshot`` is the already-validated v1 payload (see ``_serve_me``): the
+        v1 structural check guarantees it is an object with a ``miners`` list, so
+        this lookup can never raise on a malformed snapshot.
+        """
         for miner in snapshot.get("miners") or []:
             if miner.get("suid") == user_id:
                 return miner
         return None
 
     def _session_cookie_header(self, value: str, *, clear: bool = False) -> str:
+        return self._cookie_header(
+            auth.SESSION_COOKIE,
+            value,
+            max_age=0 if clear else auth.SESSION_TTL_SECONDS,
+        )
+
+    def _state_cookie_header(self, value: str, *, clear: bool = False) -> str:
+        """The per-browser OAuth-state binding cookie (login sets, callback clears)."""
+        return self._cookie_header(
+            auth.STATE_COOKIE,
+            value,
+            max_age=0 if clear else auth.STATE_TTL_SECONDS,
+        )
+
+    def _cookie_header(self, name: str, value: str, *, max_age: int) -> str:
         parts = [
-            f"{auth.SESSION_COOKIE}={value}",
+            f"{name}={value}",
             "Path=/",
             "HttpOnly",
             "SameSite=Lax",
-            f"Max-Age={0 if clear else auth.SESSION_TTL_SECONDS}",
+            f"Max-Age={max_age}",
         ]
         if self.auth_config.cookie_secure:
             parts.append("Secure")
         return "; ".join(parts)
 
-    def _redirect(self, location: str, *, set_cookie: str | None = None) -> None:
+    def _state_binding_cookie(self) -> str | None:
+        """The per-browser OAuth-state binding cookie value, or ``None``."""
+        cookie = SimpleCookie()
+        try:
+            cookie.load(self.headers.get("Cookie", ""))
+        except Exception:  # noqa: BLE001 — a garbage header is just "no cookie"
+            return None
+        morsel = cookie.get(auth.STATE_COOKIE)
+        if morsel is None or not morsel.value:
+            return None
+        return morsel.value
+
+    def _redirect(
+        self, location: str, *, set_cookie: str | list[str] | None = None
+    ) -> None:
         self.send_response(302)
         self.send_header("Location", location)
         self.send_header("Cache-Control", "no-store")
         if set_cookie is not None:
-            self.send_header("Set-Cookie", set_cookie)
+            cookies = [set_cookie] if isinstance(set_cookie, str) else set_cookie
+            for cookie in cookies:
+                self.send_header("Set-Cookie", cookie)
         self.send_header("Content-Length", "0")
         self.end_headers()
 
