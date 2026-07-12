@@ -522,6 +522,96 @@ def test_hats_by_name_tolerates_missing_or_junk_views_key():
     assert run_js_ops(ops) == [{}] * len(ops)
 
 
+# --- ambient cave audio (backlog item 5): pure spec/label seams -------------
+#
+# The WebAudio wiring (startCaveAmbience/buildCaveAudioNode) is a thin
+# interpreter needing a real AudioContext; ALL the decisions live in these
+# pure functions — graph spec from config, deterministic drip rhythm, and
+# the honest toggle face — so they are what CI pins.
+
+
+def test_cave_sounds_button_state_is_honest_both_ways():
+    on, off = run_js_ops([
+        {"type": "call", "fn": "caveSoundsButtonState", "args": [True]},
+        {"type": "call", "fn": "caveSoundsButtonState", "args": [False]},
+    ])
+    assert on == {"pressed": "true", "label": "🔊 Cave sounds on"}
+    assert off == {"pressed": "false", "label": "🔇 Cave sounds off"}
+    # aria-pressed always mirrors the label — no state where they disagree.
+    assert (on["pressed"] == "true") == ("on" in on["label"])
+    assert (off["pressed"] == "false") == ("off" in off["label"])
+
+
+def test_cave_ambience_graph_spec_shape_and_chain():
+    # No argument → the SHIPPED ambience (CAVE_AUDIO), exactly what the
+    # browser's interpreter builds.
+    spec = js_call("caveAmbienceGraphSpec")
+    by_id = {node["id"]: node for node in spec["nodes"]}
+    assert set(by_id) == {"master", "wind-noise", "wind-filter"}
+    assert by_id["master"]["type"] == "gain"
+    assert by_id["wind-filter"]["type"] == "biquad"
+    assert by_id["wind-noise"]["type"] == "noise"
+    assert by_id["wind-noise"]["loop"] is True  # the wind never runs out
+    # The chain reaches the speakers: noise → filter → master → destination.
+    assert spec["connections"] == [
+        ["wind-noise", "wind-filter"],
+        ["wind-filter", "master"],
+        ["master", "destination"],
+    ]
+    # Every connection endpoint is a declared node (or the destination).
+    for src, dst in spec["connections"]:
+        assert src in by_id
+        assert dst in by_id or dst == "destination"
+
+
+def test_cave_ambience_is_subtle_by_construction():
+    spec = js_call("caveAmbienceGraphSpec")
+    by_id = {node["id"]: node for node in spec["nodes"]}
+    # Whisper-quiet master gain — ambience, never music.
+    assert 0 < by_id["master"]["gain"] <= 0.1
+    # Wind is a low-pass rumble, not white-noise hiss.
+    assert by_id["wind-filter"]["filterType"] == "lowpass"
+    assert 0 < by_id["wind-filter"]["frequencyHz"] <= 400
+
+
+def test_cave_ambience_graph_spec_reads_the_given_config():
+    custom = {
+        "masterGain": 0.02,
+        "wind": {"noiseSeconds": 1, "filterType": "lowpass",
+                 "frequencyHz": 120, "q": 1.5},
+    }
+    spec = js_call("caveAmbienceGraphSpec", custom)
+    by_id = {node["id"]: node for node in spec["nodes"]}
+    assert by_id["master"]["gain"] == 0.02
+    assert by_id["wind-filter"]["frequencyHz"] == 120
+    assert by_id["wind-filter"]["q"] == 1.5
+    assert by_id["wind-noise"]["seconds"] == 1
+
+
+def test_cave_drip_delay_is_deterministic_and_bounded():
+    # Shipped config: gaps live in [4, 9] s and cycle deterministically —
+    # the same rhythm every visit (diamond-rain-style scatter, no RNG).
+    ops = [
+        {"type": "call", "fn": "caveDripDelaySeconds", "args": [i]}
+        for i in range(24)
+    ]
+    delays = run_js_ops(ops)
+    assert all(4 <= d <= 9 for d in delays)
+    assert set(delays) == {4, 5, 6, 7, 8, 9}  # full range, no dead gap
+    assert delays[:6] == delays[6:12] == delays[12:18]  # period = span
+    assert delays == run_js_ops(ops)  # bit-identical on a re-run
+
+
+def test_cave_drip_delay_respects_custom_gap_bounds():
+    config = {"drip": {"minGapSeconds": 2, "maxGapSeconds": 4}}
+    delays = run_js_ops([
+        {"type": "call", "fn": "caveDripDelaySeconds", "args": [i, config]}
+        for i in range(9)
+    ])
+    assert all(2 <= d <= 4 for d in delays)
+    assert set(delays) == {2, 3, 4}
+
+
 def test_harness_reports_missing_function_clearly():
     with pytest.raises(RuntimeError, match="no top-level function"):
         js_call("noSuchFunctionAnywhere")

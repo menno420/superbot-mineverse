@@ -205,6 +205,208 @@ function toolRowButton(suid) {
   return button;
 }
 
+/* --- ambient cave audio (WebAudio, synthesized, muted by default) --------
+ * No audio asset files: the ambience is SYNTHESIZED — a looped low-pass-
+ * filtered noise buffer for cave wind plus occasional soft sine "drips"
+ * on a decay envelope, all whisper-quiet. MUTED BY DEFAULT, always: the
+ * AudioContext is created only inside the toggle's click handler, so no
+ * sound can exist before an explicit opt-in (no-autoplay discipline; the
+ * browser gesture requirement agrees). The toggle is a real button whose
+ * aria-pressed + visible label mirror the TRUE audio state; the choice
+ * does not persist across reloads (nothing in web/ persists UI state).
+ * Nothing on the page pulses or animates with the audio, so there is
+ * nothing extra to gate under prefers-reduced-motion — the toggle stays
+ * available and the single motion gate stays single. */
+
+const CAVE_AUDIO = {
+  masterGain: 0.04, // whisper-quiet — ambience, never music
+  wind: {
+    noiseSeconds: 2, // looped noise buffer length
+    filterType: "lowpass",
+    frequencyHz: 240, // deep rumble, no hiss
+    q: 0.8,
+  },
+  drip: {
+    oscillatorType: "sine",
+    startHz: 1100, // droplet "plink": a falling pitch...
+    endHz: 380,
+    decaySeconds: 0.5, // ...that dies away fast
+    peakGain: 0.35, // relative to the master gain
+    minGapSeconds: 4,
+    maxGapSeconds: 9,
+  },
+};
+
+function caveSoundsButtonState(on) {
+  // PURE (JSON in, JSON out — pinned by tests/test_js_logic.py): audio
+  // state → the honest button face. aria-pressed mirrors the REAL state
+  // and the visible label says the same thing in words.
+  return on
+    ? { pressed: "true", label: "🔊 Cave sounds on" }
+    : { pressed: "false", label: "🔇 Cave sounds off" };
+}
+
+function caveAmbienceGraphSpec(config) {
+  // PURE (config in, JSON out — pinned by tests/test_js_logic.py): the
+  // audio-graph SPEC for the wind bed — node descriptions plus the
+  // connection chain — kept separate from the WebAudio wiring so the
+  // graph shape is testable without an AudioContext.
+  // startCaveAmbience is a thin interpreter of this spec. Called with
+  // no argument it describes the SHIPPED ambience (CAVE_AUDIO).
+  const c = config || CAVE_AUDIO;
+  return {
+    nodes: [
+      { id: "master", type: "gain", gain: c.masterGain },
+      { id: "wind-filter", type: "biquad", filterType: c.wind.filterType,
+        frequencyHz: c.wind.frequencyHz, q: c.wind.q },
+      { id: "wind-noise", type: "noise", seconds: c.wind.noiseSeconds,
+        loop: true },
+    ],
+    connections: [
+      ["wind-noise", "wind-filter"],
+      ["wind-filter", "master"],
+      ["master", "destination"],
+    ],
+  };
+}
+
+function caveDripDelaySeconds(index, config) {
+  // PURE: drip counter → seconds until the next drip. Deterministic
+  // scatter (same trick as the diamond rain — no randomness), cycling
+  // through every gap in [minGapSeconds, maxGapSeconds]: the cave drips
+  // the same rhythm for everyone, every visit.
+  const drip = (config || CAVE_AUDIO).drip;
+  const span = drip.maxGapSeconds - drip.minGapSeconds + 1;
+  return drip.minGapSeconds + ((index * 5) % span);
+}
+
+let caveAudioCtx = null; // created ONLY inside the toggle click handler
+let caveAudioNodes = null;
+let caveDripTimer = null;
+let caveDripIndex = 0;
+
+function buildCaveAudioNode(ctx, spec) {
+  // Thin interpreter, one spec node → one WebAudio node.
+  if (spec.type === "gain") {
+    const node = ctx.createGain();
+    node.gain.value = spec.gain;
+    return node;
+  }
+  if (spec.type === "biquad") {
+    const node = ctx.createBiquadFilter();
+    node.type = spec.filterType;
+    node.frequency.value = spec.frequencyHz;
+    node.Q.value = spec.q;
+    return node;
+  }
+  if (spec.type === "noise") {
+    // Deterministic noise (a fixed-seed LCG — no randomness anywhere,
+    // the diamond-rain house rule): the same wind every visit.
+    const frames = Math.max(1, Math.round(spec.seconds * ctx.sampleRate));
+    const buffer = ctx.createBuffer(1, frames, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    let seed = 0x2f6e2b1;
+    for (let i = 0; i < frames; i++) {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      data[i] = (seed / 0xffffffff) * 2 - 1;
+    }
+    const node = ctx.createBufferSource();
+    node.buffer = buffer;
+    node.loop = Boolean(spec.loop);
+    return node;
+  }
+  return null;
+}
+
+function playCaveDrip(ctx, destination) {
+  const drip = CAVE_AUDIO.drip;
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  osc.type = drip.oscillatorType;
+  osc.frequency.setValueAtTime(drip.startHz, now);
+  osc.frequency.exponentialRampToValueAtTime(
+    drip.endHz, now + drip.decaySeconds);
+  const envelope = ctx.createGain();
+  envelope.gain.setValueAtTime(drip.peakGain, now);
+  envelope.gain.exponentialRampToValueAtTime(
+    0.001, now + drip.decaySeconds);
+  osc.connect(envelope);
+  envelope.connect(destination);
+  osc.start(now);
+  osc.stop(now + drip.decaySeconds); // one-shot: stops and frees itself
+}
+
+function scheduleNextCaveDrip() {
+  caveDripTimer = setTimeout(() => {
+    if (!caveAudioCtx) return; // toggled off while waiting
+    playCaveDrip(caveAudioCtx, caveAudioNodes.master);
+    caveDripIndex += 1;
+    scheduleNextCaveDrip();
+  }, caveDripDelaySeconds(caveDripIndex) * 1000);
+}
+
+function startCaveAmbience() {
+  // Called ONLY from the toggle's click handler — the AudioContext is
+  // born inside the user's gesture, never at load. Returns whether audio
+  // actually started, so the button face can stay honest when the
+  // browser has no WebAudio at all.
+  const Ctor = window.AudioContext || window.webkitAudioContext;
+  if (typeof Ctor !== "function") return false;
+  const ctx = new Ctor();
+  if (typeof ctx.resume === "function") ctx.resume();
+  const spec = caveAmbienceGraphSpec();
+  const nodes = Object.create(null);
+  for (const nodeSpec of spec.nodes) {
+    nodes[nodeSpec.id] = buildCaveAudioNode(ctx, nodeSpec);
+  }
+  for (const [from, to] of spec.connections) {
+    const source = nodes[from];
+    const target = to === "destination" ? ctx.destination : nodes[to];
+    if (source && target) source.connect(target);
+  }
+  nodes["wind-noise"].start();
+  caveAudioCtx = ctx;
+  caveAudioNodes = nodes;
+  caveDripIndex = 0;
+  scheduleNextCaveDrip();
+  return true;
+}
+
+function stopCaveAmbience() {
+  if (caveDripTimer !== null) {
+    clearTimeout(caveDripTimer);
+    caveDripTimer = null;
+  }
+  if (caveAudioCtx && typeof caveAudioCtx.close === "function") {
+    caveAudioCtx.close(); // silences the wind and frees the device
+  }
+  caveAudioCtx = null;
+  caveAudioNodes = null;
+}
+
+function paintCaveSoundsToggle(button, on) {
+  const state = caveSoundsButtonState(on);
+  button.setAttribute("aria-pressed", state.pressed);
+  button.textContent = state.label;
+}
+
+function onCaveSoundsToggle(event) {
+  const button = event.currentTarget;
+  if (caveAudioCtx) {
+    stopCaveAmbience();
+    paintCaveSoundsToggle(button, false);
+  } else {
+    // startCaveAmbience reports honestly — no WebAudio, no "on" label.
+    paintCaveSoundsToggle(button, startCaveAmbience());
+  }
+}
+
+const caveSoundsButton = document.getElementById("cave-audio-toggle");
+if (caveSoundsButton) {
+  caveSoundsButton.addEventListener("click", onCaveSoundsToggle);
+  paintCaveSoundsToggle(caveSoundsButton, false); // muted by default, always
+}
+
 /* --- inline-SVG decoration (cave theme) ----------------------------------
  * Every icon here is a graphical repeat of text that sits next to it, so
  * each one routes through decorative() — never a replacement for text. */

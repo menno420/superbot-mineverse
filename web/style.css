@@ -554,6 +554,25 @@ button.share-button {
 }
 button.share-button:hover { border-color: var(--accent); }
 
+/* ambient cave audio toggle — a real button, honest state, muted default.
+   No animation here and nothing on the page pulses with the audio, so
+   there is nothing extra to gate under prefers-reduced-motion. */
+button.audio-toggle {
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--edge);
+  border-radius: 0.5rem;
+  background: var(--panel);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+button.audio-toggle:hover { border-color: var(--accent); }
+button.audio-toggle[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 /* miner VS */
 .vs-controls {
   display: flex;
