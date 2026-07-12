@@ -435,6 +435,93 @@ def test_share_card_lines_text_shaping():
     assert bare["stats"][1] == "Level ? · 0 ? XP · 0 coins"
 
 
+# --- cosmetic hats: hatSVGRects + hatsByName (backlog item 7) ---------------
+#
+# The hat pipeline is server-derived (server/views.py build_hats,
+# pytest-covered in tests/test_hats.py); these two pure functions are the
+# ONLY new frontend logic — spec → markup, and views.hats → name join.
+
+
+def test_hat_svg_rects_renders_valid_pixels_in_order():
+    pixels = [[2, 1, 4, 1, "#f5c842"], [1, 2, 6, 1, "#f5c842"]]
+    assert js_call("hatSVGRects", pixels) == (
+        '<rect x="2" y="1" width="4" height="1" fill="#f5c842"/>'
+        '<rect x="1" y="2" width="6" height="1" fill="#f5c842"/>'
+    )
+
+
+def test_hat_svg_rects_rejects_junk_specs_and_entries():
+    ops = [
+        {"type": "call", "fn": "hatSVGRects", "args": [spec]}
+        for spec in [
+            None,                                   # no hat
+            "hat",                                  # non-array spec
+            {},                                     # non-array spec
+            [],                                     # empty spec
+            [[1, 2, 3, 4]],                         # missing color
+            [[1, 2, 3, 4, 5, 6]],                   # wrong arity
+            [["a", 2, 3, 4, "#fff"]],               # non-numeric coord
+            [[1, 2, 3, 4, "red"]],                  # non-hex color
+            [[1, 2, 3, 4, '"><script>x</script>']],  # markup never lands
+            [None, 7],                              # junk entries
+        ]
+    ]
+    assert run_js_ops(ops) == [""] * len(ops)
+
+
+def test_hat_svg_rects_keeps_valid_entries_when_junk_is_mixed_in():
+    pixels = [[4, 0, 1, 1, "#f5c842"], None, [1, 2, 3, 4, "red"]]
+    assert js_call("hatSVGRects", pixels) == (
+        '<rect x="4" y="0" width="1" height="1" fill="#f5c842"/>'
+    )
+
+
+def test_hat_svg_rects_accepts_shipped_server_catalog():
+    # Contract seam: every pixel the server actually ships must survive
+    # the frontend validity filter — a filtered SHIPPED pixel would be a
+    # silently half-drawn hat.
+    import sys
+
+    sys.path.insert(0, str(REPO_ROOT))
+    from server import views  # noqa: E402
+
+    ops = [
+        {"type": "call", "fn": "hatSVGRects", "args": [entry["pixels"]]}
+        for entry in views.HAT_CATALOG
+    ]
+    for entry, markup in zip(views.HAT_CATALOG, run_js_ops(ops)):
+        assert markup.count("<rect") == len(entry["pixels"]), entry["id"]
+
+
+def test_hats_by_name_joins_rows_to_catalog():
+    hats = {
+        "catalog": [
+            {"id": "top_hat", "label": "top hat", "pixels": []},
+            {"id": "bandana", "label": "bandana", "pixels": []},
+        ],
+        "miners": [
+            {"suid": "1", "display_name": "DeepDelver", "hat": "top_hat"},
+            {"suid": "2", "display_name": "RustyRelic", "hat": "bandana"},
+            {"suid": "3", "display_name": "Ghost", "hat": "no_such_hat"},
+            {"suid": "4", "hat": "top_hat"},   # nameless: can't reach a chip
+            None,                              # junk row
+        ],
+    }
+    assert js_call("hatsByName", hats) == {
+        "DeepDelver": {"id": "top_hat", "label": "top hat", "pixels": []},
+        "RustyRelic": {"id": "bandana", "label": "bandana", "pixels": []},
+    }
+
+
+def test_hats_by_name_tolerates_missing_or_junk_views_key():
+    ops = [
+        {"type": "call", "fn": "hatsByName", "args": [spec]}
+        for spec in [None, {}, {"catalog": "x", "miners": "y"},
+                     {"catalog": [None, {"label": "no id"}], "miners": []}]
+    ]
+    assert run_js_ops(ops) == [{}] * len(ops)
+
+
 def test_harness_reports_missing_function_clearly():
     with pytest.raises(RuntimeError, match="no top-level function"):
         js_call("noSuchFunctionAnywhere")
