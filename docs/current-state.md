@@ -77,6 +77,7 @@ rule: push the full stack including the flip BEFORE opening the PR.
 
 ## Recently shipped (newest first)
 
+- 2026-07-12 — seasonal decorations (backlog item 6): date-keyed cosmetic layer over the cave theme — pure `seasonForDate`/`seasonalDecorSpec`/`seasonalDecorSVG` seams (date injected at boot; four year-wrapping windows + fixed founding-day/new-year dates), aria-hidden header pixel ornament + tint-only `--glow` season classes, zero new animation; pinned via the `js_call` harness + `tests/test_web_seasonal.py`; suite 437 passed + 1 skip.
 - 2026-07-12 — flip-race root-caused: `docs/findings/substrate-gate-born-red-fail-open-2026-07-12.md` (kit gate is advisory for PR-ADDED session cards by design, so #48/#49 auto-merged pre-flip); fix routed upstream to substrate-kit via `control/outbox.md`; interim rule stands — push the full stack incl. the flip before opening the PR.
 - 2026-07-12 — ambient cave audio (backlog item 5): synthesized WebAudio cave wind + drips, muted by default (AudioContext born only in the toggle click), honest aria-pressed toggle, non-persistent; pure spec/rhythm/label seams pinned via the `js_call` harness + served-bytes pins in `tests/test_web_audio.py`; suite 415 passed + 1 skip.
 - 2026-07-12 — records housekeeping: the #48/#49 close-out flips that the
