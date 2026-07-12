@@ -46,6 +46,11 @@ this repo).
 **CI:** both `substrate-gate` AND `pytest` (the schema-gate workflow's job)
 are required status checks on main — pytest was recently added to the
 ruleset, so merges now wait for green tests, not just the substrate gate.
+Known gap (root-caused, fix routed upstream to substrate-kit via the
+outbox): the gate is advisory for session cards ADDED by a PR, so a
+single-PR work session has no born-red hold — see
+`docs/findings/substrate-gate-born-red-fail-open-2026-07-12.md`; interim
+rule: push the full stack including the flip BEFORE opening the PR.
 
 ## In flight
 
