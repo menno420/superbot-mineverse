@@ -72,6 +72,10 @@ ruleset, so merges now wait for green tests, not just the substrate gate.
 
 ## Recently shipped (newest first)
 
+- 2026-07-12 — records housekeeping: the #48/#49 close-out flips that the
+  auto-merge race stranded on their branches landed on main — both session
+  cards flipped `complete`, stale claims pruned, this ledger's two shipped
+  lines below restored.
 - 2026-07-12 — cosmetic hats (PR #49): deterministic per-suid pixel-art hats on the ladder avatars — additive `hats` key on `/api/views` (sha256 of suid → 8-hat catalog), pure JS drawing/join functions pinned via the PR #48 `js_call` harness; suite 397 passed + 1 skip.
 - 2026-07-12 — JS logic test harness (PR #48): `tests/test_js_logic.py`
   executes the REAL `web/app.js` pure functions via node in pytest —
