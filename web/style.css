@@ -573,6 +573,24 @@ button.audio-toggle[aria-pressed="true"] {
   border-color: var(--accent);
 }
 
+/* seasonal decorations — date-keyed cosmetic layer over the cave theme.
+   The header slot holds one aria-hidden pixel ornament (filled by JS from
+   the pure seasonalDecorSpec); each body.season-* class only retints the
+   EXISTING lantern glow via --glow. No animation and no transition here:
+   the lantern-flicker keyframes above stay the only motion, already
+   zeroed by the global prefers-reduced-motion guard. */
+.seasonal-decor {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 0.15rem;
+}
+body.season-winter { --glow: rgba(125, 232, 224, 0.35); }
+body.season-spring { --glow: rgba(125, 196, 108, 0.35); }
+body.season-summer { --glow: rgba(245, 200, 66, 0.4); }
+body.season-autumn { --glow: rgba(226, 84, 62, 0.35); }
+body.season-founding-day { --glow: rgba(245, 168, 60, 0.6); }
+body.season-new-year { --glow: rgba(236, 239, 244, 0.4); }
+
 /* miner VS */
 .vs-controls {
   display: flex;

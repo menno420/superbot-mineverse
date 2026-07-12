@@ -612,6 +612,185 @@ def test_cave_drip_delay_respects_custom_gap_bounds():
     assert set(delays) == {2, 3, 4}
 
 
+# --- seasonal decorations (backlog item 6): date-keyed pure seams -----------
+#
+# The DOM caller (applySeasonalDecor) is a three-liner; ALL the decisions
+# live in seasonForDate (injected ISO date → season/event id, calendar
+# windows + fixed dates), seasonalDecorSpec (id → renderable spec) and
+# seasonalDecorSVG (spec → pixel-SVG markup through the hatSVGRects
+# filter) — so those are what CI pins, across every window boundary and
+# the year wrap.
+
+SEASON_IDS = {"winter", "spring", "summer", "autumn"}
+EVENT_IDS = {"founding-day", "new-year"}
+ALL_SEASONAL_IDS = SEASON_IDS | EVENT_IDS
+
+
+def test_season_for_date_window_boundaries():
+    vectors = [
+        # every inclusive window edge, both sides
+        ("2026-02-28", "winter"),
+        ("2028-02-29", "winter"),   # leap day: still winter
+        ("2026-03-01", "spring"),
+        ("2026-05-31", "spring"),
+        ("2026-06-01", "summer"),
+        ("2026-08-31", "summer"),
+        ("2026-09-01", "autumn"),
+        ("2026-11-30", "autumn"),
+        ("2026-12-01", "winter"),
+        # mid-window sanity
+        ("2026-01-15", "winter"),
+        ("2026-04-10", "spring"),
+        ("2026-07-12", "summer"),   # this session's date
+        ("2026-10-31", "autumn"),
+    ]
+    ops = [
+        {"type": "call", "fn": "seasonForDate", "args": [iso]}
+        for iso, _ in vectors
+    ]
+    assert run_js_ops(ops) == [expected for _, expected in vectors]
+
+
+def test_season_for_date_wraps_the_year_end():
+    # Winter is one window spanning the year boundary: late December and
+    # early January agree, across DIFFERENT years.
+    ops = [
+        {"type": "call", "fn": "seasonForDate", "args": [iso]}
+        for iso in ["2026-12-30", "2027-01-02", "2030-12-25", "2031-02-10"]
+    ]
+    assert run_js_ops(ops) == ["winter"] * 4
+
+
+def test_fixed_dates_override_their_surrounding_season():
+    ops = [
+        {"type": "call", "fn": "seasonForDate", "args": [iso]}
+        for iso in [
+            "2026-07-11",  # founding day beats summer...
+            "2026-07-10", "2026-07-12",  # ...but only on the day itself
+            "2026-12-31", "2027-01-01",  # new year beats winter, both sides
+            "2026-12-30", "2027-01-02",  # neighbors stay winter
+        ]
+    ]
+    assert run_js_ops(ops) == [
+        "founding-day", "summer", "summer",
+        "new-year", "new-year", "winter", "winter",
+    ]
+
+
+def test_season_for_date_repeats_identically_every_year():
+    ops = [
+        {"type": "call", "fn": "seasonForDate", "args": [f"{year}-07-11"]}
+        for year in (2026, 2027, 2099)
+    ]
+    assert run_js_ops(ops) == ["founding-day"] * 3
+
+
+def test_season_for_date_accepts_datetime_strings():
+    # boot() passes a bare date, but a full timestamp maps the same way.
+    ops = [
+        {"type": "call", "fn": "seasonForDate", "args": [iso]}
+        for iso in ["2026-07-11T12:00:00Z", "2026-10-05 08:30"]
+    ]
+    assert run_js_ops(ops) == ["founding-day", "autumn"]
+
+
+def test_season_for_date_rejects_junk_with_null_never_a_throw():
+    ops = [
+        {"type": "call", "fn": "seasonForDate", "args": [junk]}
+        for junk in [
+            None, 123, [], {}, "", "not-a-date",
+            "07-11",          # missing year
+            "2026-13-01",     # impossible month
+            "2026-00-10",     # month zero
+            "2026-07-00",     # day zero
+            "2026-07-32",     # impossible day
+            "2026-7-1",       # unpadded (not the injected format)
+            "2026-07-11x",    # trailing junk that isn't a time separator
+        ]
+    ]
+    assert run_js_ops(ops) == [None] * len(ops)
+
+
+def test_every_calendar_day_maps_to_exactly_one_seasonal_id():
+    # Exhaustive: all 365 days of 2026 plus all 366 of leap-year 2028 —
+    # never null, never an unknown id, and the fixed dates land exactly
+    # where they should. One node process for the whole sweep.
+    from datetime import date as _date, timedelta
+
+    days = []
+    for year in (2026, 2028):
+        day = _date(year, 1, 1)
+        while day.year == year:
+            days.append(day)
+            day += timedelta(days=1)
+    ops = [
+        {"type": "call", "fn": "seasonForDate", "args": [day.isoformat()]}
+        for day in days
+    ]
+    results = run_js_ops(ops)
+    for day, got in zip(days, results):
+        assert got in ALL_SEASONAL_IDS, f"{day} -> {got!r}"
+        mmdd = day.strftime("%m-%d")
+        if mmdd == "07-11":
+            assert got == "founding-day", day
+        elif mmdd in ("12-31", "01-01"):
+            assert got == "new-year", day
+
+
+def test_seasonal_decor_spec_is_renderable_for_every_id():
+    ops = []
+    for season_id in sorted(ALL_SEASONAL_IDS):
+        ops.append({"type": "call", "fn": "seasonalDecorSpec",
+                    "args": [season_id]})
+    specs = run_js_ops(ops)
+    for season_id, spec in zip(sorted(ALL_SEASONAL_IDS), specs):
+        assert spec["id"] == season_id
+        assert spec["cssClass"] == f"season-{season_id}"
+        assert isinstance(spec["label"], str) and spec["label"]
+        assert isinstance(spec["pixels"], list) and spec["pixels"]
+        for pixel in spec["pixels"]:
+            x, y, w, h, color = pixel
+            # every pixel sits inside the 10×10 avatar-grammar grid
+            assert 0 <= x and 0 <= y and w > 0 and h > 0, pixel
+            assert x + w <= 10 and y + h <= 10, pixel
+            assert re.fullmatch(r"#[0-9a-fA-F]{6}", color), pixel
+
+
+def test_seasonal_decor_svg_draws_every_shipped_pixel():
+    # Same contract seam as the hat catalog test: every shipped pixel
+    # must survive the hatSVGRects validity filter — a filtered SHIPPED
+    # pixel would be a silently half-drawn ornament.
+    spec_ops = [
+        {"type": "call", "fn": "seasonalDecorSpec", "args": [season_id]}
+        for season_id in sorted(ALL_SEASONAL_IDS)
+    ]
+    specs = run_js_ops(spec_ops)
+    svg_ops = [
+        {"type": "call", "fn": "seasonalDecorSVG", "args": [spec]}
+        for spec in specs
+    ]
+    for spec, markup in zip(specs, run_js_ops(svg_ops)):
+        assert markup.startswith('<svg viewBox="0 0 10 10"'), spec["id"]
+        assert 'shape-rendering="crispEdges"' in markup, spec["id"]
+        assert markup.count("<rect") == len(spec["pixels"]), spec["id"]
+
+
+def test_seasonal_decor_spec_and_svg_reject_junk_quietly():
+    ops = [
+        {"type": "call", "fn": "seasonalDecorSpec", "args": [None]},
+        {"type": "call", "fn": "seasonalDecorSpec", "args": ["mars-storm"]},
+        {"type": "call", "fn": "seasonalDecorSVG", "args": [None]},
+        {"type": "call", "fn": "seasonalDecorSVG", "args": [{}]},
+        {"type": "call", "fn": "seasonalDecorSVG",
+         "args": [{"pixels": "junk"}]},
+        # pixels present but all invalid -> hatSVGRects filters them all
+        # -> no rects -> no <svg> shell either
+        {"type": "call", "fn": "seasonalDecorSVG",
+         "args": [{"pixels": [[1, 2, 3, 4, "red"], None]}]},
+    ]
+    assert run_js_ops(ops) == [None, None, "", "", "", ""]
+
+
 def test_harness_reports_missing_function_clearly():
     with pytest.raises(RuntimeError, match="no top-level function"):
         js_call("noSuchFunctionAnywhere")

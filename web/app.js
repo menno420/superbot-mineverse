@@ -548,6 +548,157 @@ function crackedIconSVG() {
     `</svg>`;
 }
 
+/* --- seasonal decorations (date-keyed cosmetic layer, backlog item 6) ----
+ * A small cosmetic layer over the cave theme keyed to the calendar DATE:
+ * one pixel-art ornament in the header slot (aria-hidden — pure flavor,
+ * like the diamond rain, it carries no information) plus a body class
+ * that retints the EXISTING lantern glow (--glow). The date is INJECTED:
+ * seasonForDate / seasonalDecorSpec / seasonalDecorSVG are pure functions
+ * (pinned per-CI-run by tests/test_js_logic.py); only applySeasonalDecor
+ * touches the DOM, and only boot() reads the real clock, once. Purely
+ * cosmetic — no gameplay meaning, NO new animation (the lantern-flicker
+ * keyframes + global reduced-motion guard predate this layer), nothing
+ * persists. */
+
+const SEASONAL_EVENTS = [
+  // Fixed fun dates — checked before the season windows, so they win.
+  { id: "founding-day", dates: ["07-11"] }, // this repo's founding day
+  { id: "new-year", dates: ["12-31", "01-01"] },
+];
+
+const SEASON_WINDOWS = [
+  // Inclusive "MM-DD" windows; winter wraps the year end (from > to).
+  { id: "winter", from: "12-01", to: "02-29" },
+  { id: "spring", from: "03-01", to: "05-31" },
+  { id: "summer", from: "06-01", to: "08-31" },
+  { id: "autumn", from: "09-01", to: "11-30" },
+];
+
+function seasonForDate(isoDate) {
+  // PURE (string in, id/null out — pinned by tests/test_js_logic.py):
+  // "YYYY-MM-DD..." → season/event id. Comparisons run on the "MM-DD"
+  // slice (lexicographic == chronological for zero-padded fields), so
+  // the mapping repeats identically every year; a malformed or
+  // impossible month/day returns null and the page simply stays
+  // undecorated — never a throw at boot.
+  const match = typeof isoDate === "string"
+    ? /^\d{4}-((?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01]))(?:$|[T\s])/.exec(isoDate)
+    : null;
+  if (!match) return null;
+  const mmdd = match[1];
+  for (const event of SEASONAL_EVENTS) {
+    if (event.dates.includes(mmdd)) return event.id;
+  }
+  for (const range of SEASON_WINDOWS) {
+    const inside = range.from <= range.to
+      ? mmdd >= range.from && mmdd <= range.to
+      : mmdd >= range.from || mmdd <= range.to; // wraps the year end
+    if (inside) return range.id;
+  }
+  return null; // unreachable with the windows above — honest anyway
+}
+
+// Pixel art per season/event on the miner-avatar 10×10 grid, in the hat
+// [x, y, w, h, "#hex"] grammar — hatSVGRects supplies the rect markup and
+// its junk filter, and every color is an existing palette hex (ore tiers,
+// biome tints, cave edge/accent). Small on purpose: one ~15px ornament.
+const SEASONAL_DECOR = {
+  winter: {
+    label: "cave icicles",
+    pixels: [
+      [0, 0, 10, 1, "#3a3350"], // cave ceiling lip
+      [1, 1, 2, 4, "#7de8e0"], [1, 5, 1, 2, "#7de8e0"], // long icicle
+      [4, 1, 2, 3, "#7de8e0"], [4, 4, 1, 1, "#7de8e0"], // mid icicle
+      [7, 1, 2, 2, "#7de8e0"], [7, 3, 1, 1, "#7de8e0"], // short icicle
+      [1, 1, 1, 2, "#eceff4"], // glint
+    ],
+  },
+  spring: {
+    label: "cave moss sprout",
+    pixels: [
+      [0, 9, 10, 1, "#3a3350"], // cave floor
+      [4, 4, 2, 5, "#6cc46c"], // stem
+      [2, 3, 2, 2, "#7dc46c"], [6, 3, 2, 2, "#7dc46c"], // side leaves
+      [4, 1, 2, 2, "#7dc46c"], // crown leaf
+    ],
+  },
+  summer: {
+    label: "sun crystal",
+    pixels: [
+      [4, 1, 2, 1, "#f5c842"],
+      [3, 2, 4, 1, "#f5c842"],
+      [2, 3, 6, 2, "#f5c842"],
+      [3, 5, 4, 1, "#f5c842"],
+      [4, 6, 2, 1, "#f5c842"],
+      [4, 2, 1, 1, "#eceff4"], // glint
+    ],
+  },
+  autumn: {
+    label: "amber leaf",
+    pixels: [
+      [4, 1, 2, 1, "#e2543e"],
+      [3, 2, 4, 2, "#e2543e"],
+      [2, 4, 6, 2, "#c07f45"],
+      [3, 6, 4, 1, "#c07f45"],
+      [4, 7, 1, 2, "#c07f45"], // stem
+    ],
+  },
+  "founding-day": {
+    label: "founding-day pennant",
+    pixels: [
+      [1, 0, 1, 10, "#a79fc0"], // pole (record-flag grey)
+      [2, 0, 6, 2, "#f5a83c"], // pennant, accent gold
+      [2, 2, 4, 2, "#f5a83c"],
+      [2, 4, 2, 1, "#f5a83c"], // taper
+    ],
+  },
+  "new-year": {
+    label: "new-year star",
+    pixels: [
+      [4, 1, 2, 2, "#eceff4"], [4, 7, 2, 2, "#eceff4"], // vertical arms
+      [1, 4, 2, 2, "#eceff4"], [7, 4, 2, 2, "#eceff4"], // horizontal arms
+      [3, 3, 4, 4, "#eceff4"], // body
+      [4, 4, 2, 2, "#f5c842"], // gold core (drawn over the body)
+    ],
+  },
+};
+
+function seasonalDecorSpec(seasonId) {
+  // PURE (id in, JSON out — pinned by tests/test_js_logic.py): season or
+  // event id → renderable spec { id, label, cssClass, pixels }. Unknown
+  // or null id → null: "no decoration" is always a valid outcome.
+  const art = SEASONAL_DECOR[seasonId];
+  if (!art) return null;
+  return {
+    id: seasonId,
+    label: art.label,
+    cssClass: `season-${seasonId}`,
+    pixels: art.pixels,
+  };
+}
+
+function seasonalDecorSVG(spec) {
+  // PURE: spec → inline pixel-SVG markup on the miner-avatar aesthetic
+  // (10×10 grid, crispEdges). hatSVGRects is the single rect grammar +
+  // junk filter, so nothing unvetted ever lands in markup here either.
+  if (!spec || !Array.isArray(spec.pixels)) return "";
+  const rects = hatSVGRects(spec.pixels);
+  if (!rects) return "";
+  return `<svg viewBox="0 0 10 10" width="15" height="15" ` +
+    `shape-rendering="crispEdges" focusable="false">` + rects + `</svg>`;
+}
+
+function applySeasonalDecor(isoDate) {
+  // Impure caller — the ONLY place the (injected) date meets the DOM.
+  // Adds the body tint class + fills the static aria-hidden header slot;
+  // no season (null) leaves the page byte-for-byte as it always was.
+  const spec = seasonalDecorSpec(seasonForDate(isoDate));
+  if (!spec) return;
+  document.body.classList.add(spec.cssClass);
+  const slot = document.getElementById("seasonal-decor-slot");
+  if (slot) slot.innerHTML = seasonalDecorSVG(spec);
+}
+
 function bandLabel(depth, biome) {
   // Shared ladder/mini-map band label: the biome emoji is decorative
   // (the biome NAME carries the meaning), so it is aria-hidden.
@@ -1693,6 +1844,15 @@ async function fetchMe() {
 
 async function boot() {
   console.log(CONSOLE_GREETING); // a hello for whoever opens the shaft
+  // Seasonal decor: the real current date enters HERE, once, as the
+  // viewer's LOCAL calendar date (decorations follow the wall calendar,
+  // not UTC) — everything downstream is pure and date-injected.
+  const today = new Date();
+  applySeasonalDecor([
+    today.getFullYear(),
+    String(today.getMonth() + 1).padStart(2, "0"),
+    String(today.getDate()).padStart(2, "0"),
+  ].join("-"));
   let views = null;
   try {
     const res = await fetch("/api/views");
