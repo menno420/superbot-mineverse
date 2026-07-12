@@ -72,6 +72,12 @@ ruleset, so merges now wait for green tests, not just the substrate gate.
 
 ## Recently shipped (newest first)
 
+- 2026-07-12 — cosmetic hats (PR #49): deterministic per-suid pixel-art hats on the ladder avatars — additive `hats` key on `/api/views` (sha256 of suid → 8-hat catalog), pure JS drawing/join functions pinned via the PR #48 `js_call` harness; suite 397 passed + 1 skip.
+- 2026-07-12 — JS logic test harness (PR #48): `tests/test_js_logic.py`
+  executes the REAL `web/app.js` pure functions via node in pytest —
+  `konamiNextProgress` (PR #40 longest-prefix fix) now pinned per-CI-run
+  against a brute-force reference, plus the share-card/biome/format
+  helpers; skips cleanly without node, zero new CI infra, `web/` untouched.
 - 2026-07-11 — fun mop-up (PRs #39, #40): canvas PNG share card on every
   miner card, Konami longest-prefix fix (pure `konamiNextProgress`),
   shared `tableHeadRow` helper; sample data enriched with GearGoblin
