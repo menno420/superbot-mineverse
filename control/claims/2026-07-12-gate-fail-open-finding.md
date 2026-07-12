@@ -1,0 +1,1 @@
+- `claude/gate-fail-open-finding` · **docs+control** — root-cause finding doc for the substrate-gate born-red fail-open (flip-race, PRs #48/#49) + outbox note routing the kit fix upstream · expected files: docs/findings/, control/outbox.md, docs/current-state.md · 2026-07-12
