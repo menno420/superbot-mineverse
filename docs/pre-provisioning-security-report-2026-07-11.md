@@ -1,5 +1,15 @@
 # Pre-provisioning security report — dormant OAuth + write path
 
+> **Status:** `historical`
+
+> **2026-07-12 update:** this is the point-in-time Codex audit as written on
+> 2026-07-11 (pre-provisioning). Both findings below were since remediated on
+> `main`: **PR #42** bound the OAuth `state` to the initiating browser
+> (login-CSRF fix, Finding 1) and added runtime snapshot validation against
+> `schemas/mining_snapshot.v1.schema.json` at ingestion (Finding 2); **PR #45**
+> followed up on the live sign-in path (real User-Agent on Discord requests).
+> Kept for the record — the findings are no longer open.
+
 Date: 2026-07-11
 Scope: `server/app.py`, `server/auth.py`, `server/actions.py`, `server/views.py`, `web/app.js`, and security-relevant tests.
 
