@@ -46,6 +46,11 @@ this repo).
 **CI:** both `substrate-gate` AND `pytest` (the schema-gate workflow's job)
 are required status checks on main — pytest was recently added to the
 ruleset, so merges now wait for green tests, not just the substrate gate.
+Known gap (root-caused, fix routed upstream to substrate-kit via the
+outbox): the gate is advisory for session cards ADDED by a PR, so a
+single-PR work session has no born-red hold — see
+`docs/findings/substrate-gate-born-red-fail-open-2026-07-12.md`; interim
+rule: push the full stack including the flip BEFORE opening the PR.
 
 ## In flight
 
@@ -72,6 +77,7 @@ ruleset, so merges now wait for green tests, not just the substrate gate.
 
 ## Recently shipped (newest first)
 
+- 2026-07-12 — flip-race root-caused: `docs/findings/substrate-gate-born-red-fail-open-2026-07-12.md` (kit gate is advisory for PR-ADDED session cards by design, so #48/#49 auto-merged pre-flip); fix routed upstream to substrate-kit via `control/outbox.md`; interim rule stands — push the full stack incl. the flip before opening the PR.
 - 2026-07-12 — ambient cave audio (backlog item 5): synthesized WebAudio cave wind + drips, muted by default (AudioContext born only in the toggle click), honest aria-pressed toggle, non-persistent; pure spec/rhythm/label seams pinned via the `js_call` harness + served-bytes pins in `tests/test_web_audio.py`; suite 415 passed + 1 skip.
 - 2026-07-12 — records housekeeping: the #48/#49 close-out flips that the
   auto-merge race stranded on their branches landed on main — both session
