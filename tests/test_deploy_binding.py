@@ -48,3 +48,44 @@ def test_main_reads_host_and_port_env(monkeypatch):
     monkeypatch.setattr(app, "make_server", fake_make_server)
     app.main()
     assert captured == {"host": "0.0.0.0", "port": 8123}
+
+
+def test_discord_requests_carry_real_user_agent():
+    """discord.com (Cloudflare) 403s urllib's default UA — every Discord
+    request must carry the explicit HTTP_USER_AGENT (live-verified 2026-07-12)."""
+    import urllib.request
+
+    from server import auth
+
+    captured = []
+
+    def fake_urlopen(request, timeout=None):
+        captured.append(request.get_header("User-agent"))
+
+        class _Resp:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self):
+                import json as _json
+
+                return _json.dumps(
+                    {"access_token": "tok", "id": "123"}
+                ).encode()
+
+        return _Resp()
+
+    real = urllib.request.urlopen
+    urllib.request.urlopen = fake_urlopen
+    try:
+        cfg = auth.AuthConfig("cid", "sec", "https://x/cb", "k" * 32)
+        auth.exchange_code(cfg, "code")
+        auth.fetch_discord_user("tok")
+    finally:
+        urllib.request.urlopen = real
+
+    assert captured == [auth.HTTP_USER_AGENT] * 2
+    assert "urllib" not in auth.HTTP_USER_AGENT

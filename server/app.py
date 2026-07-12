@@ -368,7 +368,11 @@ class MineverseHandler(SimpleHTTPRequestHandler):
         try:
             access_token = auth.exchange_code(config, code)
             user = auth.fetch_discord_user(access_token)
-        except Exception:  # noqa: BLE001 — any Discord-side failure is a 502
+        except Exception as exc:  # noqa: BLE001 — any Discord-side failure is a 502
+            # The client response stays opaque on purpose; the CAUSE goes to
+            # stdout so the host's runtime logs carry it (the 2026-07-12
+            # Cloudflare-UA 403 was invisible behind this except for hours).
+            print(f"discord token exchange failed: {type(exc).__name__}: {exc}")
             self._send_json(502, {"error": "discord token exchange failed"})
             return
         cookie_value = auth.make_session_value(config, str(user["id"]))
