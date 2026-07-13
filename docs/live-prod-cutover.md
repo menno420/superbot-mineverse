@@ -263,8 +263,9 @@ The machine-checkable slice of §1, stdlib-only, safe to run anywhere
 (CI, a fresh clone, the prod host):
 
 ```
-python3 scripts/readiness_check.py           # env presence only, no network
-python3 scripts/readiness_check.py --probe   # + one unsigned probe of MINING_WRITE_ENDPOINT
+python3 scripts/readiness_check.py                 # env presence only, no network
+python3 scripts/readiness_check.py --probe         # + one unsigned probe of MINING_WRITE_ENDPOINT
+python3 scripts/readiness_check.py --probe-ingest  # + one unsigned probe of the FLAG-1 ingest route
 ```
 
 - **What it checks:** presence of each of the six env vars (§1), printed
@@ -280,6 +281,21 @@ python3 scripts/readiness_check.py --probe   # + one unsigned probe of MINING_WR
   execute anything, is never audited, and learns nothing but "the
   executor is up and speaking contract v1". The probe never sends or
   needs any secret.
+- **`--probe-ingest`** (opt-in, only meaningful where
+  `MINING_SNAPSHOT_RELAY_URL` is set — the bot-side pusher's own env var,
+  superbot #2058; exportable ad hoc wherever the leg is run): POSTs one
+  deliberately UNSIGNED empty request to the FLAG-1 ingest route
+  (`POST /api/snapshot/ingest`) and expects one of its two honest
+  fail-closed answers — HTTP **401** with the canonical transport-auth
+  reason (`invalid_signature`, configured: the signature is verified over
+  the raw bytes before anything is parsed or persisted) or HTTP **503**
+  `snapshot ingest not configured` (unconfigured degraded mode). **An
+  HTTP 200 on an unsigned push is reported as a SECURITY FAILURE** and
+  reds the check: the receive side has no unsigned mode by contract
+  (`server/ingest.py`, docs/mining-data-contract.md § "Ingest
+  transport"). With the var unset the leg is skipped, never failed — the
+  READ relay is optional at every stage (§1). The probe never sends or
+  needs any secret and can never place data.
 - **What it CANNOT check from this repo:** the bot-side allowlist
   contents (owner-held, bot host), the Discord developer app's redirect
   registration, the audit trail's end-to-end behavior (§1's manual
@@ -289,5 +305,7 @@ python3 scripts/readiness_check.py --probe   # + one unsigned probe of MINING_WR
   hosts it isn't run on — run it ON the web host for the env verdict
   that counts.
 - Logic is covered by `tests/test_readiness.py` (injected env dicts, a
-  local stub executor for the probe — green with zero env vars, no
-  non-loopback network, exactly like CI).
+  local stub executor for the write probe, and the REAL app server on
+  loopback for the ingest probe in both its honest modes — configured
+  401 and fail-closed 503 — green with zero env vars, no non-loopback
+  network, exactly like CI).
