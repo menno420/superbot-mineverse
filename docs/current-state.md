@@ -42,7 +42,11 @@ anonymous, and the full test suite passes. Sign-in needs
 additionally needs `MINING_WRITE_ENDPOINT`, `MINING_WRITE_SHARED_SECRET`;
 a live-fed snapshot (the FLAG-1 bot READ relay's consume side) needs
 `MINING_SNAPSHOT_PATH` — unset, the server serves the committed sample
-exactly as before (names only here — values are owner-provisioned host
+exactly as before; the FLAG-1 receive side (`POST /api/snapshot/ingest`,
+where superbot #2058's `MINING_SNAPSHOT_RELAY_URL` should point) needs
+`MINING_SNAPSHOT_RELAY_SHARED_SECRET` **plus** `MINING_SNAPSHOT_PATH` and
+fails closed without both — no unsigned mode, never a write over the
+committed sample (names only here — values are owner-provisioned host
 configuration, never in this repo).
 
 **CI:** both `substrate-gate` AND `pytest` (the schema-gate workflow's job)
@@ -65,7 +69,12 @@ rule: push the full stack including the flip BEFORE opening the PR.
 ## Externally pending (not agent-actionable here)
 
 - **Bot-side READ relay** — the bot must emit a v1-conformant snapshot into
-  the bot→web relay (FLAG 1 in `control/status.md`).
+  the bot→web relay (FLAG 1 in `control/status.md`). The web-side receive
+  endpoint now exists (`POST /api/snapshot/ingest`, 2026-07-14 below);
+  still owner/bot-blocked: superbot #2058's draft flip plus host
+  provisioning of `MINING_SNAPSHOT_RELAY_URL` (bot side) and
+  `MINING_SNAPSHOT_RELAY_SHARED_SECRET` + `MINING_SNAPSHOT_PATH` (both
+  sides of the web host seam).
 - **Bot-side WRITE endpoint** — HMAC-signed action-proposal endpoint with
   audit + idempotency + test-guild allowlist (FLAG 2 in
   `control/status.md`).
@@ -80,6 +89,7 @@ rule: push the full stack including the flip BEFORE opening the PR.
 
 ## Recently shipped (newest first)
 
+- 2026-07-14 — FLAG-1 snapshot-ingest RECEIVE endpoint (ORDER 006 item 1): `POST /api/snapshot/ingest` (`server/ingest.py` + `server/app.py`) — HMAC-verified under the ONE canonical `server/actions.py` scheme (`X-Mineverse-Signature`/`X-Mineverse-Timestamp`, constant-time, ±300 s skew; secret: `MINING_SNAPSHOT_RELAY_SHARED_SECRET`) → v1-validated with the existing runtime validator BEFORE anything persists → atomic whole-document replace into the `MINING_SNAPSHOT_PATH` file the read routes already re-read fresh per request; fail closed (503) when secret or path is unset, 401/400/405/413/415 gauntlet otherwise; this is where superbot #2058's `MINING_SNAPSHOT_RELAY_URL` should point (~60 s cadence); suite 575 passed + 1 skip.
 - 2026-07-13 — coordinator session close-out: seat retro at
   `docs/retro/coordinator-session-2026-07-13.md` (boot 2026-07-12T20:39Z →
   ender 2026-07-13T~12:00Z — ORDER 004 night run, minigame spec, night
