@@ -3,3 +3,6 @@ __pycache__/
 
 # substrate-kit runtime telemetry (guard hooks write this locally; never commit)
 .substrate/guard-fires.jsonl
+
+# conformance sweep output logs (scripts/conformance_run.py); never commit
+.conformance-runs/
