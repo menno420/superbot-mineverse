@@ -31,6 +31,10 @@ done-when: #42 in main with the merge-commit diff showing the payload landed; #3
 
 ## ORDER 004 · 2026-07-13T00:43:11Z · status: new
 Landed verbatim by the coordinator from a live owner turn in the coordinator session, 2026-07-12/13 night (scope: whole SuperBot World seat — games, idle, mineverse)
+priority: P0
+do: execute the owner's night-run directive below (landed verbatim — rules 1–6 + the seat plan 1–5) all night.
+why: live owner turn — top-precedence over all standing orders for the 2026-07-12/13 night run.
+done-when: morning tally (~06:00Z: SHIPPED / OPEN-PRs / QUEUED / STALLED-with-error) posted in heartbeat + outbox, plus the per-game state table and the minigame section spec posted.
 
 DIRECT ORDER — SUPERBOT WORLD (owner, 2026-07-13, night run). Land this verbatim in your
 inbox (top-precedence owner turn), then execute all night.
