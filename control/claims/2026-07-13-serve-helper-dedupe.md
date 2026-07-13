@@ -1,0 +1,1 @@
+- `claude/serve-helper-dedupe` · **tests serve() helper dedupe** — one importable serve() context manager for the six non-web suites + drop unused http.client import · tests/_server_helpers.py, tests/conftest.py, tests/test_{actions,api,auth,snapshot_validation,views,server_robustness}.py · 2026-07-13
