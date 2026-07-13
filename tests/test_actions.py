@@ -677,7 +677,7 @@ def fake_executor():
     handling, not the executor contract."""
     servers = []
 
-    def _start(status=200, body=b"{}", delay=0.0):
+    def _start(status=200, body=b"{}", delay=0.0, extra_headers=None):
         class Handler(BaseHTTPRequestHandler):
             def do_POST(self):
                 length = int(self.headers.get("Content-Length") or 0)
@@ -688,6 +688,8 @@ def fake_executor():
                     self.send_response(status)
                     self.send_header("Content-Type", "application/json")
                     self.send_header("Content-Length", str(len(body)))
+                    for name, value in (extra_headers or {}).items():
+                        self.send_header(name, value)
                     self.end_headers()
                     self.wfile.write(body)
                 except OSError:
@@ -863,6 +865,124 @@ def test_coherent_status_envelope_pair_relays_verbatim(
     )
     assert status == exec_status, label
     assert payload == envelope, label
+
+
+# --- contract-relevant executor headers: Retry-After relays on 429 ----------
+#
+# docs/mining-write-contract.md (§ Rate limits + the mapping table's 429 row)
+# promises clients a `Retry-After` header (integer seconds) on every
+# `rate_limited` rejection. The relay forwards exactly the allowlisted
+# contract-relevant headers (actions.RELAYED_RESPONSE_HEADERS) — never a
+# blanket passthrough, so executor-internal headers stop at the web server.
+# The shim has NO rate-limit path at all (no 429 anywhere in
+# tests/shim/shim_bot.py), so these pins run against the canned executor.
+
+
+def post_with_headers(url, body: bytes, headers=None):
+    """Like ``post`` but also returns the response headers (an
+    ``email.message.Message`` — case-insensitive ``get``)."""
+    parsed = urllib.parse.urlsplit(url)
+    conn = http.client.HTTPConnection(parsed.hostname, parsed.port, timeout=5)
+    try:
+        conn.request("POST", parsed.path or "/", body=body, headers=headers or {})
+        res = conn.getresponse()
+        return res.status, json.loads(res.read()), res.headers
+    finally:
+        conn.close()
+
+
+def relay_with_headers(serve, fake_executor, exec_status, envelope,
+                       extra_headers=None):
+    """Drive one signed-in action through the real relay against a canned
+    executor; returns the browser-visible (status, payload, headers)."""
+    endpoint = fake_executor(
+        status=exec_status,
+        body=json.dumps(envelope).encode(),
+        extra_headers=extra_headers,
+    )
+    auth_config = make_auth_config()
+    config = actions.WriteConfig(endpoint=endpoint, secret=TEST_SECRET)
+    base = serve(auth_config=auth_config, write_config=config)
+    return post_with_headers(
+        base + "/api/action",
+        browser_body("mine", {}),
+        headers=session_headers(auth_config, DEEPDELVER),
+    )
+
+
+def test_relayed_header_allowlist_is_pinned():
+    """The allowlist is exactly what the contract promises clients — today
+    one header on one status. Growing it is a contract decision, not a
+    convenience: extend the mapping AND the contract prose together."""
+    assert actions.RELAYED_RESPONSE_HEADERS == {429: ("Retry-After",)}
+
+
+def test_rate_limited_relay_carries_retry_after_verbatim(serve, fake_executor):
+    """429 + Retry-After: the backoff hint the contract promises reaches the
+    browser exactly as the executor sent it."""
+    envelope = canned_envelope("rate_limited")
+    status, payload, headers = relay_with_headers(
+        serve, fake_executor, 429, envelope, extra_headers={"Retry-After": "7"}
+    )
+    assert status == 429
+    assert payload == envelope
+    assert headers.get("Retry-After") == "7"
+
+
+def test_rate_limited_without_retry_after_still_relays(serve, fake_executor):
+    """A 429 the executor sent WITHOUT the header still relays — the header
+    is the executor's contract obligation; the web relay never refuses (or
+    invents) it. Header absence stays advisory, not incoherent."""
+    envelope = canned_envelope("rate_limited")
+    status, payload, headers = relay_with_headers(
+        serve, fake_executor, 429, envelope
+    )
+    assert status == 429
+    assert payload == envelope
+    assert headers.get("Retry-After") is None
+
+
+def test_unallowlisted_headers_stop_at_the_relay_even_on_429(
+    serve, fake_executor
+):
+    """On the allowlisted status only the allowlisted header crosses —
+    anything else the executor attached stays executor-internal."""
+    envelope = canned_envelope("rate_limited")
+    status, payload, headers = relay_with_headers(
+        serve, fake_executor, 429, envelope,
+        extra_headers={"Retry-After": "7", "X-Executor-Internal": "topology"},
+    )
+    assert status == 429
+    assert payload == envelope
+    assert headers.get("Retry-After") == "7"
+    assert headers.get("X-Executor-Internal") is None
+
+
+def test_non_429_never_gains_executor_headers(serve, fake_executor):
+    """Allowlist pinned per status: a 200 accept relays with NO executor
+    headers, even ones that would be allowlisted on a 429."""
+    envelope = canned_envelope("ok")
+    status, payload, headers = relay_with_headers(
+        serve, fake_executor, 200, envelope,
+        extra_headers={"Retry-After": "7", "X-Executor-Internal": "topology"},
+    )
+    assert status == 200
+    assert payload == envelope
+    assert headers.get("Retry-After") is None
+    assert headers.get("X-Executor-Internal") is None
+
+
+def test_refused_429_never_leaks_retry_after(serve, fake_executor):
+    """The 502 refusal paths are untouched: a 429 whose body fails the
+    envelope check draws the honest 502 WITHOUT the executor's header —
+    nothing from a refused answer reaches the browser."""
+    status, payload, headers = relay_with_headers(
+        serve, fake_executor, 429, {"error": "nope"},
+        extra_headers={"Retry-After": "7"},
+    )
+    assert status == 502
+    assert payload == {"error": "invalid executor response"}
+    assert headers.get("Retry-After") is None
 
 
 def test_conformant_rejection_from_any_executor_relays_verbatim(
