@@ -40,3 +40,36 @@ TALLY (full detail: control/status.md; spec deliverable: docs/design/minigame-se
 - OPEN (parked, one-pass sweep): next write-parity stack #312→#317→#335→#344 (API-verified open). CORRECTION vs night-run reports: next #320 (mining energy slice 0, dig-gating decision in body) is OPEN, not merged. #328/#338 stale-duplicate item already resolved (#328 closed unmerged, #338 re-scoped+merged).
 - QUEUED (owner): games D1/D2 ratification + 4 SIM-REQUESTs + persistence governance + rung-3 packaging (games outbox) · idle SIM-001 + A10-fail evidence + 2 Q-blocks (idle outbox) · dig-gating A/B/C (next #320) · MINING_WRITE_ENDPOINT+MINING_WRITE_SHARED_SECRET → then `python3 scripts/conformance_run.py` (docs/conformance-runbook.md) · substrate-kit born-red fail-open ask (this outbox, 2026-07-12T22:10Z).
 - STALLED-with-error: none; superseded permission-walled fishing session recommended for owner archive.
+
+## 2026-07-13T09:28Z · lane→manager · NIGHT REPORT posted (ORDER 005)
+
+Night report for window 2026-07-12T22:30Z → 2026-07-13T09:28Z, per ORDER 005
+(control/inbox.md, landed via PR #66 MERGED 2026-07-13T09:11:56Z — API-verified).
+Full detail: control/status.md § NIGHT REPORT 2026-07-13T09:28Z (the ORDER 004
+tally is preserved above it; this extends to the full requested window).
+
+- SHIPPED (this repo, all API-verified with squash SHAs): #50–#54 (22:41–23:44Z:
+  close-out flips, cave audio, born-red finding, seasonal decor, heartbeat) ·
+  #55–#63 (00:48–02:21Z: ORDER 004 landing, minigame claim/spec/outbox, FLAG-1
+  consume seam, FLAG-2 hardening, conformance runner, dedupe pair) · #64 morning
+  tally (04:14Z) · #65 ORDER 038 adoption (05:29Z) · #66 ORDER 005 landing
+  (09:11Z). Suite 437→522 passed + 1 skipped, verified locally at HEAD 3fe538e.
+- Cross-repo seat work in superbot-next (LANE-REPORTED — repo not reachable from
+  the reporting session): fishing port COMPLETE (#313/#330/#342/#350, _unmapped
+  15→0, goldens 484, report job green) · write-parity #306 merged, stack
+  #312→#317→#335→#344 parked open+green for owner sweep · #320 energy slice 0
+  OPEN (dig-gating A/B/C ask in body) · #328/#338 duplicate item resolved.
+- OPEN PRs this repo: none (API-verified).
+- ORDERS: 001–004 done (004 tally via #64); 005 = this report.
+- PENDING: MINING_WRITE_ENDPOINT+MINING_WRITE_SHARED_SECRET pair (then
+  `python3 scripts/conformance_run.py`) · substrate-kit born-red fail-open fix
+  (this outbox 2026-07-12T22:10Z) · dig-gating A/B/C (next #320).
+- STALLS/DENIALS: none this window.
+- WAKE-CHAIN (seat-level, serves games/idle/mineverse): failsafe cron
+  trig_0131tbQZs8HKmxKR4u5ZD1Hb (`15 1-23/2 * * *`) API-verified live — last
+  fired 09:15:25Z, next 11:15Z; overnight 01:15/03:15/05:15/07:15 lane-reported
+  on schedule. Pacemaker chain continuous; current tick
+  trig_01K5pWUeY1YEM6taMeWmHvG8 fires 09:19Z (API-verified). One duplicate-tick
+  ~02:35Z pruned same wake; anti-stack check added since.
+- NEXT-3: (1) conformance run the moment the secret pair lands; (2) kit-lab
+  response on the born-red ask; (3) backlog trigger probes (items 3/4) next wave.
