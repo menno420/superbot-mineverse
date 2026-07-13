@@ -40,9 +40,15 @@ ORE_TIER_ORDER = ("stone", "bronze", "iron", "silver", "gold", "diamond")
 
 # Delivery numbers from the contract PROSE (docs/mining-data-contract.md
 # § Delivery expectations): the bot targets a fresh snapshot every 60 s,
-# and the suggested staleness threshold is 3 missed cycles ≈ 180 s.  The
-# schema carries no delivery cadence, so — like ORE_TIER_ORDER — these are
-# prose-sourced constants, not shape facts.
+# and the staleness threshold is 180 s — measured, not folklore: sim-lab
+# VERDICT 056 (finalized APPROVE, sim-lab control/outbox.md L999-L1008
+# @ 32ff5c3; sims/verdict-056-snapshot-stale-threshold/results.json +
+# REPORT.md) prices FALSESTALE(180) ≈ 4.83e-4 ≤ 1/200 with 10× headroom
+# and mean outage detection ≈ 145 s ≤ the 240 s cap, at the pinned
+# 60 s-cadence model (invented-but-pinned disturbance widths, i.i.d.
+# misses — boundaries recorded in the contract doc's Staleness bullet).
+# The schema carries no delivery cadence, so — like ORE_TIER_ORDER —
+# these are prose-sourced constants, not shape facts.
 SNAPSHOT_CADENCE_SECONDS = 60
 STALE_AFTER_SECONDS = 3 * SNAPSHOT_CADENCE_SECONDS
 
