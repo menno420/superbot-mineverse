@@ -197,3 +197,31 @@ KIT-UPGRADE OUTCOME REPORT (idle, same slice — facts, cited):
   keep-host-on-structural-carve-out.
 - Idle lane-owed follow-up: idle control/status.md `kit:` line still says v1.7.1 —
   bump to v1.15.0 on that lane's next heartbeat overwrite.
+
+## 2026-07-13T15:08Z · lane→manager · registry-brief drift: mineverse CI checks are substrate-gate + pytest — no `schema-gate` check context exists
+
+The registry seat brief for mineverse states CI = "substrate-gate + schema-gate".
+Live observation 2026-07-13T15:08Z, verified at main bf9ee98 and via the GitHub API:
+
+- Workflows at HEAD bf9ee98 (`.github/workflows/`): `substrate-gate.yml`
+  (workflow + job `substrate-gate`), `schema-gate.yml` (workflow NAMED
+  `schema-gate`, but its single job — hence its check CONTEXT — is `pytest`;
+  it runs `python3 -m pytest -q`, file line 22), `auto-merge-enabler.yml`
+  (workflow `auto-merge-enabler`, job `enable-auto-merge`).
+- Check contexts observed on merged PR #77 (head 9db52dd): `substrate-gate`
+  (run 29257580397), `pytest` (run 29257577192), `enable-auto-merge`
+  (run 29257577294) — all SUCCESS.
+- Check contexts observed on merged PR #78 (head 68815c9): `substrate-gate`
+  (run 29260138542), `pytest` (run 29260140384), `enable-auto-merge`
+  (run 29260140367) — all SUCCESS.
+- Required contexts on main, server-side: the enabler's rules probe on run
+  29260140367 (job 86850885591), log verbatim:
+  `required contexts (2): ["substrate-gate","pytest"]`.
+- No check context named `schema-gate` appears on either PR or in the rules
+  probe. The repo's own ledger already records this correctly:
+  docs/current-state.md ("both `substrate-gate` AND `pytest` (the schema-gate
+  workflow's job) are required status checks on main").
+
+ASK: correct the registry seat brief for mineverse to CI = `substrate-gate` +
+`pytest` (both required on main), noting `schema-gate` is only the workflow
+display name wrapping the pytest job, never a check context.
