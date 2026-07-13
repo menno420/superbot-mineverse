@@ -8,8 +8,12 @@ schemas/mining_snapshot.v1.schema.json) stays the single source of truth.
 
 Schema-derived, never hand-copied: the equipment slot list, the
 xp/position/energy field lists and the vault/depth/energy bounds are
-read from the committed v1 schema file at import time, so this module
-cannot drift from the contract (tests/test_views.py pins the wiring).
+read from the committed v1 schema at import time — via the shared
+``snapshot_validation.load_schema()`` cached loader (one schema, one
+parse, one path constant), so this module cannot drift from the
+contract (tests/test_views.py pins the wiring).  The loaded dict is the
+CACHED shared instance: everything here reads it (``list(...)`` copies
+or scalar lookups), never mutates it.
 
 Every shaper tolerates missing or empty fields — a degraded snapshot
 renders as honest empty structures, never a crash.
@@ -18,15 +22,14 @@ renders as honest empty structures, never a crash.
 from __future__ import annotations
 
 import hashlib
-import json
 from datetime import datetime, timezone
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-SCHEMA_PATH = REPO_ROOT / "schemas" / "mining_snapshot.v1.schema.json"
+try:
+    from server import snapshot_validation
+except ImportError:  # direct script execution: python3 server/app.py
+    import snapshot_validation  # type: ignore[no-redef]
 
-_SCHEMA = json.loads(SCHEMA_PATH.read_text())
-_MINER_PROPS = _SCHEMA["$defs"]["miner"]["properties"]
+_MINER_PROPS = snapshot_validation.load_schema()["$defs"]["miner"]["properties"]
 
 # Display-order hint only, from the contract PROSE ("Ore progression runs
 # stone → diamond", docs/mining-data-contract.md §per-miner fields).  Item
