@@ -1,35 +1,22 @@
 # superbot-mineverse · status
-updated: 2026-07-13T15:08:30Z
-phase: SEAT HEARTBEAT — control-only worker slice: heartbeat overwrite + registry-brief CI drift note (rides PR branch `claude/heartbeat-drift-note-0713`). Session type: worker, not a coordinator seat.
+updated: 2026-07-13T16:15:03Z
+phase: HEARTBEAT — control-only worker slice: status overwrite (kit line v1.8.0 → v1.15.0 post-#80) + outbox kit-lab relay append (rides PR branch `claude/status-kit-v1150`). Session type: worker, not a coordinator seat.
 health: green
-kit: v1.8.0
-last-shipped: #78 — outbox: idle pytest owner ask + kit v1.15.0 upgrade report; merged 2026-07-13T14:59:00Z; current main bf9ee98.
+kit: v1.15.0
+last-shipped: #80 — kit upgrade v1.8.0 → v1.15.0 (substrate-gate gains the --added-card born-red HOLD; required check contexts survive unchanged); merged 2026-07-13T16:05:32Z by github-actions[bot]; current main 1520e05.
 blockers: none
-orders: acked=001,002,003,004,005 done=001,002,003,004,005 (unchanged; no new ORDERs in control/inbox.md at HEAD bf9ee98)
+orders: acked=001,002,003,004,005 done=001,002,003,004,005 (unchanged; no new ORDERs in control/inbox.md at HEAD 1520e05)
 ⚑ needs-owner: pytest as a required check on superbot-idle main — full six-field OWNER-ACTION block: control/outbox.md entry 2026-07-13T14:56Z (VENUE: hub). Carried: MINING_WRITE_ENDPOINT + MINING_WRITE_SHARED_SECRET pair — control/outbox.md 2026-07-12T21:05Z.
-notes: control-only diff (status overwrite + outbox append + claim lifecycle) — CI control fast lane, no session card per convention.
+notes: control-only diff (status overwrite + outbox append + claim lifecycle) — CI control fast lane, no session card per convention. Outbox relays pending manager sweep: born-red gate routing (2026-07-12T22:10Z), registry-brief corrections (2026-07-13T13:48Z / 14:16Z / 15:08Z), kit upgrade-report sha256-pair relay (this session, addressed for kit-lab).
 
-## SEAT KIT STATE (facts, cited)
+## KIT STATE (facts, cited)
 
-- idle: kit v1.15.0 — upgraded via superbot-idle PR #91, squash 96cd635.
-- games: kit v1.15.0 @ games main d6a9526.
-- mineverse: kit v1.8.0 — verified at HEAD bf9ee98 (`bootstrap.py` `KIT_VERSION = "1.8.0"` line 90; `substrate.config.json` `"kit_version": "1.8.0"`).
-
-## SHIPPED TODAY (2026-07-13, seat-wide pointers)
-
-- idle: #87, #89, #90, #91 — kit v1.7.1→v1.15.0; the new born-red HOLD verified live (pre-flip designed-red substrate-gate run 29259353167, post-flip green run 29259492736).
-- games: #81 — current-state groom.
-- mineverse: #75, #76, #77, #78 — records fix + outbox appends; all four API-verified merged (merged_by github-actions[bot]); main bf9ee98.
+- mineverse: kit v1.15.0 — verified at HEAD 1520e05 (`bootstrap.py` line 93 `KIT_VERSION = "1.15.0"`; `substrate.config.json` `"kit_version": "1.15.0"`). Upgraded via PR #80 (head c1905de), merged 2026-07-13T16:05:32Z.
+- Lane-owed post-upgrade deltas still open (PR #80 card `.sessions/2026-07-13-kit-upgrade-v1150.md`): diverged `docs/CAPABILITIES.md` template delta + the remaining `docs/AGENT_ORIENTATION.md` template delta (only the minimal read-path hunk was merged in #80).
 
 ## OPEN PRS
 
-- Zero open PRs on mineverse besides this heartbeat PR (open-PR list API-verified empty at 2026-07-13T15:05Z, before this branch's PR was opened).
-
-## CI FACTS (verified live this session)
-
-- Check contexts on merged PRs #77 (head 9db52dd) and #78 (head 68815c9): `substrate-gate`, `pytest`, `enable-auto-merge` — all SUCCESS.
-- Required contexts on main per the enabler's server-side rules probe (run 29260140367, job 86850885591): `substrate-gate`, `pytest`.
-- Registry-brief drift note filed: control/outbox.md entry 2026-07-13T15:08Z (brief says "substrate-gate + schema-gate"; no `schema-gate` check context exists — that workflow file's job reports as `pytest`).
+- Zero open PRs (open-PR list API-verified empty at 2026-07-13T16:13Z, before this branch's PR was opened).
 
 ## ROUTINES (neutral facts)
 
@@ -37,5 +24,5 @@ notes: control-only diff (status overwrite + outbox append + claim lifecycle) �
 
 ## NEXT-2 BATON
 
-1. Owner ruleset answer on pytest-required for superbot-idle (control/outbox.md 2026-07-13T14:56Z, ⚑ above).
-2. Manager routing of the kit v1.15.0 carve-out regeneration bug to kit-lab (already filed in control/outbox.md 2026-07-13T14:56Z kit-upgrade report).
+1. Kit v1.15.0 remaining docs deltas — `docs/CAPABILITIES.md` template delta + `docs/AGENT_ORIENTATION.md` remaining delta (lane-owed per the #80 card) — being shipped in a sibling docs PR this session.
+2. Owner provisioning of the MINING_WRITE_ENDPOINT + MINING_WRITE_SHARED_SECRET pair (control/outbox.md 2026-07-12T21:05Z, ⚑ above; also waits on the bot lane's write endpoint, FLAG 2) — then run `python3 scripts/conformance_run.py` per docs/conformance-runbook.md.
