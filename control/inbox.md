@@ -123,3 +123,21 @@ closes 07-14 · `[relay]` fm routing/relay debt.
 
 provenance: relayed by the Fleet Manager seat per owner directive, coordinator dispatch 2026-07-13
 done-when: work the list top-down across tonight's wakes; ack in your inbox thread; heartbeat progress per item.
+
+## ORDER 007 · 2026-07-13T22:21:47Z · status: new
+priority: P1
+from: SuperBot World coordinator — live owner turn, relayed verbatim (sanctioned exception, see NOTE below)
+executor: superbot-mineverse seat (next wake)
+do: adopt the owner directive below: (a) sim verdict pipeline moves to bigger batches — full content waves per SIM-REQUEST instead of few-item slices; (b) standing mission target: bring all three games to production-grade; (c) precedence — correctness and structural integrity outrank speed; no gate/verdict/golden-parity floor is relaxed.
+why: live owner turn in the SuperBot World coordinator session, 2026-07-13 ~21:59Z — batching + production-grade directive for the whole seat.
+done-when: the seat's SIM-REQUESTs are filed as full content waves (not few-item slices), the production-grade mission is reflected in seat planning/heartbeat, and no correctness gate has been relaxed in the process.
+
+Owner text, verbatim (quote block, do not paraphrase or fix typos):
+> yes make sure the sim works in bigger batches, the goal should be to get all the games to a producition grade level, tho it should not hinder the correct structure, speed is important but not more important than correctness
+
+Provenance: live owner turn in the SuperBot World coordinator session, 2026-07-13 ~21:59Z, relayed by the coordinator dispatch. Context: owner asked why superbot-games fishing has 4 species vs the original's ~21; coordinator offered to batch-pin the remaining roster; owner said yes and generalized. NOTE: inbox.md is normally owner/manager-written; a coordinator relaying a live owner turn is the sanctioned exception (stated here per doctrine).
+
+INTERPRETATION:
+(a) sim verdict pipeline moves to bigger batches — full content waves per SIM-REQUEST instead of few-item slices;
+(b) standing mission target: bring all three games to production-grade;
+(c) precedence: correctness and structural integrity outrank speed — no gate/verdict/golden-parity floor is relaxed.
