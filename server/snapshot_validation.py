@@ -38,6 +38,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from functools import lru_cache
 from pathlib import Path
 
 LOGGER = logging.getLogger(__name__)
@@ -139,8 +140,16 @@ class _UnhandledKeyword(SnapshotInvalid):
     """
 
 
+@lru_cache(maxsize=None)
 def load_schema() -> dict:
-    """Read + parse the committed v1 READ-contract schema."""
+    """Read + parse the committed v1 READ-contract schema (parsed once).
+
+    Cached deliberately: the schema is a COMMITTED file, immutable under a
+    running server — unlike the live-fed SNAPSHOT, which is re-read fresh
+    on every request (the cache is on the ruler, never on the thing being
+    measured). ``load_schema.cache_clear()`` is the explicit reload seam
+    for anything that edits the schema file under a live process (tests).
+    """
     return json.loads(SCHEMA_PATH.read_text())
 
 

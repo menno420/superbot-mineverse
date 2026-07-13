@@ -208,16 +208,12 @@ class MineverseHandler(SimpleHTTPRequestHandler):
         if request is None:
             self._send_json(400, {"error": "invalid action request"})
             return
-        try:
-            snapshot = json.loads(self.snapshot_path.read_bytes())
-        except (OSError, ValueError):
-            self._send_json(503, {"error": "snapshot unavailable"})
-            return
         # Ingestion-time v1 validation before we trust the snapshot's guild_id
         # for a signed write proposal — a malformed relay must not be relayed.
-        if not self._snapshot_is_valid(snapshot):
-            self._send_json(503, {"error": "snapshot unavailable"})
+        loaded = self._load_valid_snapshot()
+        if loaded is None:
             return
+        _, snapshot = loaded
         guild_id = snapshot["guild_id"]  # required + string, guaranteed by the check
         proposal = {
             "contract_version": actions.CONTRACT_VERSION,
@@ -293,16 +289,10 @@ class MineverseHandler(SimpleHTTPRequestHandler):
         valid JSON but malformed beyond what the shaper tolerates answers
         an honest 500 instead of crashing the request.
         """
-        try:
-            snapshot = json.loads(self.snapshot_path.read_bytes())
-        except (OSError, ValueError):
-            self._send_json(503, {"error": "snapshot unavailable"})
+        loaded = self._load_valid_snapshot()
+        if loaded is None:
             return
-        # Same ingestion-time v1 validation as /api/snapshot: refuse to shape a
-        # snapshot that does not conform to the READ contract.
-        if not self._snapshot_is_valid(snapshot):
-            self._send_json(503, {"error": "snapshot unavailable"})
-            return
+        _, snapshot = loaded
         try:
             document = views.build_views(snapshot)
         except Exception:  # noqa: BLE001 — any shaping failure is data-shaped
@@ -311,20 +301,41 @@ class MineverseHandler(SimpleHTTPRequestHandler):
         self._serve_cacheable_json(json.dumps(document).encode("utf-8"))
 
     def _serve_snapshot(self) -> None:
+        loaded = self._load_valid_snapshot()
+        if loaded is None:
+            return
+        payload, _ = loaded
+        self._serve_cacheable_json(payload)
+
+    def _load_valid_snapshot(self) -> tuple[bytes, dict] | None:
+        """Read + parse + v1-validate the snapshot — or answer the honest 503.
+
+        THE one load-validate-or-503 path, shared by all four snapshot
+        consumers (``/api/snapshot``, ``/api/views``, ``/api/me``, and the
+        ``/api/action`` pre-relay check) so a fifth consumer can never
+        forget one half of it.  The file is re-read fresh on EVERY call
+        (live-fed relay honesty — no caching, no last-good fallback), and a
+        snapshot that is valid JSON but violates the v1 READ contract
+        (wrong version, missing/typewrong fields, out-of-band values) is
+        refused exactly like a missing or corrupt file — the future live
+        bot→web relay is checked here, not only the committed sample in CI.
+
+        Returns ``(raw_bytes, parsed)`` on success — the raw bytes too,
+        because ``_serve_snapshot`` ETags and serves the exact file bytes.
+        On any failure this helper has already sent
+        ``503 {"error": "snapshot unavailable"}`` and returns ``None``:
+        the caller just returns.
+        """
         try:
             payload = self.snapshot_path.read_bytes()
             snapshot = json.loads(payload)  # never serve corrupt bytes as 200
         except (OSError, ValueError):
             self._send_json(503, {"error": "snapshot unavailable"})
-            return
-        # Runtime v1-contract validation at ingestion: a snapshot that is valid
-        # JSON but violates the READ contract (wrong version, missing/typewrong
-        # fields, out-of-band values) is refused with an honest 503 — the future
-        # live bot→web relay is checked here, not only the committed sample in CI.
+            return None
         if not self._snapshot_is_valid(snapshot):
             self._send_json(503, {"error": "snapshot unavailable"})
-            return
-        self._serve_cacheable_json(payload)
+            return None
+        return payload, snapshot
 
     def _snapshot_is_valid(self, snapshot: object) -> bool:
         """True iff ``snapshot`` conforms to the v1 READ contract (logs on fail)."""
@@ -463,14 +474,10 @@ class MineverseHandler(SimpleHTTPRequestHandler):
         # /api/action, refuse a missing/corrupt/non-conformant snapshot with an
         # honest 503 instead of crashing on it (a valid-JSON but non-object
         # snapshot such as ``[]`` would otherwise raise AttributeError → 500).
-        try:
-            snapshot = json.loads(self.snapshot_path.read_bytes())
-        except (OSError, ValueError):
-            self._send_json(503, {"error": "snapshot unavailable"})
+        loaded = self._load_valid_snapshot()
+        if loaded is None:
             return
-        if not self._snapshot_is_valid(snapshot):
-            self._send_json(503, {"error": "snapshot unavailable"})
-            return
+        _, snapshot = loaded
         self._send_json(
             200,
             {

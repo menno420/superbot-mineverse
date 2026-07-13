@@ -314,6 +314,31 @@ def test_corrupt_fixture_is_not_even_json():
         json.loads(CORRUPT_FIXTURE.read_text())
 
 
+# --- committed-schema cache: parsed once, explicit clear seam ----------------
+
+
+def test_load_schema_is_cached_with_an_explicit_clear_seam(tmp_path):
+    # The COMMITTED schema is parsed once (lru_cache) — the cache is on the
+    # ruler, never on the snapshot being measured (the live-rewrite seam test
+    # below pins that SNAPSHOT bytes are still re-read fresh per request).
+    original_path = snapshot_validation.SCHEMA_PATH
+    snapshot_validation.load_schema.cache_clear()
+    try:
+        first = snapshot_validation.load_schema()
+        assert snapshot_validation.load_schema() is first  # cached, not re-parsed
+        edited = tmp_path / "edited.schema.json"
+        edited.write_text('{"type": "object"}')
+        snapshot_validation.SCHEMA_PATH = edited
+        # An edit is invisible until the explicit seam is used …
+        assert snapshot_validation.load_schema() is first
+        # … and cache_clear() genuinely picks the new file up.
+        snapshot_validation.load_schema.cache_clear()
+        assert snapshot_validation.load_schema() == {"type": "object"}
+    finally:
+        snapshot_validation.SCHEMA_PATH = original_path
+        snapshot_validation.load_schema.cache_clear()
+
+
 # --- env ingestion seam: MINING_SNAPSHOT_PATH (FLAG 1 consume side) ----------
 #
 # serve() without an explicit snapshot_path exercises make_server's default —
