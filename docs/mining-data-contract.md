@@ -96,10 +96,24 @@ game content, so the schema constrains only their value types.
   periodically — target every **60 s** — plus on-demand refreshes when the
   owner or a workflow requests one. The web app never pulls from the bot;
   it only reads the relay's latest document.
-- **Staleness**: consumers compare `generated_at` to now. Beyond a staleness
-  threshold (default suggestion: 3 missed cycles ≈ 180 s), the frontend
-  shows a stale indicator next to the snapshot metadata instead of
-  presenting old numbers as live. Stage 1 serves a committed fixture, so its
+- **Staleness**: consumers compare `generated_at` to now. Beyond the
+  staleness threshold — **180 s** (false-stale ≤ 1/200 of healthy loads —
+  measured ≈ 1/2070 — mean outage detection ≤ 240 s — measured ≈ 145 s —
+  at the pinned model) — the frontend shows a stale indicator next to the
+  snapshot metadata instead of presenting old numbers as live. Measured
+  basis: sim-lab **VERDICT 056** (finalized APPROVE, sim-lab
+  `control/outbox.md` L999–L1008 @ `32ff5c3`; exact decision tables in
+  sim-lab `sims/verdict-056-snapshot-stale-threshold/results.json` +
+  `REPORT.md`). The verdict's own boundaries ride the citation: the
+  disturbance widths are invented-but-pinned (push jitter ±5/+15 s, miss
+  rate 1/25, client clock offset ±30 s — no live push timeline exists in
+  the fleet yet, so a one-day push-timestamp log once FLAG 1 goes live is
+  the pre-priced calibration step); the APPROVE leans on i.i.d. misses
+  (its own burst leg prices correlated deploy-window outages at
+  FS(180) ≈ 0.0161, above the band — a bursty producer needs a
+  producer-side health signal or a wider threshold); and it holds for
+  60 s-cadence worlds only — a re-cadenced contract re-runs the grid with
+  one fixture edit. Stage 1 serves a committed fixture, so its
   `generated_at` is honest about being a fixture — permanently "stale" is
   the correct stage-1 reading.
 - **Atomicity**: a snapshot is replaced whole, never patched; a reader never
