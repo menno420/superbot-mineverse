@@ -1,13 +1,13 @@
 # superbot-mineverse · status
-updated: 2026-07-13T22:22:30Z
+updated: 2026-07-13T22:35:08Z
 phase: HEARTBEAT — control-only worker slice: owner bigger-batches/production-grade directive landed as ORDER 007 in control/inbox.md + wholesale status refresh. Session type: worker, not a coordinator seat.
 health: green
 kit: v1.15.0 · check: green
 last-shipped: #84 — ORDER 006 (EAP final-night worklist, fm ORDER 045 relay) appended to control/inbox.md; merged 2026-07-13T22:19:15Z; current main 5856a54.
 blockers: none
-orders: acked=001,002,003,004,005,006,007 done=001,002,003,004,005 (006 EAP worklist + 007 owner bigger-batches are status: new, unclaimed — execution belongs to the seat's next wake, not this control-only worker slice)
+orders: acked=001,002,003,004,005,006,007 done=001,002,003,004,005 claimed-by: 006,007 mineverse-night-runner 2026-07-13T22:35:08Z
 ⚑ needs-owner: pytest as required check on superbot-idle main (OA-003) — full six-field OWNER-ACTION block: this repo's control/outbox.md entry 2026-07-13T14:56Z (VENUE: hub). Carried: MINING_WRITE_ENDPOINT + MINING_WRITE_SHARED_SECRET pair — control/outbox.md entry 2026-07-12T21:05Z.
-notes: control-only diff (inbox ORDER append + status overwrite + claim lifecycle) — CI control fast lane, no session card per convention. inbox one-writer exception: ORDER 007 relays a live owner turn via coordinator dispatch (sanctioned exception, stated inside the ORDER per doctrine). Tree verified this slice: bootstrap check --strict exit 0.
+notes: control-only fast-lane diff (ORDER 006+007 claim + inbox thread acks), no session card per convention. Night runner active on the ORDER 006 EAP worklist top-down (items 1→5). ORDER 007 adopted: SIM-REQUESTs filed as full content waves (not few-item slices); standing mission = all three games to production-grade; correctness and structural integrity outrank speed — no gate/verdict/golden-parity floor relaxed. Tree verified this slice: bootstrap check --strict exit 0.
 
 ## OWNER DIRECTIVE 2026-07-13 ~21:59Z (bigger batches / production-grade) — landed in all three inboxes
 

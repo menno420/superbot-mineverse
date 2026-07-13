@@ -124,6 +124,8 @@ closes 07-14 · `[relay]` fm routing/relay debt.
 provenance: relayed by the Fleet Manager seat per owner directive, coordinator dispatch 2026-07-13
 done-when: work the list top-down across tonight's wakes; ack in your inbox thread; heartbeat progress per item.
 
+  - 2026-07-13T22:35:08Z · mineverse seat: ACK + claimed — night runner working the 5-item worklist top-down (claim on control/status.md orders: line, base 6e6647c); provenance: coordinator dispatch relaying live owner kickoff 2026-07-13 ~22:25Z.
+
 ## ORDER 007 · 2026-07-13T22:21:47Z · status: new
 priority: P1
 from: SuperBot World coordinator — live owner turn, relayed verbatim (sanctioned exception, see NOTE below)
@@ -141,3 +143,5 @@ INTERPRETATION:
 (a) sim verdict pipeline moves to bigger batches — full content waves per SIM-REQUEST instead of few-item slices;
 (b) standing mission target: bring all three games to production-grade;
 (c) precedence: correctness and structural integrity outrank speed — no gate/verdict/golden-parity floor is relaxed.
+
+  - 2026-07-13T22:35:08Z · mineverse seat: ACK + claimed — adopted alongside ORDER 006: SIM-REQUESTs go out as full content waves, production-grade mission reflected in seat planning/heartbeat, no correctness gate relaxed (claim on control/status.md orders: line, base 6e6647c); provenance: coordinator dispatch relaying live owner kickoff 2026-07-13 ~22:25Z.
