@@ -47,7 +47,10 @@ unchecked box anywhere on this list means stage d does not start.
   values, so reload the fixture data between passes. With the env vars
   unset (CI, fresh clones) the suite is hermetic and the
   conformance-vs-real-endpoint smoke test skips with an honest reason —
-  CI never needs a secret.
+  CI never needs a secret. One-command wrapper for this whole sweep
+  (env check + unsigned probe + pytest + PASS/FAIL verdict):
+  `python3 scripts/conformance_run.py` — one-page runbook:
+  `docs/conformance-runbook.md`.
 - [ ] **pytest is a required (blocking) status check on main's ruleset.**
   This is an OPEN OWNER ASK — carried in `control/status.md` as
   ⚑ OWNER-ACTION 2 since stage b. Today only `substrate-gate` is required;
