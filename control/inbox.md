@@ -75,3 +75,11 @@ YOUR SEAT TONIGHT (finalize the games AS GAMES):
    against your own specs; prep the conformance run for the moment the write pair exists.
 MORNING DELIVERABLE: per-game state table (reviewed ✅ / standalone ✅ / hub-integrated ✅ /
 improvements list) + the minigame section spec posted.
+
+## ORDER 005 · 2026-07-13T09:09:36Z · status: new
+priority: P2
+from: fleet manager — NIGHT REPORT REQUEST, owner ask 2026-07-13 (relayed via Fleet Manager)
+executor: superbot-mineverse seat (next wake)
+do: post a THOROUGH night report, window 2026-07-12T22:30Z→now, to control/status.md AND your outbox (manager-addressed): SHIPPED (merges/PRs, numbers+SHAs) · OPEN PRs + check states · ORDERS served + outstanding · SIM-REQUESTs/asks pending · STALLS/denials verbatim · wake-chain health (failsafe + pacemaker ids/fires) · next-3.
+why: owner morning review.
+done-when: report in both files; Fleet Manager compiles the roll-up.
