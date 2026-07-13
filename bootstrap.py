@@ -1,4 +1,4 @@
-"""substrate-kit bootstrap v1.8.0 — GENERATED, DO NOT EDIT.
+"""substrate-kit bootstrap v1.15.0 — GENERATED, DO NOT EDIT.
 
 Single-file, stdlib-only. Regenerate from source with:
     python3 substrate-kit/src/build_bootstrap.py
@@ -18,6 +18,7 @@ from dataclasses import asdict, dataclass, field, fields
 from dataclasses import dataclass, field
 from datetime import date
 from datetime import date as _led_date
+from datetime import date, datetime
 from datetime import date, datetime, timezone
 from datetime import datetime, timedelta, timezone
 from datetime import datetime, timezone
@@ -31,6 +32,7 @@ import ast
 import copy
 import difflib
 import hashlib
+import io
 import itertools
 import json
 import os
@@ -38,6 +40,7 @@ import random
 import re
 import string
 import sys
+import tarfile
 import tempfile
 import time
 import urllib.error
@@ -87,7 +90,7 @@ DEFAULT_STATE_DIR = ".substrate"
 # (`kit_version`) + state by `adopt`/`upgrade`. Bump together with
 # `pyproject.toml` `[project] version` (a test pins them equal) and a new
 # CHANGELOG.md section (the release workflow refuses to publish without one).
-KIT_VERSION = "1.8.0"
+KIT_VERSION = "1.15.0"
 
 
 def _new_project_id() -> str:
@@ -740,10 +743,27 @@ def updated_line_example() -> str:
 #   kit: v<X.Y.Z> · check: green|red · engaged: yes|no
 # Parsed leniently — real heartbeats decorate the line, so the version is the
 # first `v<digit...>` token after `kit:` and the check/engaged fields are
-# scanned anywhere on the line. Consumed by currency.parse_kit_line (the
-# fleet registry's self-report evidence).
+# scanned anywhere on the line. The line anchor is lenient too: adopters
+# embed the heartbeat as a markdown bullet with a bold label (venture-lab's
+# live shape, found at the v1.10.1 wave: `- **kit heartbeat:** kit: v… ·
+# check: … · engaged: …`), so an optional leading list marker and/or
+# `**bold label**` prefix is accepted before `kit:` — the old start-of-line
+# anchor silently degraded that row to "no `kit:` line" in the fleet
+# registry and lost its engaged signal. Consumed by currency.parse_kit_line
+# (the fleet registry's self-report evidence).
+#
+# The leniency has a hard edge (hardening report 2026-07-12 §a.4, map §(b)
+# row 8): the optional bold group cannot contain the `kit:` token itself, so
+# the bold-label form `- **kit:** v…` does NOT parse — pokemon-mod-lab's live
+# heartbeat wrote exactly that shape and the registry read "no `kit:` line".
+# The negative renderer below is the taught counter-example; the control
+# templates carry it verbatim (test-pinned, the shared-pin precedent) so the
+# writer-side warning and the enforcer's rejection cannot drift.
 
-KIT_LINE_RE = re.compile(r"^kit:\s*(.*)$", re.MULTILINE)
+KIT_LINE_RE = re.compile(
+    r"^(?:[-*+]\s+)?(?:\*\*[^*\n]+\*\*\s*)?kit:\s*(.*)$",
+    re.MULTILINE,
+)
 KIT_VERSION_TOKEN_RE = re.compile(r"\bv(\d[\w.\-]*)")
 KIT_CHECK_FIELD_RE = re.compile(r"\bcheck:\s*(green|red)\b")
 KIT_ENGAGED_FIELD_RE = re.compile(r"\bengaged:\s*(yes|no)\b")
@@ -752,6 +772,20 @@ KIT_ENGAGED_FIELD_RE = re.compile(r"\bengaged:\s*(yes|no)\b")
 def kit_line_example(version: str = "1.2.3") -> str:
     """Canonical ``kit:`` self-report line for ``version``."""
     return f"kit: v{version} · check: green · engaged: yes\n"
+
+
+def kit_line_negative_example(version: str = "1.2.3") -> str:
+    """The bold-label form ``KIT_LINE_RE`` REJECTS — the taught negative.
+
+    The ``kit:`` token itself sits inside the bold, and the optional bold
+    group cannot contain the token, so the registry reads the row as "no
+    ``kit:`` line" and the lane's engaged signal silently vanishes (the
+    pokemon-mod-lab live incident). A bold label *before* a plain ``kit:``
+    token stays valid — see the leniency note above. Carried verbatim by
+    the control templates; ``tests/test_grammar.py`` pins both that the
+    templates teach this exact string and that it never parses.
+    """
+    return f"- **kit:** v{version} · check: green · engaged: yes\n"
 
 
 # ── control/status*.md — the six-field ⚑ OWNER-ACTION format (ORDER 008) ────
@@ -780,9 +814,172 @@ def owner_action_block_example() -> str:
         "WHAT: flip the example setting to on\n"
         "WHERE: Settings → Example → the toggle\n"
         "HOW: one checkbox\n"
+        "RISK: ↩️ reversible — flip the toggle back to undo\n"
         "WHY-IT-MATTERS: the lane stalls without it\n"
         "UNBLOCKS: the next slice starts moving the moment it's done\n"
         "VERIFIED-NEEDED: attempted via the API — 403, owner-only surface\n"
+    )
+
+
+# ── Owner-facing output — the owner-assist standard (grounded-skills §3) ────
+#
+# Taught in control/README.md § "Owner-assist output standard" (canonical
+# home) and the collaboration-model / CONSTITUTION / question-router
+# doctrine. The structured-choice phrases are ALSO the /intake skill body's
+# Q-0263.2 pins (engine.skills.skills._INTAKE_BODY) — one home, so skill
+# text, template text, and enforcer cannot drift; agreement is pinned by
+# tests/test_owner_assist.py. Enforced (advisory-only, §8 Q2=B) by
+# check_owner_actions.
+#
+# Risk-class tokens are the BASE characters (no VS16 emoji selector) so the
+# scan matches both the plain and the emoji-presentation spellings adopters
+# write (`"↩" in "↩️ reversible"` is True).
+
+RISK_CLASS_LABEL = "RISK:"
+RISK_CLASS_TOKENS = ("✅", "↩", "⚠")
+OWNER_ACTION_BLOCK_TOKEN = "⚑ OWNER-ACTION"
+# Q-0263.2 pinned phrases — a decision put to the owner is options A/B(/C)
+# with a **bolded recommendation**, answerable with one letter; an ask that
+# requires the owner to parse, derive, or transform anything is a drafting
+# defect, never an owner task.
+STRUCTURED_CHOICE_PHRASES = (
+    "**bolded recommendation**",
+    "answerable with one letter",
+    "parse, derive, or transform",
+)
+# The destination anti-pattern (the Q-0263 incident class): a WHERE: value
+# naming a settings-like surface with no deep shape at all — no URL, no
+# click-path arrow, no path. "Settings → Rules → the main ruleset" is fine;
+# a bare "go to settings" is not.
+VAGUE_DESTINATION_WORDS = ("settings", "console", "dashboard", "portal", "admin")
+DESTINATION_SHAPE_MARKS = ("http", "→", "/", ">")
+
+
+def risk_class_line_example() -> str:
+    """Canonical ``RISK:`` line — one class token + how to undo."""
+    return "RISK: ↩️ reversible — delete the variable to undo.\n"
+
+
+def structured_choice_example() -> str:
+    """Canonical structured-choice question (the Q-0263.2 shape)."""
+    return (
+        "Q1 — Default channel for large owner-facing outputs?\n"
+        "  A) Rendered link + 3-line digest in chat.\n"
+        "  B) Full text in chat every time.\n"
+        "  RECOMMENDATION: A — one tap on a phone; B stays the fallback.\n"
+    )
+
+
+# ── docs/CAPABILITIES.md — the venue-scoped capability ledger (§4.2) ─────────
+#
+# Taught in the planted ledger (CAPABILITIES.md.tmpl § "Append log"):
+#   - YYYY-MM-DD · capability|wall · <venue> · finding · evidence · workaround
+# The `·` is U+00B7 (the protocol's separator). The venue token scopes a
+# finding to where it was verified — the grounded-skills evidence base
+# (fleet night review 2026-07-12) saw ONE operation behave three ways in one
+# night depending on venue, so a flat CAN/CANNOT ledger is wrong somewhere by
+# construction. BACKWARD-COMPATIBLE: the older five-field form without a
+# venue token stays valid — readers treat it as venue `any` and enforcers
+# never flag it (an old line must not become advisory noise). Enforced
+# (advisory-only) by check_capability_xref; the kit-owned seed block between
+# the fence markers below is refreshed at upgrade by
+# engine.upgrade.refresh_capability_seed — the ONLY channel that reaches a
+# consumer-edited ledger (--apply-docs never covers one).
+
+CAPABILITY_VENUE_TOKENS = (
+    "owner-live",
+    "autonomous-project",
+    "routine-fired",
+    "subagent",
+    "any",
+)
+CAPABILITY_ENTRY_TAGS = ("capability", "wall")
+# The taught append-line format — the template carries this string verbatim
+# (test-pinned agreement, the owner-assist shared-pin precedent), so the
+# writer half and the enforcer half cannot drift.
+CAPABILITY_LOG_TAUGHT_FORMAT = (
+    "- YYYY-MM-DD · capability|wall · <venue> · finding · evidence · workaround"
+)
+# An append-log entry line: a leading ISO date, then the ·-separated fields.
+CAPABILITY_LOG_LINE_RE = re.compile(r"^- (20\d{2}-\d{2}-\d{2}) · (.+)$")
+# What field 3 looks like when the writer MEANT a venue: one lowercase
+# hyphenated token, no spaces. A field-3 value with spaces is an old-format
+# finding and is never judged (fail open).
+CAPABILITY_VENUE_SHAPE_RE = re.compile(r"^[a-z][a-z-]{2,}$")
+# Seed rows carry a per-row freshness stamp (§4.2b) — no freshness data
+# means confidently stale, which is worse than ignorant.
+CAPABILITY_LAST_VERIFIED_RE = re.compile(r"LAST-VERIFIED:\s*(20\d{2}-\d{2}-\d{2})")
+# The kit-owned seed fence (§4.2c): upgrade re-renders ONLY the block between
+# these markers inside a consumer-edited ledger; everything outside — the
+# append log, all consumer text — is preserved byte-for-byte. Prefix-matched
+# by the refresher so a future tweak to the warning wording cannot orphan an
+# existing fence.
+CAPABILITY_SEED_BEGIN_PREFIX = "<!-- substrate-kit:capability-seed BEGIN"
+CAPABILITY_SEED_END_PREFIX = "<!-- substrate-kit:capability-seed END"
+CAPABILITY_SEED_BEGIN = (
+    CAPABILITY_SEED_BEGIN_PREFIX
+    + " — kit-owned, refreshed at upgrade. Append your findings BELOW the"
+    " fence (## Append log), never inside it. -->"
+)
+CAPABILITY_SEED_END = CAPABILITY_SEED_END_PREFIX + " -->"
+
+
+def capability_log_line_example(*, venue: str | None = "routine-fired") -> str:
+    """Canonical append-log entry (``venue=None`` renders the legacy 5-field form)."""
+    venue_field = f" {venue} ·" if venue else ""
+    return (
+        f"- 2026-07-12 · wall ·{venue_field} fire_trigger on a cross-session"
+        " binding refused · exact error: not enabled for this organization ·"
+        " workaround: fire from the owning session\n"
+    )
+
+
+# ── docs/seat-digest.md — the seat-digest blocks (grounded-skills §7.6) ──────
+#
+# The kit-generated seat-prompt-feeding render surface (plan §7 slice 6,
+# §8 Q3=A): ONE planted doc carrying two fence-marked digest blocks — the
+# skills-index digest and the venue-filtered WALLS digest — that
+# fleet-manager's seat-prompt regen tool extracts WITHOUT executing kit code
+# (tree scan + fence-prefix match + byte compare, its v3.3 consumption
+# model). Together with the capability-seed pair above, these fence-prefix
+# pairs are THE machine extraction contract: consumers match the PREFIX only
+# (never the full marker wording, so a future tweak to the trailing warning
+# text cannot orphan a fence), and the bytes BETWEEN a BEGIN/END pair are the
+# canonical block. Design invariant (plan §2): digest + pointer, never
+# inline — every block ends with a pointer line to its source doc and stays
+# within SEAT_DIGEST_BLOCK_BUDGET, because the downstream seat-prompt pastes
+# sit at 7,943–7,998 of 8,000 chars (effectively zero headroom).
+
+SEAT_DIGEST_BLOCK_BUDGET = 1500
+SKILLS_DIGEST_BEGIN_PREFIX = "<!-- substrate-kit:skills-digest BEGIN"
+SKILLS_DIGEST_END_PREFIX = "<!-- substrate-kit:skills-digest END"
+WALLS_DIGEST_BEGIN_PREFIX = "<!-- substrate-kit:walls-digest BEGIN"
+WALLS_DIGEST_END_PREFIX = "<!-- substrate-kit:walls-digest END"
+SKILLS_DIGEST_BEGIN = (
+    SKILLS_DIGEST_BEGIN_PREFIX
+    + " — derived render, kit-generated; regenerate with `python3 bootstrap.py"
+    " seat-digest`, never edit. -->"
+)
+SKILLS_DIGEST_END = SKILLS_DIGEST_END_PREFIX + " -->"
+WALLS_DIGEST_END = WALLS_DIGEST_END_PREFIX + " -->"
+# The walls-digest BEGIN marker carries the venue filter it was rendered
+# with (`venues=<comma-joined tokens>`), so a regen or drift check re-renders
+# with the SAME venues the committed doc chose — the venue set is
+# parameterizable per seat (Project-seat default below), never hardcoded.
+WALLS_DIGEST_VENUES_RE = re.compile(r"venues=([a-z][a-z,-]*)")
+# Project seats read entries verified in their own venue plus the
+# venue-agnostic ones (slice-5 prerequisite: the venue column makes the
+# {{WALLS}}-class filter mechanical instead of editorial).
+SEAT_DIGEST_DEFAULT_VENUES = ("autonomous-project", "any")
+
+
+def walls_digest_begin_marker(venues: tuple[str, ...]) -> str:
+    """Compose the walls-digest BEGIN marker carrying ``venues``."""
+    return (
+        WALLS_DIGEST_BEGIN_PREFIX
+        + f" venues={','.join(venues)}"
+        + " — derived render, kit-generated; regenerate with `python3"
+        " bootstrap.py seat-digest`, never edit. -->"
     )
 
 
@@ -804,6 +1001,50 @@ def work_claim_bullet_example(date: str = "2026-07-10") -> str:
         f"- `example-branch` · **scope** — one-line detail · "
         f"expected files/area · {date}\n"
     )
+
+
+# ── Self-propagation doctrine — the registration reflex (grounded-skills §7.8) ─
+#
+# Taught in the CONSTITUTION.md.tmpl working-agreement clause and in the
+# planted skill index's "Growing the set" section (SKILLS-index.md.tmpl) —
+# the clause's pointer target, so the reflex is stated where agents actually
+# look. Agreement between the two templates and this one home is pinned by
+# tests/test_self_propagation.py; clause and index cannot drift.
+#
+# Executable twin of superbot doctrine (mined from superbot .claude/CLAUDE.md
+# + docs/owner/maintainer-question-router.md — cited, never paraphrased into
+# drift):
+#   - Q-0194 (2026-06-22, promoted binding 2026-06-28) — friction → guard:
+#     convert recurring friction into the cheapest ENFORCING prevention
+#     before session end (checker/CI/test → hook → journal rule; "enforce,
+#     don't exhort", Q-0132). Ownership split: docs / journal / test /
+#     checker guards are free to ship now; a hook / settings / binding
+#     working-agreement rule is owner-gated (build if owner-directed
+#     in-session, else propose a router DISCUSS Q).
+#   - Q-0106 (2026-06-12) — agents do NOT self-edit the working agreement /
+#     executable config on their own initiative; a binding rule evolves by
+#     PROPOSING it (a router Q-block), never applying it. The one exception:
+#     an in-session owner-directed change (the owner is the live reviewer),
+#     applied directly and recorded with its provenance id.
+#   - Q-0172 (2026-06-17) — ideas promote to plans and ship anytime without
+#     approval; the single requirement is ACCOUNTABILITY (the self-initiated
+#     flag on the run report). Safety brakes unchanged.
+
+SELF_PROPAGATION_REFLEX = "add or extend the skill"
+SELF_PROPAGATION_REGISTRY = "a registry entry, not ad-hoc prose"
+SELF_PROPAGATION_GROWTH_LOOP = "prose workflow → index row → promoted skill"
+SELF_PROPAGATION_FREE_LANE = "free to ship directly"
+SELF_PROPAGATION_BOUND_LANE = "never self-applied"
+SELF_PROPAGATION_PHRASES = (
+    SELF_PROPAGATION_REFLEX,
+    SELF_PROPAGATION_REGISTRY,
+    SELF_PROPAGATION_GROWTH_LOOP,
+    SELF_PROPAGATION_FREE_LANE,
+    SELF_PROPAGATION_BOUND_LANE,
+)
+# The compact in-clause provenance cite (Q-numbers; the dates live in this
+# comment block — templates state current value only, per their own header).
+SELF_PROPAGATION_PROVENANCE = "superbot Q-0194 · Q-0106 · Q-0172"
 
 # --- engine/interview/question_bank.py ---
 """The interview question bank — the seed set the staged onboarding draws from.
@@ -1742,6 +1983,50 @@ def unresolved_fill_count(text: str) -> int:
     return stripped.count(DRAFT_FILL_TOKEN)
 
 
+# The engine's own draft provenance marker (engine.loop.handoff stamps it on
+# every auto-drafted card/section). Mirrored here — not imported — because
+# checks/ sits below loop/ in the module order and the marker is a stable
+# one-line contract; ``tests/test_handoff.py`` pins the two constants equal.
+AUTO_DRAFT_MARKER = "<!-- substrate:auto-draft -->"
+
+
+def is_unadopted_draft(text: str) -> bool:
+    """True when a card is an engine-authored auto-draft no session adopted.
+
+    Only the engine's ``draft_card`` writes the ``drafted`` Status value, and
+    it stamps :data:`AUTO_DRAFT_MARKER` alongside; the card's own badge text
+    instructs the adopting session to flip the badge. Both present = a pure
+    machine skeleton — the previous session ended without touching its card
+    and the Stop-hook seam drafted one from evidence.
+
+    Why the distinction matters (B1 run-8): the ON arm ended with ``check
+    --strict`` exit=1 solely because of a skeleton the ENGINE wrote — the
+    next cold session would arrive to a red repo it did not redden and
+    cannot honestly close (the judgment slots belong to the departed
+    session). The bare mtime-fallback ``check`` lane treats such a card as
+    an ADVISORY (adopt it: verify the evidence, resolve the slots, flip the
+    badge); the merge-gate lanes (``--require-session-log`` /
+    ``--session-log`` / ``--added-card``) still hold RED — a PR shipping a
+    drafted card is the born-red discipline working as designed.
+    """
+    return AUTO_DRAFT_MARKER in text and _status_value_drafted(text)
+
+
+_STATUS_VALUE_RE = re.compile(r"\*\*status:\*\*\s*`([^`]+)`", re.IGNORECASE)
+
+
+def _status_value_drafted(text: str) -> bool:
+    """True when the Status badge's backticked VALUE is the auto-draft
+    ``drafted`` — a substring scan would misread a badge whose trailing
+    prose says "*(auto-drafted by substrate-kit …)*" after a session flips
+    the value to ``in-progress`` (adoption must end the advisory)."""
+    for line in text.splitlines():
+        if "**status:**" in line.lower():
+            match = _STATUS_VALUE_RE.search(line)
+            return bool(match) and match.group(1).strip().lower() == "drafted"
+    return False
+
+
 def status_in_progress(text: str) -> bool:
     """True when the log's Status badge line carries an in-progress value."""
     for line in text.splitlines():
@@ -1749,6 +2034,68 @@ def status_in_progress(text: str) -> bool:
             lowered = line.lower()
             return any(token in lowered for token in IN_PROGRESS_TOKENS)
     return False
+
+
+def has_status_badge(text: str) -> bool:
+    """True when the log carries any Status badge line at all."""
+    return any("**status:**" in line.lower() for line in text.splitlines())
+
+
+# The added-card born-red HOLD message (the superbot-games #40 loophole
+# fix). Callers that need to route this finding differently (the CLI gives
+# it its own finding kind so the designed-hold banner can recognise it)
+# match on this exact string — keep it a single module-level constant.
+BORN_RED_HOLD_MESSAGE = (
+    "born-red HOLD: this PR ADDS a session card that declares an "
+    "in-progress/drafted Status — the gate holds the merge red until the "
+    "card flips complete (designed hold, not a defect). Without this hold "
+    "a card-only born-red PR with auto-merge pre-armed merges the instant "
+    "CI reports (superbot-games #40 merged in 24 s on exactly this)."
+)
+
+
+def check_added_card(path: Path, markers: Sequence[Mapping[str, str]]) -> list[str]:
+    """Grade a card newly ADDED by a PR (the gate's added-card lane).
+
+    The venture-lab #15 false-green class: the generated gate exempts an
+    ADDED card from the locked door so a born-red heartbeat can merge — but
+    the old exemption skipped the card ENTIRELY, so a card that declared
+    itself ``complete`` while missing its grammar tokens (💡 / ``📊 Model:``)
+    merged green and pre-reddened every later bare ``check --strict`` run
+    via the newest-by-mtime fallback (fixed only by the next upgrade wave).
+
+    Judge the added card by what it *declares*, never by mid-flight
+    completeness —
+
+    - **no Status badge at all** → a grammar finding: every session card
+      carries a parseable ``> **Status:**`` badge from its first commit
+      (the born-red convention *requires* the badge; it exempts the VALUE).
+    - **badge declares in-progress/drafted** → the born-red **HOLD**
+      (:data:`BORN_RED_HOLD_MESSAGE`): the PR is a mid-flight session and
+      must stay red until the card flips complete. This supersedes the
+      #168 full exemption — "exempt" meant GREEN, and a green card-only
+      diff with auto-merge pre-armed merged 24 seconds after open
+      (superbot-games #40, the v1.9.0 wave's premature-merge finding).
+      Born-red incompleteness is still never graded (no marker findings) —
+      the hold is a single designed-state finding, not a completeness red.
+    - **badge declares anything else** (``complete`` & co.) → the card
+      claims to be a finished close-out, so it gets the full
+      :func:`check_log` completeness check — missing markers and unresolved
+      ``[[fill:]]`` slots red exactly as they would on a MODIFIED card.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return ["an unreadable added card (cannot grammar-check)"]
+    if not has_status_badge(text):
+        return [
+            "a Status badge line (expected `> **Status:**`) — a session card "
+            "carries one from its first commit; born-red exempts the badge's "
+            "VALUE, never its presence",
+        ]
+    if status_in_progress(text):
+        return [BORN_RED_HOLD_MESSAGE]
+    return check_log(path, markers)
 
 
 def check_log(path: Path, markers: Sequence[Mapping[str, str]]) -> list[str]:
@@ -2412,6 +2759,24 @@ parser for every free-text shape an ask can take. Input-gated like every
 checker — engages only when the ``control/`` protocol is present and the
 file's ``⚑ needs-owner`` value is something other than ``none``. Stdlib
 only; unreadable files fail open.
+
+Owner-assist output standard (grounded-skills slice 4, plan §3/§7.4;
+added 2026-07-12, §8 Q2=B advisory-first): two further advisory findings
+extend the same contract —
+
+- ``owner-action-risk-class`` — an ``⚑ OWNER-ACTION`` block whose
+  contiguous text carries no risk-class token (``✅ / ↩️ / ⚠️`` — the
+  maintainer-profile standing rule: a risk class on every manual step).
+- ``owner-action-vague-destination`` — a ``WHERE:`` value naming a
+  settings-like surface with no deep shape at all (no URL, no click-path
+  arrow, no path): the "go to settings" anti-pattern from the Q-0263
+  incident. Deep values ("Settings → Rules → …", a URL, a repo path)
+  never fire.
+
+Reliability of the two new checks (PL-008): UNVERIFIED — confirm their
+findings against ground truth a few times across sessions before trusting
+them; **delete these two checks if they prove unreliable over multiple
+sessions.** Both are advisory-only by the same contract as the fields nag.
 """
 
 
@@ -2439,6 +2804,48 @@ def _needs_owner_value(text: str) -> str | None:
     line = text[idx:].splitlines()[0]
     _, _, value = line.partition(":")
     return value.strip()
+
+
+# The canonical WHERE label (one spelling — no lenient alternates exist).
+_WHERE_LABEL = OWNER_ACTION_FIELDS[1][0]
+
+
+def _unrisked_block_count(text: str) -> int:
+    """Return how many ⚑ OWNER-ACTION blocks carry no risk-class token.
+
+    A block is the contiguous paragraph after its ``⚑ OWNER-ACTION`` marker
+    (up to the first blank line or the next marker) — a risk token elsewhere
+    in the file never vouches for a block that lacks one.
+    """
+    count = 0
+    for segment in text.split(OWNER_ACTION_BLOCK_TOKEN)[1:]:
+        block = segment.split("\n\n", 1)[0]
+        if not any(token in block for token in RISK_CLASS_TOKENS):
+            count += 1
+    return count
+
+
+def _vague_destinations(text: str) -> list[str]:
+    """Return WHERE: values that name a surface without any deep shape.
+
+    Fires only on the intersection of *both* signals — a settings-like word
+    (``VAGUE_DESTINATION_WORDS``) AND no shape mark at all
+    (``DESTINATION_SHAPE_MARKS``: URL, click-path arrow, path separator) —
+    so "Settings → Rules → …", any URL, and any repo path stay clean, and a
+    value like "any channel" (no surface word) never fires either.
+    """
+    vague: list[str] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith(_WHERE_LABEL):
+            continue
+        value = stripped.partition(":")[2].strip()
+        lowered = value.lower()
+        if any(word in lowered for word in VAGUE_DESTINATION_WORDS) and not any(
+            mark in value for mark in DESTINATION_SHAPE_MARKS
+        ):
+            vague.append(value)
+    return vague
 
 
 def check_owner_actions(
@@ -2489,6 +2896,35 @@ def check_owner_actions(
                     "yourself or cite the exact wall — VERIFIED-NEEDED; "
                     "assumption-based asks are banned), and withdraw stale "
                     "asks.",
+                ),
+            )
+        # Owner-assist output standard (slice 4) — advisory, same contract.
+        unrisked = _unrisked_block_count(text)
+        if unrisked:
+            findings.append(
+                Finding(
+                    rel,
+                    "owner-action-risk-class",
+                    f"{unrisked} ⚑ OWNER-ACTION block(s) carry no risk-class "
+                    "token — every manual step names its class (✅ safe / "
+                    "read-only · ↩️ reversible, say how to undo · ⚠️ "
+                    "irreversible / destructive), e.g. a `RISK:` line per "
+                    "block (control/README.md § Owner-assist output "
+                    "standard).",
+                ),
+            )
+        vague = _vague_destinations(text)
+        if vague:
+            findings.append(
+                Finding(
+                    rel,
+                    "owner-action-vague-destination",
+                    "WHERE: names a surface without a deep destination "
+                    f"({'; '.join(vague)}) — name the exact destination: a "
+                    "deep URL, a console path to the exact field "
+                    "(Surface → section → field), or a repo path + line; "
+                    'never a bare "go to settings" (control/README.md § '
+                    "Owner-assist output standard).",
                 ),
             )
     return findings
@@ -3077,6 +3513,30 @@ Input-gated on the ``control/`` protocol and per heartbeat file, like
 every control-band checker. Pure stdlib — no ``subprocess`` (§3.2); it
 only reads the heartbeat files the fast lane already validates plus the
 planted capability ledger. Unreadable files fail open (no verdict).
+
+**Slice-5 extensions (grounded-skills plan §4.2d, added 2026-07-12;
+§8 Q2=B advisory-first).** Two more advisory families, extending this
+checker IN PLACE (the twice-proven pattern — slice 2 check_skill_grounds,
+slice 4 check_owner_actions):
+
+- **Append-log grammar** (the writer half is the planted template; both
+  consume ``engine.grammar``'s capability-ledger constants):
+  ``capability-log-malformed`` — an append-log bullet that does not open
+  ``- YYYY-MM-DD · capability|wall · …``; ``capability-log-venue-unknown``
+  — a venue-shaped field-3 token that is not one of the grammar's venue
+  tokens. BACKWARD-COMPATIBLE by contract: an old five-field line without
+  a venue token is read as venue ``any`` and NEVER flagged.
+- **Staleness** (§4.2b): ``capability-entry-stale`` — a dated ledger entry
+  (append-log line, or a seed row's ``LAST-VERIFIED:`` stamp) older than
+  the config's ``cadence.staleness_days`` (default 14) whose surface the
+  NEWEST session card cites — a claim, not a fact; re-verify with one
+  cheap attempt and APPEND the result (THE DISCOVERY RULE step 5).
+
+Reliability of the slice-5 checks (PL-008): UNVERIFIED — confirm their
+findings against ground truth a few times across sessions before trusting
+them; **delete these checks if they prove unreliable over multiple
+sessions.** They are advisory-only by the same contract as the original
+xref and must never count toward an exit code.
 """
 
 
@@ -3267,11 +3727,193 @@ def _ledger_sides(text: str) -> tuple[set[str], set[str]]:
     return _tokens("\n".join(wall_parts)), _tokens("\n".join(cap_parts))
 
 
+def _log_grammar_findings(rel: str, text: str) -> list[Finding]:
+    """Grammar-check the ledger's append-log bullets (slice 5, advisory).
+
+    Old-format compatibility is a hard contract: a five-field line without a
+    venue token parses clean (field 3 carries spaces → an old-format finding,
+    never judged as a venue). Only a venue-SHAPED field-3 token outside the
+    grammar's venue set flags, and only date/tag misses flag as malformed.
+    Continuation lines (indented wraps) are skipped like ``_ledger_sides``
+    skips nothing — they never start ``- ``.
+    """
+    findings: list[Finding] = []
+    in_log = False
+    for line in text.splitlines():
+        if line.startswith("## "):
+            in_log = "append log" in line.lower()
+            continue
+        if not in_log or not line.startswith("- "):
+            continue
+        match = CAPABILITY_LOG_LINE_RE.match(line)
+        if not match:
+            findings.append(
+                Finding(
+                    rel,
+                    "capability-log-malformed",
+                    "append-log entry does not open `- YYYY-MM-DD · "
+                    "capability|wall · …` — the taught grammar is "
+                    f"`{CAPABILITY_LOG_TAUGHT_FORMAT}` "
+                    "(src/engine/grammar.py); date the entry so the "
+                    f"staleness rule can read it: {line[:60]!r}",
+                ),
+            )
+            continue
+        fields = [f.strip() for f in line.split("·")]
+        tag = fields[1].lower() if len(fields) > 1 else ""
+        if not any(t in tag for t in CAPABILITY_ENTRY_TAGS):
+            findings.append(
+                Finding(
+                    rel,
+                    "capability-log-malformed",
+                    "append-log entry's second field names neither "
+                    "`capability` nor `wall` — the ledger's two sides key on "
+                    f"that tag ({CAPABILITY_LOG_TAUGHT_FORMAT}): "
+                    f"{line[:60]!r}",
+                ),
+            )
+            continue
+        if len(fields) > 2:
+            candidate = fields[2]
+            if (
+                CAPABILITY_VENUE_SHAPE_RE.match(candidate)
+                and candidate not in CAPABILITY_VENUE_TOKENS
+            ):
+                findings.append(
+                    Finding(
+                        rel,
+                        "capability-log-venue-unknown",
+                        f"append-log entry names venue {candidate!r}, which "
+                        "is not a grammar venue token "
+                        f"({' · '.join(CAPABILITY_VENUE_TOKENS)}) — fix the "
+                        "token, or drop the field to write the legacy "
+                        "five-field form (read as venue `any`).",
+                    ),
+                )
+    return findings
+
+
+def _dated_entries(text: str) -> list[tuple[date, str]]:
+    """Return ``(date, entry_text)`` per dated ledger bullet.
+
+    Two dated shapes exist: append-log bullets (leading ISO date) and seed
+    rows carrying a ``LAST-VERIFIED: YYYY-MM-DD`` stamp (§4.2b). A bullet's
+    indented continuation lines belong to it — the distinctive tokens the
+    citation scan matches usually live there. Unparseable dates are skipped
+    (fail open — a malformed date is the grammar check's finding, never
+    fabricated staleness).
+    """
+    entries: list[tuple[date, str]] = []
+
+    def flush(bullet: list[str]) -> None:
+        if not bullet:
+            return
+        block = "\n".join(bullet)
+        match = CAPABILITY_LOG_LINE_RE.match(bullet[0])
+        if match is not None:
+            stamp = match.group(1)
+        else:
+            verified = CAPABILITY_LAST_VERIFIED_RE.search(block)
+            if verified is None:
+                return
+            stamp = verified.group(1)
+        try:
+            entry_date = datetime.strptime(stamp, "%Y-%m-%d").date()
+        except ValueError:
+            return
+        entries.append((entry_date, block))
+
+    bullet: list[str] = []
+    for line in text.splitlines():
+        if line.startswith("- "):
+            flush(bullet)
+            bullet = [line]
+        elif bullet and line.strip() and line[:1] in (" ", "\t"):
+            bullet.append(line)  # indented continuation of the bullet above
+        else:
+            flush(bullet)
+            bullet = []
+    flush(bullet)
+    return entries
+
+
+def _newest_session_card(target: Path, sessions_dir: str) -> tuple[str, str] | None:
+    """Return ``(relpath, text)`` of the newest date-named session card.
+
+    Newest by FILENAME (cards are ``YYYY-MM-DD-<slug>.md``, so lexicographic
+    order is date order) — never by mtime, which a fresh CI checkout
+    flattens. ``None`` when no card exists or the newest is unreadable
+    (fail open).
+    """
+    root = target / sessions_dir
+    if not root.is_dir():
+        return None
+    cards = sorted(
+        p for p in root.glob("*.md") if re.match(r"20\d{2}-\d{2}-\d{2}", p.name)
+    )
+    if not cards:
+        return None
+    newest = cards[-1]
+    try:
+        text = newest.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+    rel = (
+        str(newest.relative_to(target))
+        if newest.is_relative_to(target)
+        else str(newest)
+    )
+    return rel, text
+
+
+def _stale_citation_findings(
+    ledger_rel: str,
+    ledger_text: str,
+    card: tuple[str, str] | None,
+    staleness_days: int,
+    today: date,
+) -> list[Finding]:
+    """Flag stale ledger entries the newest session card cites (§4.2d ii).
+
+    Coarse by the module's own contract: "cites" is distinctive-token
+    overlap between the entry and the card (the same ``_anchors`` machinery
+    as the OWNER-ACTION xref), so a false nudge costs one glance. No card,
+    no dated entries, or nothing distinctive → no verdict.
+    """
+    if card is None:
+        return []
+    card_rel, card_text = card
+    card_tokens = _tokens(card_text)
+    findings: list[Finding] = []
+    for entry_date, entry_text in _dated_entries(ledger_text):
+        if (today - entry_date).days <= staleness_days:
+            continue
+        anchors = _anchors(entry_text)
+        if not anchors:
+            continue
+        if len(anchors & card_tokens) >= min(2, len(anchors)):
+            findings.append(
+                Finding(
+                    ledger_rel,
+                    "capability-entry-stale",
+                    f"ledger entry dated {entry_date.isoformat()} is older "
+                    f"than the staleness window ({staleness_days}d) and "
+                    f"{card_rel} cites its surface — an aged entry is a "
+                    "claim, not a fact (THE DISCOVERY RULE step 5): "
+                    "re-verify with one cheap attempt and APPEND the "
+                    "result (re-verifications append, never edit).",
+                ),
+            )
+    return findings
+
+
 def check_capability_xref(
     target: Path,
     *,
     status_files: Sequence[str] | None = None,
     capabilities_relpath: str = CAPABILITIES_RELPATH,
+    config: Any = None,
+    today: date | None = None,
 ) -> list[Finding]:
     """Return advisory findings cross-referencing owner asks vs the ledger.
 
@@ -3280,6 +3922,16 @@ def check_capability_xref(
     ledger's Walls/Capabilities sides. Emits ``owner-ask-wall-unrecorded``
     when the wall is nowhere in the ledger (or the ledger is absent), and
     ``owner-ask-capability-resolved`` when only the capability side matches.
+
+    Slice-5 extensions (see module docstring): the ledger's append-log lines
+    are grammar-checked against ``engine.grammar``'s capability constants
+    (``capability-log-malformed`` / ``capability-log-venue-unknown``; old
+    five-field lines are never flagged), and dated entries older than
+    ``config.cadence['staleness_days']`` (default 14, the triggers.py
+    default-on-missing pattern) that the newest session card in
+    ``config.sessions_dir`` cites emit ``capability-entry-stale``. ``today``
+    is injectable for tests.
+
     Advisory by contract — callers must never count these toward an exit
     code (see module docstring). Empty when the ``control/`` protocol is
     absent; fail-open on unreadable files and anchor-less asks.
@@ -3301,6 +3953,21 @@ def check_capability_xref(
     )
 
     findings: list[Finding] = []
+    if ledger_text is not None:
+        findings += _log_grammar_findings(capabilities_relpath, ledger_text)
+        staleness_days = 14
+        sessions_dir = ".sessions"
+        if config is not None:
+            cadence = getattr(config, "cadence", None) or {}
+            staleness_days = int(cadence.get("staleness_days", 14))
+            sessions_dir = getattr(config, "sessions_dir", "") or ".sessions"
+        findings += _stale_citation_findings(
+            capabilities_relpath,
+            ledger_text,
+            _newest_session_card(target, sessions_dir),
+            staleness_days,
+            today if today is not None else date.today(),
+        )
     for rel in relpaths:
         path = target / rel
         if not path.is_file():
@@ -4419,6 +5086,20 @@ JSONL because atomic appends beat rewriting a JSON array (plan D-10).
 GUARD_FIRES_FILENAME = "guard-fires.jsonl"
 MODEL_USAGE_RELPATH = "telemetry/model-usage.jsonl"
 
+# Guard-fire dedupe window (seconds): a re-run of the same guard over the
+# same unchanged finding within this window appends nothing. Provenance:
+# trading-strategy PR #57's session card — the born-red gate lane re-runs
+# `check` 2–3× per push, so `guard-fires.jsonl` was "dominated by duplicate
+# born-red heartbeat noise (same card, same message, seconds apart)" and
+# stopped being a signal ledger. Ten minutes covers a CI/gate re-run burst
+# while a *persisting* finding still re-records on the next real session
+# activity; a verdict-carrying record (allowlist suppression) is never
+# deduped — verdict events are data, not noise.
+GUARD_FIRES_DEDUPE_WINDOW_S = 600
+# How many tail records to scan for the dedupe key set — bounds the read on
+# a long-lived fires log; a burst larger than this simply dedupes less.
+_GUARD_FIRES_DEDUPE_SCAN = 200
+
 # The run-report needle. \N escape keeps the engine source ASCII-safe.
 MODEL_LINE_NEEDLE = "\N{BAR CHART} Model:"  # 📊 Model:
 
@@ -4438,6 +5119,16 @@ TASK_CLASSES = (
 
 _DATE_PREFIX_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})")
 
+# Exact model-ID token detector for the 📊 model segment (fleet reporting
+# bar, ORDER 012 widened 2026-07-12): repo artifacts carry FAMILY-LEVEL model
+# names only (`fable-5`, `opus-4.8`), never an exact model-ID token — and
+# exact IDs are not always dated, so a dated-suffix test alone is too narrow
+# (the websites #178 cleanup class: cards recording `claude-`-prefixed exact
+# ID tokens passed the old "no full dated model ID" wording). Flags the two
+# exact-ID shapes seen in the wild: a provider-prefixed ID token
+# (`claude-…`, incl. `us.anthropic.…` forms) and a dated `-YYYYMMDD` suffix.
+_EXACT_MODEL_ID_RE = re.compile(r"^(?:us\.)?(?:anthropic\.)?claude-|-\d{8}$")
+
 
 def guard_fires_path(root: Path, state_dir: str) -> Path:
     """Return the guard-fire JSONL path for one install."""
@@ -4450,6 +5141,49 @@ def _append_jsonl(path: Path, record: dict) -> None:
     line = json.dumps(record, ensure_ascii=False, sort_keys=True)
     with path.open("a", encoding="utf-8") as handle:
         handle.write(line + "\n")
+
+
+def _recent_fire_keys(path: Path, now: datetime) -> set[tuple[str, str, str]]:
+    """Dedupe keys ``(guard, path, message)`` of recent verdict-less records.
+
+    Scans the tail of the fires log for records whose ``ts`` falls inside
+    :data:`GUARD_FIRES_DEDUPE_WINDOW_S` of ``now``. Records carrying a
+    ``verdict`` (allowlist-suppression events) never enter the key set —
+    they are data points, not repeat noise, and must never swallow a later
+    plain fire. Fail-open: any unreadable/undecodable state returns what was
+    parsed so far (worst case: no dedupe, the pre-fix behavior).
+    """
+    keys: set[tuple[str, str, str]] = set()
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return keys
+    for line in lines[-_GUARD_FIRES_DEDUPE_SCAN:]:
+        try:
+            record = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(record, dict) or record.get("verdict") is not None:
+            continue
+        try:
+            ts = datetime.fromisoformat(str(record.get("ts")))
+        except ValueError:
+            continue
+        if ts.tzinfo is None:
+            continue
+        if (now - ts).total_seconds() > GUARD_FIRES_DEDUPE_WINDOW_S:
+            continue
+        finding = record.get("finding")
+        if not isinstance(finding, dict):
+            continue
+        keys.add(
+            (
+                str(record.get("guard")),
+                str(finding.get("path")),
+                str(finding.get("message")),
+            ),
+        )
+    return keys
 
 
 def record_guard_fires(
@@ -4474,6 +5208,14 @@ def record_guard_fires(
     and ``outcome`` always start null — a later, *different* party fills them
     (the grading-separation rule).
 
+    **Short-window dedupe** (trading-strategy #57's card): a verdict-less
+    fire whose ``(guard, path, message)`` already appears in a record from
+    the last :data:`GUARD_FIRES_DEDUPE_WINDOW_S` seconds is skipped — the
+    born-red gate lane re-runs ``check`` several times per push and was
+    filling the log with identical designed-hold echoes. Verdict-carrying
+    records (allowlist suppressions) always append: the verdict event is
+    the datum.
+
     Fail-open by contract: any failure (unwritable path, weird finding
     object) writes nothing and raises nothing — telemetry never blocks an
     agent-facing path. Writes only into an **existing** install
@@ -4484,9 +5226,16 @@ def record_guard_fires(
         if not (root / state_dir).is_dir():
             return 0
         path = guard_fires_path(root, state_dir)
-        ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        now = datetime.now(timezone.utc)
+        ts = now.isoformat(timespec="seconds")
+        recent = _recent_fire_keys(path, now) if verdict is None else set()
         written = 0
         for finding in findings:
+            if verdict is None:
+                key = (str(finding.kind), str(finding.path), str(finding.message))
+                if key in recent:
+                    continue
+                recent.add(key)
             record = {
                 "ts": ts,
                 "guard": str(finding.kind),
@@ -4627,6 +5376,13 @@ def harvest_model_usage(root: Path, session_log: Path | None) -> list[str]:
                 f"{len(TASK_CLASSES)} PL-004 classes ({known}) — recorded "
                 "verbatim; fix the line or the taxonomy.",
             )
+        if _EXACT_MODEL_ID_RE.search(parsed["model"]):
+            lines.append(
+                f"model {parsed['model']!r} looks like an exact model-ID "
+                "token — record the family-level model name only (e.g. "
+                "`fable-5`, `opus-4.8`), never an exact model ID (fleet "
+                "reporting bar; recorded verbatim — fix the card's line).",
+            )
         session = session_log.stem
         path = root / MODEL_USAGE_RELPATH
         if session in _model_usage_sessions(path):
@@ -4696,6 +5452,261 @@ def reconcile_model_usage(root: Path, sessions_dir: Path) -> list[str]:
     except Exception:  # noqa: BLE001 — telemetry fails open by contract
         return ["model-usage: reconcile failed (fail-open) — rows not recorded."]
 
+# --- engine/loop/handoff_pointer.py ---
+"""Pull-visible handoff pointer — the B1 run-6 delivery-gap fix.
+
+Bench run-6 (PR #201, report §5) proved the #165 SessionStart handoff-push's
+delivery assumption false at the orchestrator→worker harness seam: the push
+fired at every ON boot but reached the measured delegated worker in **0/3**
+— the seam does not forward SessionStart context, and SessionStart does not
+re-fire for subagents. The signal never reached the session that acts.
+
+What the workers *did* touch, unprompted and early, was the working tree:
+``git status`` / ``ls`` / ``find`` ran in 4 of the 6 measured sessions, and
+run-6's one acknowledgment-adjacent event was the ON-T2 worker noticing
+untracked paths in its own ``git status``. So the kit now delivers the same
+handoff content through that surface: a lean ``HANDOFF.md`` at repo root,
+regenerated at every session boot (SessionStart hook / ``session-start``)
+and refreshed by the ``ensure_draft`` seam (Stop hook, ``session-close``,
+``draft``), carrying exactly the push's handoff section — newest session
+card path + status + unresolved slot count + the previous session's resolved
+"next session should know" pointer.
+
+Design decisions (decide-and-flag):
+
+- **Untracked by design, deliberately NOT gitignored.** A gitignored file is
+  invisible in ``git status`` — the one surface with observed worker
+  acknowledgment. Untracked-at-root rides both ``git status`` (shows it) and
+  plain ``ls`` (a dot-dir like ``.sessions/`` does not). The file's own
+  header says never to commit or edit it.
+- **Marker-guarded ownership.** The writer only ever creates, overwrites, or
+  deletes a file carrying ``HANDOFF_POINTER_MARKER`` — a host-owned
+  ``HANDOFF.md`` is never touched.
+- **One composer, two surfaces.** ``handoff_lines`` feeds both the
+  orientation push (``session_start._ori_handoff``) and this file, so the
+  pushed and pulled text can never drift apart.
+- **Fail-open by contract**, like every hook seam: writing the pointer can
+  never crash a session start or stop.
+"""
+
+
+
+
+# The pointer file's repo-root filename — a program-wide constant (like the
+# `do-not-automerge` label), not config: every adopter's cold session should
+# find the same name in the same place.
+HANDOFF_POINTER_FILENAME = "HANDOFF.md"
+# Ownership marker: the writer only creates/overwrites/deletes a file that
+# carries this line — a host-owned HANDOFF.md is never touched.
+HANDOFF_POINTER_MARKER = "<!-- substrate:handoff-pointer -->"
+# Cap on the handoff-pointer excerpt — the pointer must stay terse (the B1
+# M1 lesson: ON already pays a footprint premium; a fat artifact makes the
+# regression worse, not better).
+HANDOFF_EXCERPT_CAP = 300
+# The drafted close-out's handoff field (engine.loop.handoff draft text).
+HANDOFF_NEEDLE = "next session should know"
+# Auto-derived trail (B1 run-8 content-gap fix): when the newest card's
+# pointer is still an unresolved draft slot, the pointer surfaces the card's
+# own auto-collected evidence bullets instead of pointing at a skeleton.
+# These prefixes are the draft's evidence-line shapes (engine.loop.handoff
+# ``_evidence_lines``) — nothing else in a card matches them.
+_TRAIL_PREFIXES = (
+    "- code touched",
+    "- tests touched",
+    "- docs touched",
+    "- sessions touched",
+    "- other touched",
+    "- git:",
+    "- commits this session",
+    "- previous session's pointer:",
+)
+# Caps keep the trail inside the pointer's lean-budget (the ~113-word push
+# footprint the bench pins): at most this many lines, each truncated.
+_TRAIL_LINE_CAP = 4
+_TRAIL_CHAR_CAP = 140
+
+# Fresh-state fast path (B1 run-9 ON-T2 footprint cut). Run-9's sole failing
+# axis was ON-T2 M1 (2505 vs OFF 675 words), and the transcript locates the
+# cost: the previous session left NOTHING to hand off (a complete card with
+# no resolved pointer and no evidence trail — the scripted adoption card),
+# yet the handoff still said "Open that card FIRST", so the agent paid a
+# contentless card read; and 1724 of the 2505 words (69%) were ONE repo-wide
+# grep polluted by the vendored ``bootstrap.py`` (862w) plus its byte-copy
+# under ``<state_dir>/backup/`` (862w) after the agent's hand-rolled
+# exclusion filter failed. The kit's two existing countermeasures both
+# missed that path: the planted ``.ignore`` only covers ripgrep-family
+# tools (plain ``grep`` has no ignore protocol), and the CLAUDE.md hygiene
+# recipe rode the claudeMd channel measured ABSENT 0/6. So when the trail is
+# empty, the handoff (a) stops routing the session into history and (b)
+# carries the byte-exact WORKING exclusion recipe on the one surface run-9
+# proves is delivered (push 3/3) and read first (ON-T2's first tool call).
+# T4-shaped (in-progress + trail) and T5-shaped (complete + resolved
+# pointer) renderings are byte-equivalent to before — pinned by tests.
+_FRESH_START_LINE = (
+    "- Fresh start — nothing in flight: orient from the task and the code; "
+    "the card and `git log` history have nothing for you here."
+)
+_SEARCH_HYGIENE_LINE = (
+    "- Search hygiene: `bootstrap.py` + `.substrate/` are kit machinery, not "
+    "project code — exclude them: `grep -r --exclude=bootstrap.py "
+    "--exclude-dir=.substrate …` (ripgrep honors the planted `.ignore`)."
+)
+
+
+def resolved_handoff_pointer(text: str) -> str:
+    """Extract the newest RESOLVED handoff pointer from a session card.
+
+    The auto-draft writes ``- Next session should know: [[fill: …]]`` and a
+    closing session resolves the slot in place, so the pointer is a line
+    match, not structure. The LAST resolved match wins (drafted close-outs
+    append, so the newest section sits at the bottom); a line still carrying
+    an unresolved ``[[fill:`` slot is skipped — pushing a template slot at a
+    cold session would be noise, not handoff.
+    """
+    pointer = ""
+    for line in text.splitlines():
+        lowered = line.lower()
+        index = lowered.find(HANDOFF_NEEDLE)
+        if index < 0:
+            continue
+        rest = line[index + len(HANDOFF_NEEDLE) :].lstrip(" :**").strip()
+        if not rest or DRAFT_FILL_TOKEN in rest:
+            continue
+        pointer = rest
+    if len(pointer) > HANDOFF_EXCERPT_CAP:
+        pointer = pointer[: HANDOFF_EXCERPT_CAP - 1].rstrip() + "…"
+    return pointer
+
+
+def evidence_trail(text: str) -> list[str]:
+    """Extract the auto-collected evidence bullets from a drafted card.
+
+    The B1 run-8 content-gap fix: run-8 was the family's first
+    card-continuity conversion — ON-T4 opened ``HANDOFF.md`` in its first
+    tool call and followed it to the card — and the payload was 8 unfilled
+    ``[[fill:]]`` slots, so "real context came from reading ``cli.py``"
+    (run-8 report §2) exactly as OFF re-derived it. The draft's EVIDENCE
+    half (files touched, HEAD movement, commit subjects) is real content the
+    engine already harvested; when the judgment half is still unresolved,
+    the pointer carries that evidence itself instead of pointing at a
+    skeleton. Only draft-shaped bullet lines match (:data:`_TRAIL_PREFIXES`);
+    lines still carrying an unresolved slot are skipped; caps keep the
+    pointer lean.
+    """
+    trail: list[str] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith(_TRAIL_PREFIXES) or DRAFT_FILL_TOKEN in stripped:
+            continue
+        if len(stripped) > _TRAIL_CHAR_CAP:
+            stripped = stripped[: _TRAIL_CHAR_CAP - 1].rstrip() + "…"
+        trail.append(stripped)
+        if len(trail) >= _TRAIL_LINE_CAP:
+            break
+    return trail
+
+
+def handoff_lines(root: Path, config: Config) -> list[str]:
+    """Compose the handoff bullet lines, or ``[]`` when no session card exists.
+
+    The single source both delivery surfaces render: the SessionStart
+    orientation push (section 2) and the ``HANDOFF.md`` pointer file. Content:
+    the newest card's path, its completion state, its unresolved auto-draft
+    slot count, and the previous session's resolved "Next session should
+    know" pointer, capped terse (the M1 budget). A complete card that left
+    neither pointer nor trail renders the fresh-state fast path instead
+    (run-9 ON-T2 footprint cut — see the constants above).
+    """
+    card = latest_session_log(root / config.sessions_dir)
+    if card is None:
+        return []
+    text = card.read_text(encoding="utf-8", errors="replace")
+    try:
+        rel = card.relative_to(root)
+    except ValueError:
+        rel = card
+    in_progress = status_in_progress(text)
+    status = "in-progress/drafted" if in_progress else "complete"
+    slots = unresolved_fill_count(text)
+    slot_note = f", {slots} unresolved [[fill:]] slot(s)" if slots else ""
+    lines = [f"- Newest session card: `{rel}` — status: {status}{slot_note}."]
+    pointer = resolved_handoff_pointer(text)
+    if pointer:
+        lines.append(f"- Next session should know: {pointer}")
+    else:
+        # No resolved pointer (an unadopted draft, usually): surface the
+        # card's auto-collected evidence here so the arrival surface carries
+        # content, not a pointer to a skeleton (run-8 content-gap fix).
+        trail = evidence_trail(text)
+        if not trail and not in_progress:
+            # Fresh-state fast path (run-9 ON-T2 footprint cut): a COMPLETE
+            # card that left neither a pointer nor a trail has nothing to
+            # hand off — routing the session into it is pure orientation
+            # tax. Say so, and arm the session with the working search
+            # exclusion instead (the 1724-word grep-pollution class).
+            lines.append(_FRESH_START_LINE)
+            lines.append(_SEARCH_HYGIENE_LINE)
+            return lines
+        lines.extend(trail)
+    lines.append(
+        "- Open that card FIRST — it is the last session's record; prefer it "
+        "over re-deriving history from `git log`/`git show`.",
+    )
+    return lines
+
+
+def compose_pointer_file(lines: list[str]) -> str:
+    """Render the ``HANDOFF.md`` body around the shared handoff lines."""
+    return (
+        "\n".join(
+            [
+                "# HANDOFF — the previous session's trail",
+                "",
+                HANDOFF_POINTER_MARKER,
+                "<!-- regenerated by substrate-kit at every session boot; "
+                "untracked by design — read it, never commit or edit it -->",
+                "",
+                *lines,
+            ],
+        )
+        + "\n"
+    )
+
+
+def write_handoff_pointer(root: Path, config: Config) -> str | None:
+    """Regenerate (or retire) the repo-root ``HANDOFF.md`` pointer file.
+
+    Marker-guarded: an existing file without ``HANDOFF_POINTER_MARKER`` is
+    host-owned and never touched. With no session card to point at, a
+    kit-written pointer is removed (a stale pointer is worse than none).
+    Returns a one-line advisory when the file changed, else ``None``.
+    Fail-open by contract — any failure returns ``None`` rather than raising
+    into a hook.
+    """
+    try:
+        path = root / HANDOFF_POINTER_FILENAME
+        existing: str | None = None
+        if path.is_file():
+            existing = path.read_text(encoding="utf-8", errors="replace")
+            if HANDOFF_POINTER_MARKER not in existing:
+                return None  # host-owned HANDOFF.md — never touch
+        lines = handoff_lines(root, config)
+        if not lines:
+            if existing is not None:
+                path.unlink()
+                return f"{HANDOFF_POINTER_FILENAME}: no session card to point at — pointer removed"
+            return None
+        body = compose_pointer_file(lines)
+        if existing == body:
+            return None
+        atomic_write_text(path, body)
+        return (
+            f"{HANDOFF_POINTER_FILENAME} refreshed → newest session card "
+            "(untracked by design; do not commit)"
+        )
+    except Exception:  # fail open — the pointer must never crash a hook seam
+        return None
+
 # --- engine/loop/handoff.py ---
 """Auto-drafted session handoff (band KL-5, founding plan §10 — the ruled B1 prerequisite).
 
@@ -4717,6 +5728,13 @@ Evidence sources (all pure stdlib — no subprocess, per the engine lint bans):
   analog of ``git diff --stat`` — classified code / tests / docs / sessions;
 - git **HEAD movement** since the anchor (commits happened / nothing
   committed yet);
+- the **commit subjects this session**, parsed from the HEAD reflog
+  (``.git/logs/HEAD`` is plain text — the B1 run-8 content-gap fix: the
+  draft carries what the session's commits SAY, not just that they exist);
+- the **previous card's resolved handoff pointer** (missing-card path) — the
+  one line the last session wrote for the next one must survive into the new
+  draft instead of dying with the superseded card (run-8: ON-T4 opened the
+  pointed card and found only unfilled slots);
 - the **derived verify command** (the adopt-time ``verify_command`` slot) —
   the engine cannot execute it, so the draft carries it as a run-and-record
   slot rather than fake results (the console's no-fake-data rule).
@@ -4725,8 +5743,11 @@ The drafted text marks every judgment-only field with a ``[[fill: …]]`` slot
 and the card with ``<!-- substrate:auto-draft -->``; the session-log checker
 counts unresolved slots, so a **drafted-but-unedited card is distinguishable
 from a completed one** and the born-red gate keeps holding until the slots
-resolve. Everything here is fail-open by contract: drafting can never crash a
-hook or ``session-close``.
+resolve. ``[[fill:]]`` is reserved for the genuinely unknowable — everything
+harvestable is pre-filled as evidence (run-8's judge denied write-back credit
+to an 8-slot skeleton; every slot the engine can fill itself is arrival
+content the cold session doesn't have to re-derive). Everything here is
+fail-open by contract: drafting can never crash a hook or ``session-close``.
 """
 
 
@@ -4774,6 +5795,10 @@ _CODE_SUFFIXES = frozenset(
 # "+N more" tail instead of flooding the card.
 _EVIDENCE_RENDER_CAP = 15
 _SHA_LEN = 9
+# Reflog-harvest caps: a marathon session lists its newest subjects, and one
+# runaway subject can't flood the card (the M1-footprint lesson).
+_COMMIT_RENDER_CAP = 5
+_COMMIT_SUBJECT_CAP = 72
 
 
 def _fill(hint: str) -> str:
@@ -4831,6 +5856,57 @@ def _resolve_ref(git_dir: Path, ref: str) -> str | None:
             if len(parts) == 2 and parts[1].strip() == ref:
                 return parts[0].strip() or None
     return None
+
+
+def _reflog_subjects(root: Path, since_epoch: float | None) -> list[str]:
+    """Return commit subjects recorded in the HEAD reflog after ``since_epoch``.
+
+    Pure file parsing of ``.git/logs/HEAD`` (plain text, one entry per line:
+    ``<old-sha> <new-sha> <ident> <epoch> <tz>\\t<action>: <subject>``) — the
+    stdlib analog of ``git log --format=%s --since=…``. Only ``commit``
+    actions count (plus amend/initial/merge variants); checkouts, resets and
+    pulls are movement, not authored work. Worktree-aware via
+    :func:`_git_dir`. Fail-open: any failure returns ``[]``.
+
+    This is the B1 run-8 content-gap harvest: the draft previously proved
+    commits *happened* (HEAD moved) but not what they SAID — the next cold
+    session had to re-derive via ``git log`` (run-8 ON-T4 paid 486 words of
+    ``git log -p`` re-derivation right after opening the empty card).
+    """
+    try:
+        if since_epoch is None:
+            return []
+        git_dir = _git_dir(root)
+        if git_dir is None:
+            return []
+        log = git_dir / "logs" / "HEAD"
+        if not log.is_file():
+            return []
+        subjects: list[str] = []
+        for line in log.read_text(encoding="utf-8", errors="replace").splitlines():
+            head, tab, action = line.partition("\t")
+            if not tab:
+                continue
+            parts = head.split()
+            if len(parts) < 2:
+                continue
+            try:
+                ts = int(parts[-2])
+            except ValueError:
+                continue
+            if ts <= since_epoch:
+                continue
+            kind, sep, subject = action.partition(":")
+            if not sep or not kind.startswith("commit"):
+                continue
+            subject = subject.strip()
+            if len(subject) > _COMMIT_SUBJECT_CAP:
+                subject = subject[: _COMMIT_SUBJECT_CAP - 1].rstrip() + "…"
+            if subject:
+                subjects.append(subject)
+        return subjects
+    except Exception:  # fail open — reflog evidence is best-effort by contract
+        return []
 
 
 def read_git_head(root: Path) -> tuple[str | None, str | None]:
@@ -4907,6 +5983,11 @@ class SessionEvidence:
     verify_command: str | None = None
     # category -> sorted relative paths; categories: code/tests/docs/sessions/other
     changed: dict[str, list[str]] = field(default_factory=dict)
+    # commit subjects this session, oldest → newest (HEAD reflog harvest)
+    commits: list[str] = field(default_factory=list)
+    # the previous card's resolved "Next session should know" line (carried
+    # forward into the new draft — missing-card path only)
+    prior_pointer: str | None = None
 
 
 def _classify(rel: str, config: Config) -> str:
@@ -4969,6 +6050,7 @@ def gather_evidence(root: Path, config: Config, state: dict[str, Any]) -> Sessio
                 evidence.verify_command = entry["value"]
         if evidence.anchor_epoch is not None:
             evidence.changed = _changed_since(root, config, evidence.anchor_epoch)
+        evidence.commits = _reflog_subjects(root, evidence.anchor_epoch)
     except Exception:  # fail open — return whatever was gathered so far
         return evidence
     return evidence
@@ -5009,6 +6091,14 @@ def _evidence_lines(evidence: SessionEvidence) -> list[str]:
         else:
             movement = "HEAD unresolved"
         lines.append(f"- git: {branch}, {movement}.")
+    if evidence.commits:
+        shown = evidence.commits[-_COMMIT_RENDER_CAP:]
+        skipped = len(evidence.commits) - len(shown)
+        more = f" (+{skipped} earlier)" if skipped > 0 else ""
+        subjects = " · ".join(f'"{s}"' for s in shown)
+        lines.append(f"- commits this session ({len(evidence.commits)}): {subjects}{more}")
+    if evidence.prior_pointer:
+        lines.append(f"- previous session's pointer: {evidence.prior_pointer}")
     if evidence.verify_command:
         lines.append(
             f"- verify: run `{evidence.verify_command}` and record the result "
@@ -5036,10 +6126,11 @@ def _marker_line(marker: dict[str, str]) -> str | None:
             f"{_fill('one genuine remark on the previous session + one workflow improvement')}"
         )
     if label == "Model line":
-        return (
-            f"- **\N{BAR CHART} Model:** {_fill('model')} \N{MIDDLE DOT} "
-            f"{_fill('effort')} \N{MIDDLE DOT} {_fill('task-class (Q-0248 taxonomy)')}"
-        )
+        # ONE slot, not three (run-8: the judge counted "8 unresolved slots"
+        # as the skeleton's headline — every slot the session must touch is
+        # friction; one edit fills the whole line).
+        hint = "model \N{MIDDLE DOT} effort \N{MIDDLE DOT} task-class (Q-0248 taxonomy)"
+        return f"- **\N{BAR CHART} Model:** {_fill(hint)}"
     return f"- {needle} {_fill(label or 'resolve this marker')}"
 
 
@@ -5109,7 +6200,20 @@ def ensure_draft(root: Path, config: Config, backend: Any) -> list[str]:
     drafted is only counted (unresolved slots); a completed card is never
     touched. Fail-open by contract — any failure returns ``[]`` rather than
     raising into a hook.
+
+    After drafting, the repo-root ``HANDOFF.md`` pointer is refreshed —
+    silently — so it names the just-drafted card (the B1 run-6 delivery-gap
+    fix: the pointer rides the working-tree surfaces delegated workers
+    actually touch). Silent by design: the refresh is bookkeeping, not an
+    advisory, and it must not change this seam's advisory contract.
     """
+    lines = _draft_advisories(root, config, backend)
+    write_handoff_pointer(root, config)
+    return lines
+
+
+def _draft_advisories(root: Path, config: Config, backend: Any) -> list[str]:
+    """The drafting body of ``ensure_draft`` (see its contract above)."""
     try:
         try:
             state = dict(backend.data) if backend.data else {}
@@ -5123,7 +6227,17 @@ def ensure_draft(root: Path, config: Config, backend: Any) -> list[str]:
             and evidence.anchor_epoch is not None
             and card.stat().st_mtime <= evidence.anchor_epoch
         ):
-            card = None  # newest card predates this session — not ours
+            # Newest card predates this session — not ours to close, but its
+            # resolved handoff pointer is exactly the line the last session
+            # left for THIS one: carry it into the new draft (run-8 content
+            # gap — the pointer must not die with the superseded card).
+            try:
+                evidence.prior_pointer = resolved_handoff_pointer(
+                    card.read_text(encoding="utf-8", errors="replace"),
+                ) or None
+            except OSError:
+                evidence.prior_pointer = None
+            card = None
         if card is None:
             day = date.today().isoformat()
             path = _unique_card_path(sessions_dir, day)
@@ -7651,31 +8765,271 @@ skill is project-aware (e.g. ``quality-gate`` runs the project's own verify comm
 
 
 
-_SESSION_CLOSE_BODY = """\
-Close ${project_name}'s current session correctly.
 
-1. Session log — write `.sessions/<date>-<slug>.md`: what changed, one new idea
-   you genuinely believe in, and a one-line review of the previous session.
-2. Capability delta — did you discover a new capability or hit a wall this
-   session? Append it to `docs/CAPABILITIES.md` (dated, with the exact
-   error or the proof it worked, plus any workaround).
-3. Owner asks — every ⚑ needs-owner item you leave behind carries the
-   OWNER-ACTION fields (WHAT / WHERE / HOW / WHY-IT-MATTERS / UNBLOCKS /
-   VERIFIED-NEEDED — you attempted it, or you name the exact wall; see
-   `control/README.md`). Withdraw stale asks; fewer, clearer asks beat
-   complete lists.
-4. Idea backlog — groom one idea forward (the ideas-README lifecycle).
-5. Verify — run the project's checks: `${verify_command}` and `bootstrap check`.
-6. Commit + push on the session branch; open the PR ready (not draft).
-7. Drive the PR to a terminal state — merge on green CI, or close with a reason.
+_SESSION_CLOSE_BODY = """\
+Land ${project_name}'s session correctly — the full landing path, claim to
+merged-on-green. Playbook-grade: a session reading this executes without
+improvising (grounded-skills plan §7.2).
+
+## What this does
+
+Drives the session's work to a terminal, verified state on two rails:
+the born-red gate (card first, flip last) and never-self-merge (the repo's
+server-side auto-merge-enabler arms; GitHub lands the PR on green required
+checks). Everything else is ordered steps.
+
+## Instructions
+
+1. Claim first (session start — verify it happened) — one file per claim,
+   `control/claims/<branch-or-scope>.md`, a single bullet: backticked
+   branch/scope token · **scope** — one-line detail · expected files/area ·
+   ISO date (the shape `check_claims` parses). Land the claim on main fast,
+   then re-read `control/claims/` at HEAD before building.
+2. Born-red card as the FIRST commit — `.sessions/<date>-<slug>.md` whose
+   Status badge line declares `in-progress` (the born-red hold token), plus
+   a one-line "what is about to happen". Push, then open the PR READY (not
+   draft) immediately: the open PR + the claim are the in-flight signal
+   parallel sessions collide without.
+3. NEVER arm auto-merge on, or merge, your own PR — author self-arm/
+   self-merge is refused terminally (deny-wins; never retry it). The
+   enabler workflow arms server-side at open; green required checks merge
+   it with no action from you. Read a red on a born-red head as the
+   designed hold, not a CI failure: verify any red against the job log
+   before diagnosing — alias/mirror jobs echo the required check without
+   running anything (kit repo example: the two legacy jobs mirroring
+   `kit-quality`), and "HOLD (by design)" means nothing to investigate.
+4. Batch the work — push when a batch is meaningfully complete, never every
+   commit (superseded CI runs are the dominant Actions cost).
+5. Close-out docs, into the SAME card: what shipped (paths + commits);
+   Capability delta — new capability or wall discovered? Append it to
+   `docs/CAPABILITIES.md` (dated, with its venue token, exact error or
+   proof, workaround — below the seed fence, never inside it); every
+   ⚑ needs-owner ask carries the OWNER-ACTION fields (WHAT / WHERE / HOW /
+   WHY-IT-MATTERS / UNBLOCKS / VERIFIED-NEEDED — attempted, or the exact
+   wall; see `control/README.md`) — Withdraw stale asks; groom one idea
+   forward; add one new 💡 idea you genuinely believe in; write the ⟲
+   previous-session review.
+6. Verify — `${verify_command}` and `python3 bootstrap.py check --strict`.
+   The only acceptable pre-flip red is the designed born-red hold naming
+   this session's own card.
+7. Flip as the deliberate LAST step — flip the card badge to `complete`,
+   delete your own claim file, push. Green then merges server-side; a
+   flipped-early card merges a partial PR (the failure the gate exists
+   for), and an unpushed flip leaves the PR red forever.
+
+## Report format (card close-out)
+
+- Shipped: one line per artifact, with paths + commit SHAs.
+- Verify: each command + its tail, verbatim.
+- ⚑ decide-and-flag lines · 💡 session idea · ⟲ previous-session review.
+- PR: #<n> + terminal state, probed against the tree/checks — not a stale
+  PR read.
 
 Declared capabilities: edit (the log + docs), run (the checks + git)."""
+
+_UPGRADE_DISTRIBUTION_BODY = """\
+Roll a substrate-kit release out to ${project_name} — one target repo of the
+distribution wave. Playbook-grade wave runbook (grounded-skills plan §7.2).
+
+## What this does
+
+Moves the target's vendored `bootstrap.py` to the released version with the
+sha256 three-way proof, the banked rollback path, a carve-out scan for local
+modifications, and a born-red PR — then verifies MERGED MAIN against the
+tree, never a registry line or a PR read.
+
+## Instructions
+
+1. Preflight — sync the clone before reading anything:
+   `git fetch origin main && git reset --hard origin/main`. A stale clone
+   reads stale orders and re-executes finished work.
+2. Download the release next to the vendored copy:
+   `gh release download vX.Y.Z --repo menno420/substrate-kit --pattern 'bootstrap.py*' --pattern 'release.json'`
+   then move the downloaded dist to `bootstrap.py.new` (the consumer flow
+   `release.json` names).
+3. sha256 three-way compare (never skip) — `sha256sum bootstrap.py.new`
+   must equal BOTH the `sha256` field in `release.json` AND the kit repo's
+   committed `dist/bootstrap.py` at the release's bump SHA. Any mismatch:
+   stop and report; do not upgrade.
+4. Born-red PR first — claim file + `.sessions/` card declaring
+   `in-progress` as the first commit on the wave branch; open the PR READY;
+   never self-arm/self-merge (the session-close rails apply verbatim).
+5. Upgrade — `python3 bootstrap.py.new upgrade`. It banks the OLD dist to
+   `.substrate/backup/` (verify the banked `bootstrap-<old-version>.py`
+   exists — that is the rollback path) and consumes its own inputs.
+6. Carve-out scan — read `.substrate/upgrade-report.md`: `consumer-edited`
+   and `diverged` docs are LOCAL MODIFICATIONS the upgrade must not
+   clobber; list them verbatim in the PR body. `template-improved` applies
+   only under `--apply-docs` and only to consumer-untouched docs.
+7. Verify + flip — `${verify_command}` and
+   `python3 bootstrap.py check --strict` green (own card's designed hold
+   excepted); flip the card `complete`, delete the claim, push.
+8. Verify merged main afterward — TREE over registries:
+   `git fetch origin main && git log -1 --oneline origin/main` and read the
+   vendored dist's version header at origin/main. Never trust an MCP PR
+   read alone for merge/CI state (~25-min-stale data) — cross-check the
+   tree or the Actions runs.
+
+## Report format — one outcome line per target repo
+
+`<repo>: vOLD → vNEW · sha256 3-way ✔ · bank ✔ · carve-outs: <n or none> · PR #<n> merged @ <sha> · tree-verified ✔`
+
+Known failure modes + fixes:
+
+- A `do-not-automerge` label applied seconds after MCP PR-create misses the
+  opened-event label snapshot and reds the first CI round — cure with one
+  empty commit (`git commit --allow-empty`) to re-fire the enabler.
+- MCP PR reads can serve ~25-minute-stale merge/CI state — probe the tree,
+  not the PR object.
+- A born-red head red-pings "failed checks"; job-log truth is the designed
+  hold plus alias jobs that mirror the required check — verify against the
+  job log, don't chase.
+
+Declared capabilities: edit (the vendored dist + docs), run (git + gh + the
+checks)."""
+
+_RELEASE_BODY = """\
+Cut and publish a substrate-kit release — the kit cut runbook, executable
+(canonical prose: `docs/operations/release-runbook.md`). Kit-repo-specific
+by nature: the commands below run in the kit repo, the source of the
+releases ${project_name} consumes.
+
+## What this does
+
+Takes `CHANGELOG.md` `[Unreleased]` to a published GitHub Release with
+byte-verified assets: version bump PR (born-red), workflow_dispatch publish,
+three-way post-release verification, then adopter notification via
+distribution PRs.
+
+## Instructions
+
+1. Preconditions — every shipped PR has its entry under `[Unreleased]` in
+   `CHANGELOG.md`; decide the semver class (MAJOR = planted-doc / state /
+   config / CLI break · MINOR = new capability · PATCH = fixes).
+2. Claim, then bump PR born-red — claim `control/claims/` (one file, e.g.
+   release-vX.Y.Z.md) on main first; cut the bump branch from post-claim
+   main; born-red card as first commit; open the PR READY; never
+   self-arm/self-merge.
+3. Version bump, one commit set — BOTH version homes in the SAME commit:
+   `src/engine/lib/config.py` (`KIT_VERSION`) and `pyproject.toml`
+   (`version`). CHANGELOG: rename `[Unreleased]` to the new `[X.Y.Z]`
+   dated section, add a fresh empty `[Unreleased]` above it, and keep the
+   machine comment (breaking / state_migration / min_upgrade_from)
+   accurate — the release workflow refuses a version with no CHANGELOG
+   section.
+4. Dist regen + byte-pin — `python3 src/build_bootstrap.py`, then
+   `git diff --exit-code dist/bootstrap.py` must be clean; commit the
+   regenerated dist (CI rebuilds and byte-compares).
+5. Verify locally, then flip — `python3 -m pytest tests/ -q` green ·
+   `python3 -m ruff check src/engine/` clean ·
+   `python3 src/build_release_json.py --version X.Y.Z --verify-only`
+   reports preconditions green ·
+   `python3 dist/bootstrap.py check --strict` (only acceptable red = own
+   card's designed hold). Flip the card `complete` as the last commit; the
+   server-side enabler merges on green.
+6. Publish — dispatch the release workflow on main at the bump-merge SHA:
+   `gh workflow run release.yml -f version=X.Y.Z`. The run creates the
+   annotated tag `vX.Y.Z` in-Actions and publishes the Release with three
+   assets: `bootstrap.py`, `bootstrap.py.sha256`, `release.json`.
+7. Post-release verification (never skip) — the tag exists:
+   `git fetch --tags && git tag -l vX.Y.Z`; the assets are published:
+   `gh release view vX.Y.Z`; independently download the released
+   `bootstrap.py` and its sha256 must equal BOTH the `sha256` field in
+   `release.json` AND the committed `dist/bootstrap.py` at the bump SHA
+   (three-way, byte-identical). Record run id, tag, commit SHA, and hash
+   in the release record.
+8. Aftermath — adopter notification via distribution PRs: run the
+   `upgrade-distribution` skill per adopter (one born-red PR each);
+   registry regen `python3 dist/bootstrap.py currency` refreshes
+   `docs/adopters.md`; write the `control/status.md` release record;
+   delete the claim.
+
+## Report format (release record)
+
+`vX.Y.Z · bump PR #<n> merged @ <sha> · release run <id> · tag vX.Y.Z @ <sha> · sha256 <hash> (3-way ✔) · adopters: <one outcome line per repo>`
+
+Known failure modes + fixes:
+
+- Tag pushes can 403 where branch pushes work — the workflow_dispatch path
+  creates the tag in-Actions; never hand-push a tag first.
+- The workflow refuses when `KIT_VERSION` / dist header / CHANGELOG
+  disagree — fix the version homes, never the guard.
+- Published releases are never deleted — supersede a bad cut with a fixed
+  one whose `release.json` carries the yank note.
+
+Declared capabilities: edit (version homes + CHANGELOG + docs), run (build +
+git + gh)."""
+
+_INTAKE_BODY = """\
+Turn a fragmented owner ask about ${project_name} into a verified fuller
+picture before building. Executable wrapper around the understand-and-reflect
+doctrine (`CONSTITUTION.md` working agreement) — not new policy. Provenance:
+superbot router Q-0254 (owner-directed 2026-07-07, graduated to the kit's
+CONSTITUTION/collaboration-model templates the same day) plus the Q-0263.2
+paste-ready-questions directive. Invoke on any non-trivial, non-mechanical
+owner ask — especially a fragmented or associative one.
+
+## What this does
+
+The owner builds ideas iteratively and in fragments by design — a rough
+draft now, more shape later — and relies on the agent to reason a partial
+idea forward to its fuller form (`docs/owner-profile.md`). This skill runs
+that step as a procedure: one inline restate that pays off twice —
+verification (a wrong assumption stated now costs one correction; found
+after an hour of building it costs the hour) and idea-expansion (the
+filled-in picture is itself new material the owner reasons against and
+redirects).
+
+## Invocation
+
+/intake <the ask, or a pointer to it>
+
+## Instructions
+
+1. CONSOLIDATE — reduce the fragmented ask to its few MAIN IDEAS (usually
+   1–3). Name each in one line. The owner thinks associatively on purpose;
+   consolidation is your half of the contract. Idea order is not
+   implementation order — capture side ideas, never derail on them.
+2. RESTATE — state back, inline in your first substantive response (never
+   as a separate blocking question), the fuller picture you built from the
+   ask: the implied specs, the surrounding constraints, the likely intended
+   scope, and the follow-on the owner probably wants but didn't spell out.
+3. MAP — map each main idea to known step patterns via the skill index
+   (`docs/SKILLS.md`): which existing skill/playbook/checklist covers it,
+   which parts are genuinely new. Cite the exact skill or doc per idea, and
+   check `docs/CAPABILITIES.md` before assuming any wall.
+4. POSSIBILITY SPACE — when the ask starts from uncertain feasibility ("I
+   don't know if this is even possible" is a normal starting point, not an
+   edge case), surface what is achievable and by what approaches FIRST,
+   before committing to a direction. Target: the most advanced capability
+   reachable by the simplest, most efficient implementation.
+5. DECIDE-AND-FLAG — decide every reversible-until-a-gate call yourself
+   (recommendation + one-line rationale + a flag on the run report). Route
+   to the owner only genuine product/intent ambiguity, as a structured
+   choice — options A/B(/C), a **bolded recommendation**, one-line
+   rationale, answerable with one letter. Never an ask that requires the
+   owner to parse, derive, or transform anything (that is a drafting
+   defect, not an owner task). With no live owner, append the question to
+   `docs/question-router.md` instead of skipping it or guessing.
+
+A trivial or fully-unambiguous ask stays exempt: a one-line "doing X
+because Y" suffices — the same calibration as the doctrine itself. A big or
+vague idea earns a dedicated research pass (a delegated subagent, reviewed
+the same session) or its own session, never an answer from memory alone.
+
+## Report format
+
+Print: MAIN IDEAS (numbered) · FULLER PICTURE (short prose) · MAP (idea →
+skill/pattern/new) · [POSSIBILITY SPACE if triggered] · DECISIONS FLAGGED ·
+QUESTIONS FOR OWNER (structured choices, or `none`).
+
+Declared capabilities: read (the index, the ledger, the profile)."""
 
 _QUALITY_GATE_BODY = """\
 Prove a change is good before pushing ${project_name}.
 
 1. Run `${verify_command}` — the project's full verification (tests + lint/types).
-2. Run `bootstrap check --strict` — doc + session-log hygiene.
+2. Run `python3 bootstrap.py check --strict` — doc + session-log hygiene.
 3. Report every failure with the exact command to reproduce it.
 4. Do NOT push on red — green here should mean green in CI.
 
@@ -7695,8 +9049,8 @@ Declared capabilities: comment."""
 _REPO_HEALTH_BODY = """\
 Audit ${project_name}'s documentation + session-log hygiene.
 
-1. Run `bootstrap check` — badges, link resolution, doc reachability, and the
-   required session-log markers.
+1. Run `python3 bootstrap.py check` — badges, link resolution, doc
+   reachability, and the required session-log markers.
 2. Summarize the drift: orphaned docs, missing badges, incomplete logs.
 3. Fix the small ones (link the orphan, badge the doc); capture the rest as ideas.
 
@@ -7733,13 +9087,74 @@ Declared capabilities: read-only."""
 
 # Each skill declares the capabilities it needs *beyond* read (read is implicit).
 # The declared set is what overrides the ambient stance (the precedence rule).
+#
+# ``grounds`` (grounded-skills plan §7.2, slice 2) is the skill's exact-command
+# grounding: the verbatim command strings the body's procedure runs, as
+# STRUCTURED DATA — never scraped from prose. Invariants (test-pinned): the
+# key exists on every skill; each entry appears verbatim as a backticked span
+# in the body (grounds can never drift from what the body actually says); a
+# playbook skill's list is non-empty. Read-only skills ground nothing ([]).
+# The index table surfaces the column; check_skill_grounds verifies each
+# entry's command resolves (advisory, §8 Q2=B).
 SKILLS: list[dict] = [
     {
         "name": "session-close",
-        "description": "End the session correctly — write the log, groom + add an "
-        "idea, verify, commit, push, drive the PR to a terminal state.",
+        "description": "Land the session — claim, born-red card first, READY PR, "
+        "batched work, close-out docs, flip complete last; never self-merge.",
         "capabilities": [EDIT, RUN],
         "body": _SESSION_CLOSE_BODY,
+        "grounds": [
+            "${verify_command}",
+            "python3 bootstrap.py check --strict",
+        ],
+    },
+    {
+        "name": "upgrade-distribution",
+        "description": "Roll a kit release out to one adopter repo — download, "
+        "sha256 three-way, banked rollback, carve-out scan, born-red PR, "
+        "tree-verified merge.",
+        "capabilities": [EDIT, RUN],
+        "body": _UPGRADE_DISTRIBUTION_BODY,
+        "grounds": [
+            "git fetch origin main && git reset --hard origin/main",
+            "gh release download vX.Y.Z --repo menno420/substrate-kit "
+            "--pattern 'bootstrap.py*' --pattern 'release.json'",
+            "sha256sum bootstrap.py.new",
+            "python3 bootstrap.py.new upgrade",
+            "${verify_command}",
+            "python3 bootstrap.py check --strict",
+            "git fetch origin main && git log -1 --oneline origin/main",
+            "git commit --allow-empty",
+        ],
+    },
+    {
+        "name": "release",
+        "description": "Cut + publish a substrate-kit release — version bump PR, "
+        "workflow_dispatch publish, three-way asset verification, adopter "
+        "distribution wave.",
+        "capabilities": [EDIT, RUN],
+        "body": _RELEASE_BODY,
+        "grounds": [
+            "python3 src/build_bootstrap.py",
+            "git diff --exit-code dist/bootstrap.py",
+            "python3 -m pytest tests/ -q",
+            "python3 -m ruff check src/engine/",
+            "python3 src/build_release_json.py --version X.Y.Z --verify-only",
+            "python3 dist/bootstrap.py check --strict",
+            "gh workflow run release.yml -f version=X.Y.Z",
+            "git fetch --tags && git tag -l vX.Y.Z",
+            "gh release view vX.Y.Z",
+            "python3 dist/bootstrap.py currency",
+        ],
+    },
+    {
+        "name": "intake",
+        "description": "Turn a fragmented owner ask into main ideas, a restated "
+        "fuller picture, a skill-index map, and structured-choice owner "
+        "questions — before building (understand-and-reflect, executable).",
+        "capabilities": [],
+        "body": _INTAKE_BODY,
+        "grounds": [],
     },
     {
         "name": "quality-gate",
@@ -7747,6 +9162,10 @@ SKILLS: list[dict] = [
         "report what must be fixed.",
         "capabilities": [RUN],
         "body": _QUALITY_GATE_BODY,
+        "grounds": [
+            "${verify_command}",
+            "python3 bootstrap.py check --strict",
+        ],
     },
     {
         "name": "review",
@@ -7754,6 +9173,7 @@ SKILLS: list[dict] = [
         "comment with a verdict and fixes, no edits.",
         "capabilities": [COMMENT],
         "body": _REVIEW_BODY,
+        "grounds": [],
     },
     {
         "name": "repo-health",
@@ -7761,6 +9181,9 @@ SKILLS: list[dict] = [
         "summarize drift.",
         "capabilities": [RUN],
         "body": _REPO_HEALTH_BODY,
+        "grounds": [
+            "python3 bootstrap.py check",
+        ],
     },
     {
         "name": "deep-research",
@@ -7768,6 +9191,7 @@ SKILLS: list[dict] = [
         "synthesize a cited report.",
         "capabilities": [RUN],
         "body": _DEEP_RESEARCH_BODY,
+        "grounds": [],
     },
     {
         "name": "question",
@@ -7775,6 +9199,7 @@ SKILLS: list[dict] = [
         "make no changes.",
         "capabilities": [],
         "body": _QUESTION_BODY,
+        "grounds": [],
     },
     {
         "name": "analysis",
@@ -7782,6 +9207,7 @@ SKILLS: list[dict] = [
         "without changing anything.",
         "capabilities": [],
         "body": _ANALYSIS_BODY,
+        "grounds": [],
     },
 ]
 
@@ -7826,6 +9252,66 @@ def action_permitted(
     if skill_name is not None and skill_permits(skill_name, action):
         return True
     return action_allowed(stance_name, action)
+
+
+# A ``${slot}`` inside a grounds string, for the index's display rewrite —
+# same braced-only form as engine.render._PLACEHOLDER_RE (skills.py cannot
+# import render.py: render.py imports THIS module, and MODULE_ORDER puts
+# skills before render).
+_GROUND_SLOT_RE = re.compile(r"\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
+
+
+def _ground_cell(grounds: list[str], context: dict[str, str] | None) -> str:
+    """Render one index-table grounds cell (``—`` when the skill grounds nothing).
+
+    Slot references inside a ground substitute from ``context`` when the
+    project has filled them; an unfilled (or context-less) slot displays as
+    ``<slot_name>`` — NEVER as a raw ``${slot_name}``, which would make the
+    planted ``docs/SKILLS.md`` read as an unrendered doc forever
+    (``with_unrendered_banner`` re-banners any text carrying ``${...}``, and
+    the index is injected AFTER template substitution, so nothing would ever
+    fill it). Multiple grounds join with ``<br>`` so the table stays one row
+    per skill.
+    """
+    if not grounds:
+        return "—"
+    cells = []
+    for ground in grounds:
+        shown = _GROUND_SLOT_RE.sub(
+            lambda m: (context or {}).get(m.group(1)) or f"<{m.group(1)}>",
+            ground,
+        )
+        cells.append(f"`{shown}`")
+    return "<br>".join(cells)
+
+
+def skills_index_table(context: dict[str, str] | None = None) -> str:
+    """Render the skill-index table (planted ``docs/SKILLS.md``) from :data:`SKILLS`.
+
+    Engine-computed on purpose (grounded-skills plan §2, PR #263): the index's
+    rows come FROM the same list that emits the skills, so the planted index
+    can never hand-drift from what the kit actually installs — the "render
+    from ONE source" rule. Consumed as the ``skills_index`` engine context key
+    (:func:`engine.render.build_context` injects it on every render path);
+    the surrounding prose lives in ``SKILLS-index.md.tmpl``.
+
+    ``context`` (slice 2) fills slot references inside the Grounds column —
+    ``build_context`` passes the project's slot values so a filled project's
+    index shows its REAL verify command; without context (or unfilled) the
+    slot displays as ``<slot_name>`` (see :func:`_ground_cell` for why raw
+    ``${...}`` must never survive into the injected table).
+    """
+    lines = [
+        "| Skill | When to reach for it | Capabilities | Grounds (exact commands) |",
+        "|---|---|---|---|",
+    ]
+    for skill in SKILLS:
+        caps = ", ".join(f"`{c}`" for c in skill_capabilities(skill["name"]))
+        grounds = _ground_cell(skill.get("grounds", []), context)
+        lines.append(
+            f"| `{skill['name']}` | {skill['description']} | {caps} | {grounds} |"
+        )
+    return "\n".join(lines)
 
 
 def skill_frontmatter(skill: dict) -> str:
@@ -8056,10 +9542,14 @@ learned lessons, fired triggers, and pending questions. The composition is
 **mode-aware** — ``orientation_depth`` (observe → minimal, guided → standard,
 active → full) decides which sections render and how hard they cap.
 
-Section order (the plan's fixed sequence): status header → stance briefing →
-user-style block → learned lessons (AFTER user-style) → trigger block →
-guided-practices line → economy-gauges advisory (over-cap only) → pending
-questions (quota view) → observe-mode workflow proposal.
+Section order (the plan's fixed sequence, plus the handoff push at slot 2):
+status header → **handoff push** (newest session card + unresolved slots +
+the previous session's resolved handoff pointer — the B1 run-4/run-5
+continuity-null fix: cold sessions never PULL the card, so the kit pushes
+it) → stance briefing → user-style block → learned lessons (AFTER
+user-style) → trigger block → guided-practices line → economy-gauges
+advisory (over-cap only) → pending questions (quota view) → observe-mode
+workflow proposal.
 
 Every section is defensive: a failure inside one section drops that section,
 never the whole composition — orientation must never crash a session. This is
@@ -8073,9 +9563,11 @@ the stance guard).
 # Depth "standard" caps the learned-lessons section at this many entries.
 _ORI_STANDARD_LESSON_CAP = 3
 # Depth "minimal" (observe) renders only these section numbers: the status
-# header (1), the trigger block as an advisory (5), and the workflow proposal
-# (9) — observe imposes nothing else.
-_ORI_MINIMAL_SECTIONS = frozenset({1, 5, 9})
+# header (1), the handoff push (2 — a pointer informs, it imposes nothing;
+# continuity is the kit's core promise at every depth), the trigger block as
+# an advisory (6), and the workflow proposal (10) — observe imposes nothing
+# else.
+_ORI_MINIMAL_SECTIONS = frozenset({1, 2, 6, 10})
 
 
 def _ori_status_header(state: dict[str, Any], config: Config) -> str:
@@ -8089,8 +9581,37 @@ def _ori_status_header(state: dict[str, Any], config: Config) -> str:
     )
 
 
+def _ori_handoff(root: Path, config: Config) -> str:
+    """Render section 2 — the handoff push ('' when no session card exists).
+
+    The B1 run-4/run-5 continuity-null fix: both hook-live bench runs showed
+    cold sessions re-deriving history via ``git show`` while the newest
+    session card sat unopened — the continuity surface was PULL-only. This
+    section PUSHES it: the newest card's path, its completion state, its
+    unresolved auto-draft slot count, and the previous session's resolved
+    "Next session should know" pointer, capped terse (the M1 budget).
+
+    The bullet lines are the shared ``engine.loop.handoff_pointer`` composer
+    — the same content the repo-root ``HANDOFF.md`` pointer file carries (the
+    B1 run-6 delivery-gap fix: this push stops at the orchestrator, so the
+    file delivers the identical trail through the working-tree surfaces
+    delegated workers actually touch). One composer, two surfaces — the
+    pushed and pulled text can never drift apart.
+    """
+    lines = handoff_lines(root, config)
+    if not lines:
+        return ""
+    return "\n".join(
+        [
+            "## Handoff — the previous session's trail (pushed; read before re-deriving)",
+            "",
+            *lines,
+        ],
+    )
+
+
 def _ori_stance(state: dict[str, Any]) -> str:
-    """Render section 2 — the active stance briefing ('' when no stance set)."""
+    """Render section 3 — the active stance briefing ('' when no stance set)."""
     stance = state.get("stance")
     if not stance:
         return ""
@@ -8098,7 +9619,7 @@ def _ori_stance(state: dict[str, Any]) -> str:
 
 
 def _ori_user_style(state: dict[str, Any]) -> str:
-    """Render section 3 — the owner_profile user-style block ('' when unfilled)."""
+    """Render section 4 — the owner_profile user-style block ('' when unfilled)."""
     entry = state.get("slot_values", {}).get("owner_profile")
     value = entry.get("value") if isinstance(entry, dict) else entry
     text = str(value).strip() if value else ""
@@ -8108,21 +9629,21 @@ def _ori_user_style(state: dict[str, Any]) -> str:
 
 
 def _ori_lessons(root: Path, config: Config, depth: str) -> str:
-    """Render section 4 — learned lessons (standard caps at 3, full uncapped)."""
+    """Render section 5 — learned lessons (standard caps at 3, full uncapped)."""
     entries = load_reflections(root / config.state_dir / REFLECTIONS_FILENAME)
     cap = _ORI_STANDARD_LESSON_CAP if depth == "standard" else len(entries)
     return lessons_block(active_lessons(entries, cap))
 
 
 def _ori_triggers(root: Path, config: Config, state: dict[str, Any]) -> str:
-    """Render section 5 — the trigger block (mandate flag per the mode policy)."""
+    """Render section 6 — the trigger block (mandate flag per the mode policy)."""
     triggers = check_triggers(root, config, state)
     questions = mandatory_questions(triggers)
     return trigger_block(triggers, questions, mandate=triggers_mandate(state))
 
 
 def _ori_practices(state: dict[str, Any], config: Config) -> str:
-    """Render section 6 — the one-line guided-practices block ('' when empty)."""
+    """Render section 7 — the one-line guided-practices block ('' when empty)."""
     practices = active_practices(state, dict(config.cadence or {}))
     if not practices:
         return ""
@@ -8130,7 +9651,7 @@ def _ori_practices(state: dict[str, Any], config: Config) -> str:
 
 
 def _ori_gauges(root: Path, config: Config) -> str:
-    """Render section 7 — economy advisory listing ONLY over-cap gauges."""
+    """Render section 8 — economy advisory listing ONLY over-cap gauges."""
     over = [g for g in economy_gauges(root, config) if g.get("over")]
     if not over:
         return ""
@@ -8143,7 +9664,7 @@ def _ori_gauges(root: Path, config: Config) -> str:
 
 
 def _ori_questions(state: dict[str, Any]) -> str:
-    """Render section 8 — the quota-capped ask list with a '+N more' suffix."""
+    """Render section 9 — the quota-capped ask list with a '+N more' suffix."""
     asks = session_questions(state)
     if not asks:
         return ""
@@ -8158,7 +9679,7 @@ def _ori_questions(state: dict[str, Any]) -> str:
 
 
 def _ori_proposal(state: dict[str, Any]) -> str:
-    """Render section 9 — observe mode's workflow proposal when it is due."""
+    """Render section 10 — observe mode's workflow proposal when it is due."""
     if state.get("mode") != "observe" or not workflow_proposal_due(state):
         return ""
     return (
@@ -8187,9 +9708,9 @@ def _ori_safe(build: Any) -> str:
 def compose_orientation(root: Path, config: Config, backend: Any) -> str:
     """Compose the mode-aware SessionStart orientation injection.
 
-    Assembles the nine plan sections in fixed order, gated by
+    Assembles the ten sections (the nine plan sections plus the handoff push) in fixed order, gated by
     ``orientation_depth``: ``minimal`` renders only the status header, the
-    trigger advisory, and the observe-mode proposal; ``standard`` renders all
+    handoff push, the trigger advisory, and the observe-mode proposal; ``standard`` renders all
     sections but caps lessons at 3; ``full`` renders everything uncapped.
     Every section builder runs inside its own guard — a bad state document or
     an unreadable file drops that one section, never the whole composition
@@ -8205,14 +9726,15 @@ def compose_orientation(root: Path, config: Config, backend: Any) -> str:
         depth = "standard"
     builders = (
         (1, lambda: _ori_status_header(state, config)),
-        (2, lambda: _ori_stance(state)),
-        (3, lambda: _ori_user_style(state)),
-        (4, lambda: _ori_lessons(root, config, depth)),
-        (5, lambda: _ori_triggers(root, config, state)),
-        (6, lambda: _ori_practices(state, config)),
-        (7, lambda: _ori_gauges(root, config)),
-        (8, lambda: _ori_questions(state)),
-        (9, lambda: _ori_proposal(state)),
+        (2, lambda: _ori_handoff(root, config)),
+        (3, lambda: _ori_stance(state)),
+        (4, lambda: _ori_user_style(state)),
+        (5, lambda: _ori_lessons(root, config, depth)),
+        (6, lambda: _ori_triggers(root, config, state)),
+        (7, lambda: _ori_practices(state, config)),
+        (8, lambda: _ori_gauges(root, config)),
+        (9, lambda: _ori_questions(state)),
+        (10, lambda: _ori_proposal(state)),
     )
     sections: list[str] = []
     for number, build in builders:
@@ -8630,7 +10152,25 @@ _MD_CODE_FENCE_RE = re.compile(r"^```.*?^```", re.MULTILINE | re.DOTALL)
 # exactly this set, so a template may reference them without a bank question
 # existing. Grows deliberately: every addition must be injected by
 # build_context (or a caller) unconditionally, or templates strand unfilled.
-ENGINE_CONTEXT_KEYS = frozenset({"kit_version"})
+ENGINE_CONTEXT_KEYS = frozenset({"agreement_home", "kit_version", "skills_index"})
+
+
+def agreement_home(root: Path, *, include_claude: bool = False) -> str:
+    """Return the boot pointer to the target repo's working agreement.
+
+    ``.claude/CLAUDE.md`` only when it is actually live in ``root`` (or the
+    current adopt run is about to write it, via ``include_claude``);
+    otherwise the root ``CONSTITUTION.md``, which ``ADOPT_PLAN`` always
+    plants. Engine-computed (an :data:`ENGINE_CONTEXT_KEYS` member, like
+    ``kit_version``) because no interview answer can know what the run
+    installs: the planted ``docs/AGENT_ORIENTATION.md`` used to hardcode
+    ``.claude/CLAUDE.md`` while the default adopt deliberately only STAGES
+    CLAUDE.md — a dead boot pointer verified live in 3/3 adopters
+    (inbox ORDER 015, 2026-07-12).
+    """
+    if include_claude or (root / ".claude" / "CLAUDE.md").is_file():
+        return ".claude/CLAUDE.md"
+    return "CONSTITUTION.md"
 
 
 def find_placeholders(text: str) -> set[str]:
@@ -8684,14 +10224,26 @@ def build_context(state: dict[str, Any]) -> dict[str, str]:
     (inbox ORDER 003, adopter-visibility band) renders with the real version
     instead of stranding as an unfilled placeholder. A slot named
     ``kit_version`` (none exists) would win over the constant by design.
-    (Top-level import on purpose: ``lib/config.py`` precedes ``render.py``
-    in the dist's MODULE_ORDER, so the intra-package import strips cleanly;
-    a function-body ``from engine...`` would survive into the single file
-    and fail at dist runtime.)
+    ``skills_index`` follows the same shape (grounded-skills plan §2, slice
+    1): the planted ``docs/SKILLS.md`` table is rendered FROM the kit's
+    ``SKILLS`` list — the same source that emits the skills — so the index
+    can never hand-drift from what the kit installs; injected here so every
+    render path fills it, and a same-named slot (none exists) would win.
+    (Top-level imports on purpose: ``lib/config.py`` and ``skills/skills.py``
+    both precede ``render.py`` in the dist's MODULE_ORDER, so the
+    intra-package imports strip cleanly; a function-body ``from engine...``
+    would survive into the single file and fail at dist runtime.)
     """
     values = state.get("slot_values", {})
     context = {slot: str(entry.get("value", "")) for slot, entry in values.items()}
     context.setdefault("kit_version", KIT_VERSION)
+    # The slot context is passed INTO the table (slice 2): grounds-column
+    # slot references (e.g. a ``${verify_command}`` ground) fill from the
+    # project's own answers; render() cannot fill them later because the
+    # table is itself a substitution VALUE — re.sub never rescans
+    # replacements, so anything unfilled here would strand as literal
+    # ``${...}`` and re-banner the planted index (skills._ground_cell docs).
+    context.setdefault("skills_index", skills_index_table(context))
     return context
 
 
@@ -9045,6 +10597,420 @@ def pack_index_skeleton(project_name: str) -> str:
     }
     return json.dumps(skeleton, indent=2) + "\n"
 
+# --- engine/seatdigest.py ---
+"""The seat-digest render surface (grounded-skills plan §7 slice 6, §8 Q3=A).
+
+Why + provenance: the grounded-skills program's slice 6
+(``docs/planning/2026-07-12-grounded-skills-program.md`` §7.6, owner default
+Q3=A) makes the kit the single source for the fleet-manager seat prompts'
+skill-index and WALLS content — the drift class it kills (a seat prompt
+contradicting kit truth) is the hardening report's "highest-leverage single
+change". Fleet-manager's prompt system v3.3 consumes committed files by tree
+scan + fence extraction + byte match (its ``regen_b_files.py``
+``--check-registry`` model), never by executing kit code — so the kit ships
+ONE generated planted doc, ``docs/seat-digest.md``, carrying two
+fence-marked blocks (``engine.grammar``'s ``substrate-kit:skills-digest`` /
+``substrate-kit:walls-digest`` prefix pairs):
+
+- **Skills digest** — one line per registered skill, rendered FROM the
+  :data:`engine.skills.skills.SKILLS` list (the same source that emits the
+  skills — the "render from ONE source" rule), pointer to the full index.
+- **Walls digest** — the capability ledger's verified walls, filtered
+  mechanically by venue token (Project-seat default
+  ``autonomous-project`` + ``any``; the slice-5 venue column makes this a
+  filter, not an editorial pass), pointer to the full ledger.
+
+Design invariants: **digest + pointer, never inline** (plan §2 — the
+consuming seat pastes sit at 7,943–7,998 of 8,000 chars); every block stays
+within :data:`engine.grammar.SEAT_DIGEST_BLOCK_BUDGET` by truncating rows
+into an explicit "+N more — read the source" overflow line, never by
+silently overflowing. **No third copy** (plan §4.2e): the adopter's
+``docs/CAPABILITIES.md`` ledger is the seat-local source of truth; this doc
+is a DERIVED RENDER of it (regenerated — by adopt, upgrade, or
+``bootstrap.py seat-digest`` — never edited, never a copy of record);
+fleet-manager's ``docs/capabilities.md`` master is the fleet aggregation
+point; no third authored copy is ever minted.
+
+Layering: below ``adopt.py`` on purpose (adopt plants the doc, upgrade
+refreshes it, the checker byte-compares it — all import from here; this
+module imports only grammar/skills/config). Pure stdlib.
+"""
+
+
+
+
+# Max characters for one digest row (unwrapped, before the truncation
+# ellipsis) — compact enough that ~8 rows + fences + pointer stay inside the
+# block budget, long enough to keep a wall's workaround arrow readable.
+_ROW_LIMIT = 160
+
+_WALLS_HEADING = "## Walls"
+_LEDGER_APPEND_LOG_HEADING = "## Append log"
+
+
+def seat_digest_relpath(config: Config) -> str:
+    """Return the planted seat-digest relpath under the host's docs root."""
+    return f"{config.docs_root}/seat-digest.md"
+
+
+def _truncate(text: str, limit: int = _ROW_LIMIT) -> str:
+    """Collapse whitespace and word-boundary-truncate ``text`` to ``limit``."""
+    flat = " ".join(text.split())
+    if len(flat) <= limit:
+        return flat
+    cut = flat[: limit - 1].rsplit(" ", 1)[0].rstrip(" ·—-")
+    return cut + "…"
+
+
+def _fit_rows(
+    header: list[str],
+    rows: list[str],
+    footer: list[str],
+    more_pointer: str,
+) -> str:
+    """Compose a fenced block, truncating ``rows`` into the budget.
+
+    The budget is enforced mechanically (never trusted to content size): rows
+    are added while the assembled block stays within
+    :data:`SEAT_DIGEST_BLOCK_BUDGET`; the remainder collapses into one
+    "+N more" overflow line pointing at the source doc — digest + pointer,
+    never inline (plan §2).
+    """
+
+    def compose(kept: list[str], extra: list[str]) -> str:
+        return "\n".join(header + kept + extra + footer)
+
+    for drop in range(len(rows) + 1):
+        kept = rows[: len(rows) - drop]
+        extra = (
+            [f"- …plus {drop} more — {more_pointer}"] if drop else []
+        )
+        block = compose(kept, extra)
+        if len(block) <= SEAT_DIGEST_BLOCK_BUDGET:
+            return block
+    return compose([], [f"- …plus {len(rows)} more — {more_pointer}"])
+
+
+def skills_digest_block(docs_root: str = "docs") -> str:
+    """Render the fenced skills-index digest block from :data:`SKILLS`.
+
+    One row per registered skill — name + when-to-reach-for-it one-liner,
+    never the grounds column (that detail is the index's job; the digest's
+    job is "these procedures exist, don't improvise"). Deterministic given
+    the SKILLS list.
+    """
+    index_path = f"{docs_root}/SKILLS.md"
+    header = [SKILLS_DIGEST_BEGIN, "## Skills digest", ""]
+    rows = [
+        f"- `{skill['name']}` — {_truncate(skill['description'], 120)}"
+        for skill in SKILLS
+    ]
+    footer = [
+        "",
+        f"Full index (grounds + capabilities): `{index_path}` — the source "
+        "this block derives from.",
+        SKILLS_DIGEST_END,
+    ]
+    return _fit_rows(header, rows, footer, f"read `{index_path}`.")
+
+
+def _unwrapped_bullets(lines: list[str]) -> list[str]:
+    """Join ``- `` bullets with their indented continuation lines."""
+    bullets: list[str] = []
+    for line in lines:
+        if line.startswith("- "):
+            bullets.append(line[2:].strip())
+        elif bullets and line.startswith((" ", "\t")) and line.strip():
+            bullets[-1] += " " + line.strip()
+    return bullets
+
+
+def _section_lines(lines: list[str], heading: str) -> list[str]:
+    """Return the lines under ``heading`` up to the next ``## ``/fence-END."""
+    out: list[str] = []
+    inside = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith(heading):
+            inside = True
+            continue
+        if inside and (
+            stripped.startswith("## ")
+            or stripped.startswith(CAPABILITY_SEED_END_PREFIX)
+        ):
+            break
+        if inside:
+            out.append(line)
+    return out
+
+
+def _seed_wall_rows(ledger_text: str) -> list[tuple[str, str]]:
+    """Return ``(venue, text)`` rows from the seed fence's Walls section.
+
+    Seed rows are `` - `venue` · finding … — LAST-VERIFIED: date`` bullets
+    (possibly wrapped); the freshness stamp is stripped for the digest (the
+    ledger keeps it — the digest points there). A bullet without a leading
+    backticked venue token fails open as venue ``any`` (the ledger's own
+    backward-compatibility rule).
+    """
+    lines = ledger_text.splitlines()
+    begin = next(
+        (
+            i
+            for i, line in enumerate(lines)
+            if line.strip().startswith(CAPABILITY_SEED_BEGIN_PREFIX)
+        ),
+        None,
+    )
+    if begin is None:
+        return []
+    rows: list[tuple[str, str]] = []
+    for bullet in _unwrapped_bullets(_section_lines(lines[begin:], _WALLS_HEADING)):
+        venue = "any"
+        text = bullet
+        if bullet.startswith("`"):
+            token, sep, rest = bullet[1:].partition("`")
+            if sep and token in CAPABILITY_VENUE_TOKENS:
+                venue = token
+                text = rest.lstrip(" ·")
+        stamp = text.find("— LAST-VERIFIED:")
+        if stamp != -1:
+            text = text[:stamp].rstrip()
+        rows.append((venue, text))
+    return rows
+
+
+def _append_wall_rows(ledger_text: str) -> list[tuple[str, str]]:
+    """Return ``(venue, text)`` rows for ``wall``-tagged append-log entries.
+
+    Consumes the grammar's taught line format (``- YYYY-MM-DD · tag ·
+    <venue> · finding · evidence · workaround``); a legacy five-field line
+    without a venue token reads as venue ``any`` and is never dropped
+    (the pinned backward-compatibility contract). ``capability`` entries are
+    not walls and stay out of this digest.
+    """
+    lines = ledger_text.splitlines()
+    heading = next(
+        (
+            i
+            for i, line in enumerate(lines)
+            if line.strip().startswith(_LEDGER_APPEND_LOG_HEADING)
+        ),
+        None,
+    )
+    if heading is None:
+        return []
+    rows: list[tuple[str, str]] = []
+    for bullet in _unwrapped_bullets(lines[heading:]):
+        match = CAPABILITY_LOG_LINE_RE.match(f"- {bullet}")
+        if not match:
+            continue
+        fields = [f.strip() for f in match.group(2).split(" · ")]
+        if not fields or fields[0] != "wall":
+            continue
+        rest = fields[1:]
+        venue = "any"
+        if (
+            rest
+            and CAPABILITY_VENUE_SHAPE_RE.match(rest[0])
+            and rest[0] in CAPABILITY_VENUE_TOKENS
+        ):
+            venue = rest[0]
+            rest = rest[1:]
+        if rest:
+            rows.append((venue, " · ".join(rest)))
+    return rows
+
+
+def walls_digest_block(
+    ledger_text: str | None,
+    venues: tuple[str, ...] = SEAT_DIGEST_DEFAULT_VENUES,
+    docs_root: str = "docs",
+) -> str:
+    """Render the fenced venue-filtered walls digest block.
+
+    ``ledger_text`` is the adopter's planted ``docs/CAPABILITIES.md`` — the
+    seat-local source of truth this block derives from (``None`` renders an
+    honest placeholder, never a guess). Filtering is mechanical: a row ships
+    when its venue token is in ``venues`` (seed fence Walls rows + append-log
+    ``wall`` entries; legacy venue-less lines count as ``any``).
+    """
+    ledger_path = f"{docs_root}/CAPABILITIES.md"
+    header = [
+        walls_digest_begin_marker(venues),
+        f"## Walls digest (venues: {', '.join(venues)})",
+        "",
+    ]
+    if ledger_text is None:
+        rows = [
+            f"- (no capability ledger found at `{ledger_path}` — walls "
+            "unknown; plant the ledger, then regenerate this digest)",
+        ]
+    else:
+        rows = [
+            f"- `{venue}` · {_truncate(text)}"
+            for venue, text in _seed_wall_rows(ledger_text)
+            + _append_wall_rows(ledger_text)
+            if venue in venues
+        ]
+        if not rows:
+            rows = [f"- (no walls recorded for these venues in `{ledger_path}`)"]
+    footer = [
+        "",
+        f"Full ledger (all venues, evidence, freshness): `{ledger_path}` — "
+        "the seat-local source of truth; append findings THERE, never here.",
+        WALLS_DIGEST_END,
+    ]
+    return _fit_rows(header, rows, footer, f"read `{ledger_path}`.")
+
+
+def walls_digest_venues(text: str) -> tuple[str, ...]:
+    """Parse the venue filter off a committed doc's walls-digest BEGIN line.
+
+    Regens and drift checks must re-render with the SAME venues the
+    committed doc chose; an absent/unparseable marker falls back to the
+    Project-seat default (never a crash, never a silent venue reset to
+    something the doc did not say).
+    """
+    match = WALLS_DIGEST_VENUES_RE.search(text)
+    if not match:
+        return SEAT_DIGEST_DEFAULT_VENUES
+    venues = tuple(
+        token
+        for token in match.group(1).split(",")
+        if token in CAPABILITY_VENUE_TOKENS
+    )
+    return venues or SEAT_DIGEST_DEFAULT_VENUES
+
+
+def seat_digest_document(
+    project_name: str,
+    ledger_text: str | None,
+    venues: tuple[str, ...] = SEAT_DIGEST_DEFAULT_VENUES,
+    docs_root: str = "docs",
+) -> str:
+    """Compose the full ``docs/seat-digest.md`` text (deterministic).
+
+    Both fenced blocks plus the two contracts a consumer needs stated where
+    the artifact lives: the machine extraction contract (the three
+    fence-prefix pairs) and the no-third-copy deferral chain (plan §4.2e).
+    No dates, no environment reads — the render is a pure function of the
+    SKILLS list, the ledger text, the venue filter, and ``project_name``,
+    so a byte-compare drift guard is meaningful.
+    """
+    index_path = f"{docs_root}/SKILLS.md"
+    ledger_path = f"{docs_root}/CAPABILITIES.md"
+    return "\n".join(
+        [
+            f"# {project_name} — seat digest",
+            "",
+            "> **Status:** `reference`",
+            ">",
+            "> Generated by substrate-kit — a **derived render**, never a "
+            "copy of record.",
+            f"> Sources: `{index_path}` (skill index) + `{ledger_path}` "
+            "(capability ledger).",
+            "> NEVER edit this file: regenerate with `python3 bootstrap.py "
+            "seat-digest`",
+            "> (adopt and upgrade also refresh it). Hand edits are drift by "
+            "definition.",
+            "",
+            "## What this is",
+            "",
+            "The seat-prompt-feeding digest (grounded-skills plan §7 slice "
+            "6): the two",
+            "fence-marked blocks below are canonical, machine-extractable "
+            "renders of this",
+            "repo's registered skills and its venue-relevant verified walls "
+            "— sized for",
+            "prompt budgets that have no headroom. **Digest + pointer, "
+            "never inline**:",
+            "each block ends with a pointer to the full source doc.",
+            "",
+            skills_digest_block(docs_root),
+            "",
+            walls_digest_block(ledger_text, venues, docs_root),
+            "",
+            "## Extraction contract — the machine interface",
+            "",
+            "Consumers (fleet-manager's seat-prompt regen tool above all) "
+            "extract blocks",
+            "by fence-prefix match + byte compare — never by executing kit "
+            "code, never by",
+            "parsing prose. The contract is the three HTML-comment prefix "
+            "pairs (match the",
+            "PREFIX only; trailing marker wording may evolve without "
+            "orphaning a fence):",
+            "",
+            "| block | BEGIN prefix | END prefix | lives in |",
+            "|---|---|---|---|",
+            "| skills digest | `<!-- substrate-kit:skills-digest BEGIN` | "
+            "`<!-- substrate-kit:skills-digest END` | this file |",
+            "| walls digest | `<!-- substrate-kit:walls-digest BEGIN` | "
+            "`<!-- substrate-kit:walls-digest END` | this file |",
+            "| capability seed | `<!-- substrate-kit:capability-seed BEGIN` "
+            f"| `<!-- substrate-kit:capability-seed END` | `{ledger_path}` |",
+            "",
+            "The walls-digest BEGIN marker carries its venue filter "
+            "(`venues=<tokens>`);",
+            "regens preserve it. The bytes between a BEGIN/END pair are the "
+            "canonical",
+            "block — a consumer's byte-match drift guard compares against "
+            "exactly them.",
+            "",
+            "## No third copy — which record defers to which",
+            "",
+            f"1. **`{ledger_path}` (this repo)** — the seat-local source of "
+            "truth for",
+            "   capabilities and walls; sessions append verified findings "
+            "there.",
+            "2. **This file** — a derived render of that ledger (walls) and "
+            "the kit's",
+            "   `SKILLS` list (skills). Regenerated, never edited; never a "
+            "copy of record.",
+            "3. **fleet-manager `docs/capabilities.md`** — the fleet "
+            "aggregation point;",
+            "   cross-repo findings are consolidated there by the manager.",
+            "",
+            "No third authored copy is ever minted (grounded-skills plan "
+            "§4.2e). A prompt",
+            "block, a seat paste, or any downstream copy is a RENDER of "
+            "step 2 and is",
+            "regenerated from it — divergence between them is drift to fix "
+            "at the source,",
+            "never content to merge back by hand.",
+            "",
+        ],
+    )
+
+
+def seat_digest_text(
+    root: Path,
+    config: Config,
+    context: dict[str, str],
+    venues: tuple[str, ...] = SEAT_DIGEST_DEFAULT_VENUES,
+) -> str:
+    """Render the seat-digest doc for ``root`` (reads the planted ledger).
+
+    The ONE render path every surface shares — adopt's plant, upgrade's
+    refresh, the ``seat-digest`` CLI regen, and the drift checker's fresh
+    render all call this, so "planted file == fresh render" is a meaningful
+    byte contract. A missing/unreadable ledger renders the honest
+    placeholder (fail open, never a crash).
+    """
+    ledger_path = root / config.docs_root / "CAPABILITIES.md"
+    try:
+        ledger_text: str | None = ledger_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        ledger_text = None
+    project_name = context.get("project_name") or root.name
+    return seat_digest_document(
+        project_name,
+        ledger_text,
+        venues,
+        config.docs_root,
+    )
+
 # --- engine/adopt.py ---
 """One-step adopt flow — plant the workflow docs, stage the packs (Lane B8).
 
@@ -9096,6 +11062,30 @@ ADOPT_PLAN: list[tuple[str, str]] = [
     # append discoveries at close (session-close skill nudge), so one
     # session's imagined-wall lesson never costs a second session.
     ("CAPABILITIES.md.tmpl", "docs/CAPABILITIES.md"),
+    # The skill index (grounded-skills program slice 1 —
+    # docs/planning/2026-07-12-grounded-skills-program.md §2/§7.1): one
+    # table — skill → when to reach for it → capabilities — rendered FROM
+    # the kit's SKILLS list via the engine-computed ``skills_index``
+    # context key (engine.render.build_context), so the planted index can
+    # never drift from the skills the kit actually emits. Boot-set wiring
+    # lives in the CLAUDE / CONSTITUTION / AGENT_ORIENTATION templates
+    # (the CAPABILITIES.md pattern); advisory only — no CI enforcement
+    # of "you used the skill" (§8 Q2=B, graduation later).
+    ("SKILLS-index.md.tmpl", "docs/SKILLS.md"),
+    # Routine / wake-chain doctrine (grounded-skills program §7 tail —
+    # docs/planning/2026-07-12-grounded-skills-program.md §6 "Routine/
+    # wake-chain doctrine" row; map: docs/reports/
+    # 2026-07-12-prompt-template-hardening-input.md §(b)): binding choice
+    # by lifetime + verify-delivery, verbatim create-call records,
+    # probe-not-record re-verification at every wake, the scheduler-health
+    # wedge signature, sequential trigger-write pacing, and the failsafe
+    # blind-window check — incident-backed (the 2026-07-12 trigger
+    # forensics) and portably worded (no fleet/env ids: the env-id
+    # mismatch is itself load-bearing, forensics H2). Routed from the
+    # CLAUDE / AGENT_ORIENTATION templates like its CAPABILITIES/SKILLS
+    # siblings so the plant never orphans an adopter's check --strict
+    # (the orphan-doc reachability rule).
+    ("routines.md.tmpl", "docs/ROUTINES.md"),
     ("ideas-README.md.tmpl", "docs/ideas/README.md"),
     ("session-journal.md.tmpl", ".session-journal.md"),
     # The fleet coordination protocol (band KL-8, spec: superbot
@@ -9422,6 +11412,122 @@ def _adopt_stage(path: Path, relpath: str, text: str, report: list[str]) -> None
     report.append(f"staged: {relpath}")
 
 
+def _staged_previous_text(path: Path) -> str | None:
+    """Return a staged artifact's pre-regen bytes, or None when absent.
+
+    The three-way carve-out compare's old-template recovery source: read
+    BEFORE :func:`_adopt_stage` overwrites the staged copy with the new
+    render. Unreadable honestly equals absent — the consumer degrades to
+    the two-way compare rather than crashing.
+    """
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+
+# Provenance marker for the retroactively-merged model doctrine (the
+# search-hygiene plant pattern): appended entries sit under one comment
+# naming their origin, so a host reading its own README knows which
+# paragraph the kit owns.
+MODEL_DOCTRINE_MARKER = (
+    "<!-- substrate-kit: model-attribution doctrine "
+    "(family-level names — ORDER 012) -->"
+)
+
+# The doctrine's detection phrase — one distinctive substring shared by the
+# fresh-plant render and the retroactive merge, so the two paths can never
+# drift apart on "is it already there?".
+_MODEL_DOCTRINE_PHRASE = "family-level model name your own harness/environment reports"
+
+
+def _doctrine_phrase_present(text: str) -> bool:
+    """Emphasis-blind presence test for :data:`_MODEL_DOCTRINE_PHRASE`.
+
+    The v1.10.0 wave found the exact-substring test emphasis-blind
+    (websites #105): a hand-merged doctrine carried Markdown emphasis
+    INSIDE the phrase ("…model name **your own harness/environment reports
+    this session**"), so the match missed it and the retroactive merge
+    appended a harmless near-duplicate paragraph. Strip the Markdown
+    emphasis characters (``*`` ``_`` and backticks) and collapse
+    whitespace (a reflowed hand-merge is still the same doctrine) before
+    the substring test. Stripping can only join characters ACROSS a
+    removed run, never split words, so a false positive still requires
+    the phrase's exact words in order.
+    """
+    normalized = re.sub(r"[*_`]", "", text)
+    normalized = re.sub(r"\s+", " ", normalized)
+    return _MODEL_DOCTRINE_PHRASE in normalized
+
+
+def _model_doctrine_text() -> str:
+    """The ORDER 012 family-level model-attribution doctrine, one paragraph.
+
+    Composed in one place for both consumers: the fresh
+    ``.sessions/README.md`` plant embeds it inline, and
+    :func:`_merge_model_doctrine` appends it (under
+    :data:`MODEL_DOCTRINE_MARKER`) to READMEs planted before the doctrine
+    existed — the v1.9.0 wave found 4 adopters needing exactly that
+    hand-merge because the PR #170 render was not retroactive.
+    """
+    return (
+        f"The `{MODEL_LINE_NEEDLE}` model segment is the **{_MODEL_DOCTRINE_PHRASE} "
+        "this session** "
+        "(e.g. `fable-5`, `opus-4.8`, `sonnet-5`) — the committed card's "
+        "self-report is the attribution ground truth. Never copy it from "
+        "an external surface (schedule/Routines screens are evidenced to "
+        "misattribute), and never record an exact model ID — family-level "
+        "names only, never an exact model-ID token (dated or not)."
+    )
+
+
+def _merge_model_doctrine(
+    root: Path,
+    config: Config,
+    report: list[str],
+) -> None:
+    """Append the model doctrine to a pre-existing ``.sessions/README.md``.
+
+    The PR #170 doctrine render only reached FRESH plants — skip-if-exists
+    left every already-planted README without it, and the v1.9.0
+    distribution wave had to regen/hand-merge 4 adopters. Retroactive now,
+    with the same append-only/provenance covenant as the search-hygiene
+    plants: existing content is preserved byte-for-byte (host edits are
+    host policy), the appended paragraph sits under
+    :data:`MODEL_DOCTRINE_MARKER`, re-runs are idempotent (the
+    detection phrase is shared with the fresh render, so a v1.9.0+ plant
+    is already "present"), and an unreadable file is skipped + reported,
+    never destroyed. No-op when the host's markers don't require the
+    Model line — doctrine without the needle would be noise.
+    """
+    if not any(
+        m.get("needle") == MODEL_LINE_NEEDLE for m in config.session_markers
+    ):
+        return
+    relpath = f"{config.sessions_dir}/README.md"
+    path = root / config.sessions_dir / "README.md"
+    if not path.is_file():
+        return
+    try:
+        existing = path.read_text(encoding="utf-8")
+    except OSError:
+        report.append(
+            f"skipped: {relpath} (unreadable — model doctrine not merged)",
+        )
+        return
+    if _doctrine_phrase_present(existing):
+        return
+    chunk = ""
+    if not existing.endswith("\n"):
+        chunk += "\n"
+    chunk += "\n" + MODEL_DOCTRINE_MARKER + "\n" + _model_doctrine_text() + "\n"
+    atomic_write_text(path, existing + chunk)
+    report.append(
+        f"merged: {relpath} (model-attribution doctrine appended; "
+        "existing content preserved)",
+    )
+
+
 def _adopt_sessions_readme(markers: list[dict[str, str]]) -> str:
     """Compose the one-paragraph ``.sessions/README.md`` (born-red convention).
 
@@ -9438,6 +11544,14 @@ def _adopt_sessions_readme(markers: list[dict[str, str]]) -> str:
         if m.get("label")
     )
     pairs = pairs or "(no markers configured)"
+    # Attribution ground truth (fleet standing rule, ORDER 012 / fm model
+    # matrix 2026-07): the model segment is the FAMILY-LEVEL name the
+    # session's own harness reports — self-report in the committed card is
+    # the only reliable attribution surface. Rendered only when the host's
+    # markers actually require the Model line.
+    model_doctrine = ""
+    if any(m.get("needle") == MODEL_LINE_NEEDLE for m in markers):
+        model_doctrine = " " + _model_doctrine_text()
     return (
         "# Session logs\n\n"
         "Per-session logs live here as `<date>-<slug>.md`, newest first. "
@@ -9447,7 +11561,7 @@ def _adopt_sessions_readme(markers: list[dict[str, str]]) -> str:
         "step once the close-out is written — a half-done session never reads "
         "as finished. Before it counts as complete, a log must carry these "
         "markers, each written with its exact backticked byte-form: "
-        f"{pairs}.\n\n"
+        f"{pairs}.{model_doctrine}\n\n"
         "If the card is missing at session end, the kit **auto-drafts** one "
         "from evidence (files touched, git HEAD movement, the verify "
         "command); an in-progress card missing its close-out gets the "
@@ -9501,7 +11615,7 @@ def ci_snippet() -> str:
         "#   substrate-check:\n"
         "#     runs-on: ubuntu-latest\n"
         "#     steps:\n"
-        "#       - uses: actions/checkout@v4\n"
+        "#       - uses: actions/checkout@v5\n"
         "#       - name: substrate checks\n"
         "#         run: python3 bootstrap.py check --strict\n"
     )
@@ -9528,32 +11642,65 @@ def live_ci_workflow(interpreter: str = "python3", sessions_dir: str = ".session
     The gate step is **PR-diff-aware**: a fresh CI checkout flattens every file
     mtime to checkout time, so the engine's newest-by-mtime card guess is
     arbitrary in CI (the kit's own CI once carried a git-mtime-restore shim for
-    exactly this). The workflow instead derives the card from what the PR/push
-    diff touches under ``sessions_dir`` and passes it via
-    ``check --session-log``. When the diff names **no card** the step passes
+    exactly this). The workflow instead derives the cards from what the PR/push
+    diff touches under ``sessions_dir`` — **every card in the diff, never a
+    single picked one**: the old ``tail -1`` picker graded only the
+    last-sorted card, so a PR that ADDED an in-progress card and MODIFIED a
+    later-sorting sibling shipped the in-progress card GREEN (the multi-card
+    shadowing loophole, venture-lab #33 head 798a3d0, run 29144734514 —
+    partially reopening the superbot-games #40 class the v1.10.0 hold
+    closed). When the diff names **no card** the step passes
     an explicitly named, nonexistent sentinel **without**
     ``--require-session-log`` — per the engine contract an explicitly named
     absent card is ADVISORY. (The previous behaviour — omitting the argument —
     was NOT fail-open in CI: the engine's newest-by-mtime fallback latched
     onto the mid-session in-progress card and redded every unrelated PR;
-    adopter live-fire, gba-homebrew PR #3, 2026-07-10.) A card **ADDED** by
-    the PR (a born-red heartbeat: first-commit-carries-an-in-progress-card
-    conventions make in-progress the REQUIRED state at birth) also gates
-    advisory via the absent sentinel, because under ``--strict`` the engine
-    reds ANY existing-but-incomplete card — the locked door could never pass
-    a heartbeat (adopter live-fire: gba-homebrew PR #2 merged red on exactly
-    this). A card **MODIFIED** by the PR (every session close-out flips one)
-    keeps the full ``--require-session-log`` locked door, so a close-out that
-    forgot to flip ``complete`` still reds. Both fixes validated live across
-    gba-homebrew PRs #3–#14. One deliberate exception (queued fix 3,
-    venture-lab #14): a card ADDED by a PR that ALSO touches this gate
-    workflow file itself gates through the full locked door — GitHub runs a
-    ``pull_request`` workflow from the PR head, so the PR that regenerates
-    the gate runs the NEW gate mid-PR, and without the exception the regen
-    could silently flip an added born-red card from held-red (old gate
-    semantics) to advisory, auto-merging a partial session. Hold semantics
-    may only tighten, never loosen, within the PR that changes them; the
-    merge path is unchanged — flip the card ``complete``.
+    adopter live-fire, gba-homebrew PR #3, 2026-07-10.) **Every** card
+    **ADDED** by the PR (a born-red heartbeat:
+    first-commit-carries-an-in-progress-card conventions make in-progress
+    the REQUIRED state at birth) gates via the
+    absent sentinel plus ``--added-card`` — the engine grades each card by
+    what it DECLARES: an in-progress/drafted card is the born-red **HOLD**
+    (red until it flips complete), a badge-less or complete-but-malformed
+    card reds on grammar, and a complete well-formed card passes; ANY added
+    card holding holds the whole step. The hold
+    tier closed the v1.9.0 wave's card-only loophole: the then-current lane
+    fully EXEMPTED an in-progress added card, so a card-only born-red PR
+    with auto-merge pre-armed went green and merged 24 seconds after open —
+    before the session built anything (superbot-games PR #40). Completeness
+    is still never graded mid-flight (the gba-homebrew PR #2 lesson —
+    born-red is the REQUIRED state at birth); the hold is a single
+    designed-state finding with a HOLD-by-design banner, not a marker red.
+    Sibling cards **MODIFIED** by a diff that also adds card(s) gate through
+    the **same** ``--require-session-log`` locked door as a modified-only
+    diff — the added card is still the gate's subject via its own
+    ``--added-card`` lane, so a sibling verdict can only ADD red, never
+    substitute for the added card's (grading siblings is strictly tighter
+    than the earlier advisory-only logging and cannot reintroduce the
+    tail-1 shadowing; supersedes the #187 advisory-sibling design —
+    external review #226 finding G-1 showed a PR adding one good card
+    could silently flip a sibling to in-progress, or strip its markers,
+    and still merge). A diff that **only
+    modifies** cards (every session close-out flips one) keeps the full
+    ``--require-session-log`` locked door on EACH modified card, so a
+    close-out that forgot to flip ``complete`` still reds. Session cards
+    **DELETED** by the diff are a hard red on sight — session memory is
+    append-only, and the card lists are built with ``--diff-filter=d``
+    (deletions excluded), so before this guard a deletion-only PR fell to
+    the no-card advisory path and could merge while erasing session
+    memory (external review #226 finding G-2; same guard mirrored in the
+    kit's own dogfood gate). The
+    diff-selection fixes validated live across gba-homebrew PRs #3–#14.
+    One deliberate exception
+    (queued fix 3, venture-lab #14): a card ADDED by a PR that ALSO touches
+    this gate workflow file itself gates through the full locked door —
+    GitHub runs a ``pull_request`` workflow from the PR head, so the PR that
+    regenerates the gate runs the NEW gate mid-PR, and without the exception
+    the regen could silently loosen an added card's hold MID-PR. Hold
+    semantics may only tighten, never loosen, within the PR that changes
+    them; that branch also runs ``--simulate-added-card`` so the lane's
+    would-be verdict stays observable on exactly the PRs that ship gate
+    changes. The merge path is unchanged — flip the card ``complete``.
 
     **Control fast lane (KL-8):** a diff touching only ``control/**`` (a
     status heartbeat, a manager inbox append) short-circuits the job GREEN
@@ -9615,7 +11762,7 @@ def live_ci_workflow(interpreter: str = "python3", sessions_dir: str = ".session
         "  substrate-gate:\n"
         "    runs-on: ubuntu-latest\n"
         "    steps:\n"
-        "      - uses: actions/checkout@v4\n"
+        "      - uses: actions/checkout@v5\n"
         "        with:\n"
         "          fetch-depth: 0\n"
         "      - name: control fast lane (control/**-only diff short-circuits green)\n"
@@ -9681,73 +11828,135 @@ def live_ci_workflow(interpreter: str = "python3", sessions_dir: str = ".session
         "            python3 bootstrap.py check --strict --status-only "
         '--inbox-base "$basefile"\n'
         "          fi\n"
-        "      - uses: actions/setup-python@v5\n"
+        "      - uses: actions/setup-python@v6\n"
         "        if: steps.lane.outputs.control_only != 'true'\n"
         "        with:\n"
         '          python-version: "3.x"\n'
         "      - name: substrate gate (docs + session-log required)\n"
         "        if: steps.lane.outputs.control_only != 'true'\n"
-        "        # Gate on the session card THIS PR/push touches (CI flattens\n"
+        "        # Gate on the session cards THIS PR/push touches (CI flattens\n"
         "        # mtimes, so the engine's newest-by-mtime guess is unreliable\n"
-        "        # here). No card in the diff -> pass an explicitly named,\n"
+        "        # here) — EVERY card in the diff, never a single picked one:\n"
+        "        # the old `tail -1` picker graded only the last-sorted card,\n"
+        "        # so a PR that ADDED an in-progress card and MODIFIED a\n"
+        "        # later-sorting sibling shipped the in-progress card GREEN\n"
+        "        # (the multi-card shadowing loophole, venture-lab #33 head\n"
+        "        # 798a3d0 — partially reopening the superbot-games #40\n"
+        "        # class). No card in the diff -> pass an explicitly named,\n"
         "        # nonexistent sentinel WITHOUT --require-session-log: per the\n"
         "        # engine's contract an explicit absent card is ADVISORY,\n"
         "        # while the bare mtime fallback latches onto the mid-session\n"
         "        # in-progress card and reds every unrelated PR (adopter\n"
         "        # live-fire, gba-homebrew PR #3, 2026-07-10 — the omitted\n"
-        "        # argument was never fail-open in CI). Second live-fire case:\n"
-        "        # a heartbeat PR that ADDS the born-red card (first-commit\n"
-        "        # conventions REQUIRE an in-progress card at birth) can never\n"
-        "        # satisfy the locked door — gba-homebrew PR #2 merged red on\n"
-        "        # exactly this. So: a card ADDED by the PR gates ADVISORY via\n"
-        "        # the absent sentinel (under --strict the engine reds ANY\n"
-        "        # existing-but-incomplete card, required or not — born-red is\n"
-        "        # the REQUIRED state at birth, so a heartbeat must not be\n"
-        "        # judged on completeness); a card MODIFIED by the PR (every\n"
-        "        # session close-out flips one) keeps the full locked-door\n"
-        "        # gate, so a close-out that forgot to flip `complete` still\n"
-        "        # reds. EXCEPT: when this same PR also touches THIS gate\n"
-        "        # workflow file (an upgrade PR regenerating the kit-owned\n"
-        "        # gate), an ADDED card keeps the FULL locked door too — the\n"
-        "        # PR runs the NEW gate the moment the regen commit lands, so\n"
-        "        # without this the regen itself could flip an added card\n"
-        "        # from held-red to advisory MID-PR and auto-merge a partial\n"
-        "        # session (venture-lab #14). Hold semantics may only\n"
-        "        # tighten, never loosen, inside the PR that changes them;\n"
-        "        # the escape is the normal one — flip the card complete.\n"
+        "        # argument was never fail-open in CI). EVERY card ADDED by\n"
+        "        # the PR (first-commit conventions REQUIRE an in-progress\n"
+        "        # card at birth) gates via the absent sentinel +\n"
+        "        # --added-card: the engine grades each card by what it\n"
+        "        # DECLARES — an in-progress/drafted card is the born-red\n"
+        "        # HOLD (red until it flips complete; the superbot-games #40\n"
+        "        # loophole fix, where a card-only born-red PR with\n"
+        "        # auto-merge pre-armed went green and merged 24 s after\n"
+        "        # open), a badge-less or complete-but-malformed card reds on\n"
+        "        # grammar (the venture-lab #15 false-green class), and a\n"
+        "        # complete well-formed card passes; ANY added card holding\n"
+        "        # holds the whole step. Completeness is never graded\n"
+        "        # mid-flight (the gba-homebrew #2 lesson — born-red is the\n"
+        "        # REQUIRED state at birth); the hold is a single\n"
+        "        # designed-state finding with a HOLD-by-design banner.\n"
+        "        # Sibling cards MODIFIED by a diff that also adds card(s)\n"
+        "        # gate through the SAME --require-session-log locked door\n"
+        "        # as a modified-only diff: the added card still gates via\n"
+        "        # its own --added-card lane, so a sibling verdict can only\n"
+        "        # ADD red, never substitute — strictly tighter than the\n"
+        "        # old advisory-only logging, which let a PR adding one\n"
+        "        # good card silently break a modified sibling (review\n"
+        "        # #226 finding G-1; supersedes the #187 advisory design).\n"
+        "        # Session cards DELETED by the diff are a hard red —\n"
+        "        # session memory is append-only; the card lists use\n"
+        "        # --diff-filter=d (deletions excluded), so without this a\n"
+        "        # deletion-only PR fell to the no-card advisory path and\n"
+        "        # merged while erasing session memory (review #226\n"
+        "        # finding G-2). A diff that ONLY modifies cards\n"
+        "        # (every session close-out flips one) keeps the full\n"
+        "        # locked-door gate on EACH modified card, so a close-out\n"
+        "        # that forgot to flip `complete` still reds. EXCEPT: when\n"
+        "        # this same PR also touches THIS gate workflow file (an\n"
+        "        # upgrade PR regenerating the kit-owned gate), every ADDED\n"
+        "        # card keeps the FULL locked door too — the PR runs the NEW\n"
+        "        # gate the moment the regen commit lands, so without this\n"
+        "        # the regen itself could loosen an added card's hold MID-PR\n"
+        "        # (venture-lab #14). Hold semantics may only tighten, never\n"
+        "        # loosen, inside the PR that changes them; that branch also\n"
+        "        # runs --simulate-added-card so the added-card lane's\n"
+        "        # would-be verdict stays observable on exactly the PRs that\n"
+        "        # ship gate changes. The escape is the normal one — flip\n"
+        "        # the card complete.\n"
         "        run: |\n"
         '          if [ -n "${{ github.base_ref }}" ]; then\n'
         '            range="origin/${{ github.base_ref }}...HEAD"\n'
         "          else\n"
         '            range="${{ github.event.before }}..${{ github.sha }}"\n'
         "          fi\n"
-        '          card="$(git diff --name-only --diff-filter=d "$range" -- '
-        f"'{sessions_dir}/*.md' ':!{sessions_dir}/README.md' 2>/dev/null "
-        '| tail -1)"\n'
+        '          cards="$(git diff --name-only --diff-filter=d "$range" -- '
+        f"'{sessions_dir}/*.md' ':!{sessions_dir}/README.md' 2>/dev/null)\"\n"
         '          added="$(git diff --name-only --diff-filter=A "$range" -- '
-        f"'{sessions_dir}/*.md' ':!{sessions_dir}/README.md' 2>/dev/null "
-        '| tail -1)"\n'
+        f"'{sessions_dir}/*.md' ':!{sessions_dir}/README.md' 2>/dev/null)\"\n"
+        '          deleted="$(git diff --name-only --diff-filter=D "$range" -- '
+        f"'{sessions_dir}/*.md' ':!{sessions_dir}/README.md' 2>/dev/null)\"\n"
         '          gate_regen="$(git diff --name-only "$range" -- '
         f"'{LIVE_CI_RELPATH}' 2>/dev/null | tail -1)\"\n"
-        '          echo "session gate card: ${card:-<none - advisory sentinel>}"\n'
-        '          if [ -n "$card" ] && { [ "$card" != "$added" ] || '
-        '[ -n "$gate_regen" ]; }; then\n'
-        '            if [ "$card" = "$added" ]; then\n'
-        '              echo "card $card is ADDED but this PR also touches the'
+        '          echo "session gate cards: ${cards:-<none - advisory sentinel>}"\n'
+        "          fail=0\n"
+        '          if [ -n "$deleted" ]; then\n'
+        "            while IFS= read -r card; do\n"
+        '              [ -z "$card" ] && continue\n'
+        '              echo "session card DELETED by this PR (session memory is'
+        ' append-only — hard red): $card"\n'
+        '            done <<< "$deleted"\n'
+        "            fail=1\n"
+        "          fi\n"
+        '          if [ -n "$added" ]; then\n'
+        "            while IFS= read -r card; do\n"
+        '              [ -z "$card" ] && continue\n'
+        "              if printf '%s\\n' \"$added\" | grep -Fxq -- \"$card\";"
+        " then continue; fi\n"
+        '              echo "modified sibling card (locked-door gate — same'
+        " door as a modified-only diff; supersedes the #187 advisory"
+        ' semantics): $card"\n'
+        f"              {interpreter} bootstrap.py check --strict"
+        ' --require-session-log --session-log "$card" || fail=1\n'
+        '            done <<< "$cards"\n'
+        "            while IFS= read -r card; do\n"
+        '              [ -z "$card" ] && continue\n'
+        '              if [ -n "$gate_regen" ]; then\n'
+        '                echo "card $card is ADDED but this PR also touches the'
         ' gate workflow itself — locked-door gate (mid-PR semantics may only'
         ' tighten; flip the card complete to merge)"\n'
-        "            fi\n"
-        f"            {interpreter} bootstrap.py check --strict --require-session-log"
-        ' --session-log "$card"\n'
-        "          elif [ -n \"$card\" ]; then\n"
-        '            echo "card $card is newly ADDED by this PR (born-red heartbeat)'
-        ' — advisory sentinel gate"\n'
-        f"            {interpreter} bootstrap.py check --strict --session-log "
-        f"{sessions_dir}/__born-red-card-added__.md\n"
+        f"                {interpreter} bootstrap.py check --strict"
+        ' --require-session-log --session-log "$card"'
+        ' --simulate-added-card "$card" || fail=1\n'
+        "              else\n"
+        '                echo "card $card is newly ADDED by this PR (born-red heartbeat)'
+        ' — added-card gate: in-progress HOLDs until the card flips complete;'
+        ' grammar misses red"\n'
+        f"                {interpreter} bootstrap.py check --strict --session-log "
+        f"{sessions_dir}/__born-red-card-added__.md"
+        ' --added-card "$card" || fail=1\n'
+        "              fi\n"
+        '            done <<< "$added"\n'
+        '          elif [ -n "$cards" ]; then\n'
+        "            while IFS= read -r card; do\n"
+        '              [ -z "$card" ] && continue\n'
+        '              echo "card $card is MODIFIED by this PR (close-out'
+        ' flip) — locked-door gate"\n'
+        f"              {interpreter} bootstrap.py check --strict"
+        ' --require-session-log --session-log "$card" || fail=1\n'
+        '            done <<< "$cards"\n'
         "          else\n"
         f"            {interpreter} bootstrap.py check --strict --session-log "
         f"{sessions_dir}/__no-card-in-diff__.md\n"
         "          fi\n"
+        '          exit "$fail"\n'
     )
 
 
@@ -10036,6 +12245,7 @@ def _regen_kit_owned_workflow(
     *,
     noun: str,
     install_when_absent: bool,
+    old_text: str | None = None,
 ) -> None:
     """Plant/regenerate one kit-owned live workflow (adopt step 6b shape).
 
@@ -10048,6 +12258,24 @@ def _regen_kit_owned_workflow(
     additions are detected (:func:`gate_carveouts`), the full pre-regen copy
     is banked content-hash-named under ``<state_dir>/backup/``, and each
     carve-out is reported (upgrade surfaces them in ``upgrade-report.md``).
+
+    **Three-way compare (v1.11.0-wave phantom-carve-out fix):** when a kit
+    release changes the kit's OWN generated workflow content (the #199/#195
+    checkout@v5 / setup-python@v6 pin bumps), a two-way live-vs-new compare
+    misreads the kit's outgoing template content as "host-added" (6 live-gate
+    adopters flagged phantom carve-outs on the v1.11.0 wave) and banks a
+    pre-regen copy byte-identical to the OLD template. ``old_text`` — what
+    the kit LAST shipped, recovered by the caller from the staged copy under
+    ``<state_dir>/ci/`` BEFORE the staging pass overwrites it (the banked
+    dist cannot supply it: these workflows are code-generated, not
+    ``_TEMPLATES`` entries, so an old dist would have to be *executed* to
+    re-render them) — makes the compare three-way: a detection counts as a
+    host carve-out ONLY when the content is present in live and explained by
+    NEITHER template. Kit-side evolution is a one-line informational note;
+    a live file byte-identical to the old template yields zero flags and NO
+    bank (the bank preserves host customization — identical content has
+    none). ``old_text=None`` (first adopt, staged copy missing) degrades to
+    the two-way compare with an explicit warning when it detects anything.
     """
     live_path = root / relpath
     if live_path.is_file():
@@ -10059,7 +12287,51 @@ def _regen_kit_owned_workflow(
             report.append(f"carve-out scan: {relpath} — ran, 0 found")
             report.append(f"kept: {relpath} (kit-owned, already current)")
             return
+        if old_text is not None and live_text == old_text:
+            # Three-way fast path: the live file is byte-identical to what
+            # the kit last shipped — the whole live-vs-new delta is kit-side
+            # template evolution. Nothing is host-added, nothing is banked;
+            # the regen just moves the file to template@new.
+            report.append(
+                f"carve-out scan: {relpath} — ran, 0 found (live matched "
+                "the previous kit template byte-for-byte; the delta is "
+                "kit-side template evolution)",
+            )
+            atomic_write_text(live_path, expected_text)
+            report.append(
+                f"regenerated: {relpath} (kit-owned — template@new; "
+                "hand edits are overwritten, host carve-outs belong in a "
+                "separate workflow)",
+            )
+            return
         carveouts = gate_carveouts(live_text, expected_text)
+        kit_side = 0
+        if old_text is not None:
+            # Three-way compare: a detection vs the NEW template that does
+            # NOT also fire vs the OLD template is explained by what the
+            # kit last shipped — kit-side evolution, never a host addition.
+            # Only content present in live and in NEITHER template survives
+            # as a carve-out (the intersection of both detections).
+            vs_old = set(gate_carveouts(live_text, old_text))
+            kept = [line for line in carveouts if line in vs_old]
+            kit_side = len(carveouts) - len(kept)
+            carveouts = kept
+        elif carveouts:
+            # No recoverable old template: degrade to the two-way compare
+            # and say so — kit-side template evolution may over-report as
+            # host additions in this mode (the v1.11.0-wave class).
+            report.append(
+                f"carve-out scan: {relpath} — previous kit template "
+                "unavailable (no staged copy to recover it from); two-way "
+                "compare vs the new template may report kit-side template "
+                "changes as host additions",
+            )
+        if kit_side:
+            report.append(
+                f"carve-out scan: {relpath} — kit-updated {kit_side} "
+                "step(s)/job(s) (template evolution; not host additions, "
+                "not banked)",
+            )
         if not carveouts:
             # Explicit-when-clean (queued fix 1, fleet-manager #40 finding):
             # the scan ran and found no host additions — name that, so the
@@ -10111,6 +12383,83 @@ def _automerge_params(config: Config) -> tuple[list[str], str]:
     return [str(p) for p in patterns], context
 
 
+def _workflow_context_names(root: Path) -> set[str]:
+    """Collect plausible required-check context names from live workflows.
+
+    A workflow job's status-check context is its display ``name:`` when set,
+    else its job id — so both are collected, from every workflow under
+    ``.github/workflows/``. Line-based like :func:`_workflow_outline`
+    (stdlib-only, no YAML parser) and best-effort by design: the result only
+    ever decides whether to *emit an advisory report line*, never a gate.
+    Empty set = nothing judgeable (no workflows dir / no parseable jobs).
+    """
+    names: set[str] = set()
+    wf_dir = root / ".github" / "workflows"
+    if not wf_dir.is_dir():
+        return names
+    for wf_path in sorted(wf_dir.glob("*.yml")) + sorted(wf_dir.glob("*.yaml")):
+        try:
+            text = wf_path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        in_jobs = False
+        current: str | None = None
+        for raw in text.split("\n"):
+            line = raw.rstrip()
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            indent = len(line) - len(line.lstrip(" "))
+            if indent == 0:
+                in_jobs = stripped == "jobs:"
+                current = None
+                continue
+            if not in_jobs:
+                continue
+            if (
+                indent == 2
+                and stripped.endswith(":")
+                and not stripped.startswith("-")
+            ):
+                current = stripped[:-1]
+                names.add(current)
+                continue
+            if current is not None and indent == 4:
+                match = re.match(r"name:\s*(.+)$", stripped)
+                if match is not None:
+                    names.add(match.group(1).strip().strip("'\""))
+    return names
+
+
+def _required_context_advisory(root: Path, required_context: str) -> str | None:
+    """One advisory line when ``automerge.required_context`` looks wrong.
+
+    The websites class (queued kit fix 3): the planted config defaulted
+    ``required_context`` to ``substrate-gate`` while that repo's actual
+    required check is ``quality`` — a value the kit cannot *derive* at plant
+    time (which check is REQUIRED lives in the branch ruleset, owner-UI,
+    invisible in-tree), but can *validate* against what is visible: the job
+    names the repo's own workflows produce. Mismatch → one report line
+    naming the exact config override; nothing judgeable → silence (a fresh
+    adopt with no CI must not nag about a gate that isn't installed yet).
+    The knob stays informational-only either way — the enabler's
+    refuse-to-arm guard counts required contexts generically.
+    """
+    names = _workflow_context_names(root)
+    if not names or required_context in names:
+        return None
+    listed = ", ".join(f"'{name}'" for name in sorted(names))
+    return (
+        f"automerge.required_context '{required_context}' matches no job in "
+        f".github/workflows/ (contexts found: {listed}) — if this repo's "
+        "REQUIRED check has a different name, set substrate.config.json -> "
+        'automerge."required_context" to that exact context. The value '
+        "labels the repo-settings checklist + enabler log lines "
+        "(informational; the refuse-to-arm guard counts required contexts "
+        "generically)."
+    )
+
+
 def _repo_settings_checklist(required_context: str) -> list[str]:
     """Return the one-time repo-settings checklist (EAP §6.10, second half).
 
@@ -10127,11 +12476,117 @@ def _repo_settings_checklist(required_context: str) -> list[str]:
         "(a workflow cannot flip repo settings).",
         f"  2. Require the '{required_context}' status check on the default "
         "branch (Settings → Rules) — with NO required check, arming "
-        "auto-merge merges a PR instantly.",
+        "auto-merge merges a PR instantly. (If this repo's required check "
+        "has a different name, pin it via substrate.config.json -> "
+        'automerge."required_context" so this checklist and the enabler '
+        "logs name the right context.)",
         '  3. Optional: "Automatically delete head branches" + auto-update '
         "of PR branches (closes the merged-branch clutter and the "
         "green-behind stall classes).",
     ]
+
+
+# Search-hygiene plant (queued kit fix 5 — bench run-5 judge limitation 5):
+# the ~12k-line vendored bootstrap.py + the <state_dir>/backup/ dist copies
+# dominate repo-wide search in adopter repos (a code grep surfaces hundreds
+# of engine hits before the repo's own sources). The guidance half shipped
+# with the planted CLAUDE.md search-hygiene note (#165); this is the
+# mechanical half: `.ignore` removes both from ripgrep-family tools by
+# default (`rg -u`/`--no-ignore` still reaches them deliberately; plain
+# `grep -r` has no ignore protocol and stays guidance-only), and
+# `.gitattributes` linguist-generated hints collapse them in GitHub diffs
+# and language stats. Both surfaces are MERGED, never clobbered: the kit
+# only ever appends entries that are missing, under one marker comment.
+SEARCH_HYGIENE_MARKER = (
+    "# substrate-kit search hygiene (planted by adopt/upgrade; the kit only "
+    "ever APPENDS missing entries — existing content above is host-owned)"
+)
+
+
+def _search_hygiene_surfaces(
+    config: Config,
+    vendored_relpath: str,
+) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """Return the (file, entries) plan for the search-hygiene plant.
+
+    Entries are root-anchored (leading ``/``) so only the vendored file and
+    the state-dir backup bank match — never a same-named file deeper in the
+    host tree. An absolute ``vendored_relpath`` (the no-vendored-copy
+    fallback shapes) contributes no bootstrap entry: there is nothing
+    in-repo to hide.
+    """
+    state_dir = config.state_dir.strip("/")
+    bootstrap_entry = None
+    if vendored_relpath and not Path(vendored_relpath).is_absolute():
+        bootstrap_entry = "/" + vendored_relpath.lstrip("/")
+    ignore_entries = tuple(
+        entry
+        for entry in (bootstrap_entry, f"/{state_dir}/backup/")
+        if entry is not None
+    )
+    attr_entries = tuple(
+        f"{pattern} linguist-generated=true"
+        for pattern in (bootstrap_entry, f"/{state_dir}/backup/**")
+        if pattern is not None
+    )
+    return ((".ignore", ignore_entries), (".gitattributes", attr_entries))
+
+
+def _plant_search_hygiene(
+    root: Path,
+    config: Config,
+    vendored_relpath: str,
+    report: list[str],
+) -> None:
+    """Merge the search-hygiene entries into ``.ignore``/``.gitattributes``.
+
+    Append-only merge (the clobber hazard is real: a host `.gitattributes`
+    or `.ignore` carries host policy): existing lines are preserved
+    byte-for-byte, already-present entries are never duplicated (idempotent
+    across adopt/upgrade passes), and appended entries sit under one marker
+    comment naming their provenance. Unreadable file → skip + report,
+    never destroy.
+    """
+    for relpath, entries in _search_hygiene_surfaces(config, vendored_relpath):
+        if not entries:
+            continue
+        path = root / relpath
+        existing = ""
+        if path.is_file():
+            try:
+                existing = path.read_text(encoding="utf-8")
+            except OSError:
+                report.append(
+                    f"skipped: {relpath} (unreadable — left untouched; "
+                    "search-hygiene entries not merged)",
+                )
+                continue
+        present = {line.strip() for line in existing.splitlines()}
+        missing = [entry for entry in entries if entry not in present]
+        if not missing:
+            report.append(
+                f"kept: {relpath} (search-hygiene entries already present)",
+            )
+            continue
+        chunk = ""
+        if existing:
+            if not existing.endswith("\n"):
+                chunk += "\n"
+            chunk += "\n"
+        if SEARCH_HYGIENE_MARKER not in present:
+            chunk += SEARCH_HYGIENE_MARKER + "\n"
+        chunk += "\n".join(missing) + "\n"
+        atomic_write_text(path, existing + chunk)
+        noun = "entry" if len(missing) == 1 else "entries"
+        if existing:
+            report.append(
+                f"merged: {relpath} ({len(missing)} search-hygiene {noun} "
+                "appended; existing content preserved)",
+            )
+        else:
+            report.append(
+                f"planted: {relpath} ({len(missing)} search-hygiene {noun})",
+            )
 
 
 def adopt(
@@ -10212,6 +12667,13 @@ def adopt(
     context = build_context(backend.data)
     # The live integration mode is state, not a slot — render it truthfully.
     context.setdefault("integration_mode", str(backend.get("mode", "guided")))
+    # The boot pointer is state too: only this run knows whether
+    # .claude/CLAUDE.md is (or is about to be) live in the target — the
+    # ORDER 015 dead-pointer fix (logic: engine.render.agreement_home).
+    context.setdefault(
+        "agreement_home",
+        agreement_home(root, include_claude=include_claude),
+    )
 
     # (1) Plant the live docs — never clobber; a doc with unfilled ${slots}
     # is planted under the loud UNRENDERED banner (visible, never inert).
@@ -10232,15 +12694,37 @@ def adopt(
             # Provenance for the upgrade diff (§4.3): hash what the kit wrote.
             record_doc_hash(backend, rel, final)
 
-    # (2) Session-log scaffolding.
+    # (1b) The seat-digest render surface (grounded-skills slice 6, §8
+    # Q3=A): one GENERATED planted doc — both fence-marked digest blocks
+    # (skills index + venue-filtered walls), rendered AFTER the plan loop so
+    # a fresh adopt reads the just-planted capability ledger. Deliberately
+    # outside ADOPT_PLAN: it is a derived render of live tree content, so
+    # template hash-classification would misread every ledger append as doc
+    # drift — upgrade refreshes it via refresh_seat_digest (kit-written
+    # copies only) and `bootstrap.py seat-digest` regenerates on demand;
+    # check_seat_digest (advisory) byte-compares it against a fresh render.
+    digest_rel = seat_digest_relpath(config)
+    digest_text = seat_digest_text(root, config, context)
+    if _adopt_plant(root / digest_rel, digest_rel, digest_text, report):
+        record_doc_hash(backend, digest_rel, digest_text)
+
+    # (2) Session-log scaffolding. A pre-existing README (skip-if-exists
+    # keeps it) still receives the model-attribution doctrine append-only
+    # under a provenance marker — the PR #170 render was fresh-plant-only,
+    # and the v1.9.0 wave hand-merged 4 adopters for exactly this gap.
     sessions_rel = f"{config.sessions_dir}/README.md"
     readme = _adopt_sessions_readme(config.session_markers)
     _adopt_plant(root / config.sessions_dir / "README.md", sessions_rel, readme, report)
+    _merge_model_doctrine(root, config, report)
 
     # (3) The context-pack index skeleton.
     project_name = context.get("project_name") or root.name
     skeleton = pack_index_skeleton(project_name)
     _adopt_plant(root / "project.index.json", "project.index.json", skeleton, report)
+
+    # (3b) Search hygiene (queued kit fix 5): keep the vendored dist + the
+    # backup bank out of repo-wide search — merged, never clobbered.
+    _plant_search_hygiene(root, config, bootstrap_path, report)
 
     # (4) Stage the .claude material under <state_dir> (regenerated each run).
     state_base = root / config.state_dir
@@ -10287,6 +12771,18 @@ def adopt(
         sessions_dir=config.sessions_dir,
     )
     gate_rel = f"{config.state_dir}/ci/substrate-gate.yml"
+    # Three-way compare inputs (v1.11.0-wave phantom-carve-out fix): until
+    # the _adopt_stage calls below overwrite them, the staged copies under
+    # <state_dir>/ci/ hold what the kit LAST shipped — capture those bytes
+    # FIRST so the kit-owned regen (step 6b) can tell kit-side template
+    # evolution from host additions. Absent staged copy (first adopt) →
+    # None → the regen honestly degrades to its two-way compare.
+    old_staged_gate = _staged_previous_text(
+        state_base / "ci" / "substrate-gate.yml",
+    )
+    old_staged_enabler = _staged_previous_text(
+        state_base / "ci" / "auto-merge-enabler.yml",
+    )
     _adopt_stage(
         state_base / "ci" / "substrate-gate.yml",
         gate_rel,
@@ -10353,6 +12849,7 @@ def adopt(
         report,
         noun="gate",
         install_when_absent=wire_enforcement,
+        old_text=old_staged_gate,
     )
     # The auto-merge enabler (EAP §6.10) follows the gate's exact lifecycle:
     # created only by --wire-enforcement, kit-owned once it exists (a
@@ -10366,12 +12863,19 @@ def adopt(
         report,
         noun="enabler",
         install_when_absent=wire_enforcement,
+        old_text=old_staged_enabler,
     )
     if (root / AUTOMERGE_ENABLER_RELPATH).is_file():
         # The §6.10 second half: the enabler is inert until two owner-UI
         # repo settings exist — say so in the adopt output itself, every
         # pass (the checklist is idempotent guidance, not a nag).
         report.extend(_repo_settings_checklist(enabler_context))
+    # required_context sanity (queued kit fix 3, the websites class): after
+    # the gate/enabler regens above so a just-installed live gate counts as
+    # a matching context. Advisory line only — see the helper's docstring.
+    context_advisory = _required_context_advisory(root, enabler_context)
+    if context_advisory is not None:
+        report.append(context_advisory)
 
     # (6b2) Lane-aware adopt: declare the just-planted lane heartbeat so the
     # status gate validates it (config mutated in place — cmd_adopt's
@@ -10641,6 +13145,378 @@ def check_engagement(target: Path, config: Any) -> list[Finding]:
         )
     return findings
 
+# --- engine/checks/check_skill_grounds.py ---
+"""check_skill_grounds — skill-body command-grounding advisory (slice 2, plan §7.2).
+
+Why + provenance: the grounded-skills program's slice-2 accept criterion is
+"each body names only commands that exist" — and the slice-1 session card's
+💡 idea (`.sessions/2026-07-12-grounded-skills-slice1-index.md`) rules that
+this ships as a CHECKER, not a review habit ("enforce, don't exhort"): a
+grammar-level scan that extracts backticked command spans from skill bodies
+plus the structured ``grounds`` lists and verifies each names something that
+resolves — a whitelisted executable, a file in the target tree, or a path
+the kit itself plants/ships. Added 2026-07-12 (grounded-skills slice 2,
+§8 Q2=B advisory-first). Reliability (PL-008): UNVERIFIED — confirm its
+findings against ground truth a few times across sessions before trusting
+it; **delete this if it proves unreliable over multiple sessions.**
+
+Posture is **advisory-only, never exit-affecting** (§8 Q2=B: no CI-red until
+proven; graduation is a later, deliberate step) — the same nudge-never-door
+contract as ``check_claims`` / ``check_capability_xref``. Detection is
+deliberately coarse: backticked spans are prose as often as commands, so a
+span is only *judged* when its first token is command- or path-shaped;
+everything ambiguous fails open (no verdict). A false nudge costs one
+glance; a skill that tells every future session to run a command that does
+not exist costs every session an improvisation.
+
+What it scans:
+
+- The kit-truth :data:`engine.skills.skills.SKILLS` list — every body's
+  backticked spans and every ``grounds`` entry (the self-check that travels
+  with the kit).
+- The target's installed/staged skill documents (``.claude/skills/*/
+  SKILL.md`` and ``<state_dir>/skills/*/SKILL.md``) when present — the
+  RENDERED bodies, so a host-edited or host-added skill gets the same scan.
+
+Skip rules (fail-open classes, in order): a span carrying an unfilled
+``${slot}`` (rendered per-project — the raw body cannot know the value);
+a span carrying non-ASCII characters (``·``/``→``/``✔`` mark report-format
+prose, never commands);
+a first token that is not identifier/path-shaped (prose, ``<placeholders>``,
+``[brackets]``, flags, globs); a token ending ``/`` (directory prose); a
+token under the state dir (runtime artifacts, not committed files); a single
+bare word with no path shape (``complete``, ``in-progress`` — status tokens,
+not commands). Pure stdlib; no ``subprocess`` (§3.2) — resolution is
+existence checks, never execution.
+"""
+
+
+
+
+# One backticked inline span (commands never span lines in skill bodies —
+# a grounds-matching invariant the skills tests pin).
+_SPAN_RE = re.compile(r"`([^`\n]+)`")
+
+# A judgeable first token: identifier/path-shaped. Anything else (``>``,
+# ``[Unreleased]``, ``<repo>:``, ``<!--``, unicode prose) is skipped as prose.
+_FIRST_TOKEN_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.\-/]*$")
+
+# A real file extension (lowercase — ``vX.Y.Z`` version placeholders end in
+# uppercase pseudo-extensions and must stay prose).
+_EXT_RE = re.compile(r"\.[a-z0-9]{1,5}$")
+
+# Executables a skill body may legitimately invoke without the target repo
+# proving anything: VCS/CI/toolchain entry points, plus the MCP tool verbs
+# the landing-path doctrine names (gh-mcp). Deliberately generous — this is
+# an advisory scan of prose, and an unknown-but-real tool must fail open at
+# the "bare word" rule rather than nag every adopter.
+_EXECUTABLES = frozenset(
+    {
+        "git",
+        "gh",
+        "python",
+        "python3",
+        "python3.10",
+        "python3.11",
+        "python3.12",
+        "pip",
+        "pip3",
+        "pytest",
+        "ruff",
+        "black",
+        "isort",
+        "mypy",
+        "npm",
+        "npx",
+        "node",
+        "yarn",
+        "make",
+        "cargo",
+        "go",
+        "sha256sum",
+        "shasum",
+        "curl",
+        "wget",
+        "bash",
+        "sh",
+        "ls",
+        "grep",
+        "rg",
+        "bootstrap",  # the vendored entry point's shorthand spelling
+        # gh-mcp / trigger-MCP verbs (tool calls, not shell commands)
+        "create_pull_request",
+        "update_pull_request",
+        "list_pull_requests",
+        "merge_pull_request",
+        "enable_pr_auto_merge",
+        "get_file_contents",
+        "create_trigger",
+        "delete_trigger",
+        "list_triggers",
+        "fire_trigger",
+        "send_later",
+    }
+)
+
+# Paths that are grounded by construction even when absent from the target
+# tree: the kit's own release/distribution artifacts (the ``release`` and
+# ``upgrade-distribution`` runbooks name kit-repo files and transient wave
+# files that no adopter tree carries) plus the vendored-dist names the
+# consumer flow uses. ADOPT_PLAN destinations join this set below — a path
+# the kit plants is grounded wherever the kit is adopted.
+_KIT_SHIPPED_PATHS = frozenset(
+    {
+        "bootstrap.py",
+        "bootstrap.py.new",
+        "bootstrap.py.sha256",
+        "release.json",
+        "dist/bootstrap.py",
+        "src/build_bootstrap.py",
+        "src/build_release_json.py",
+        "src/engine/lib/config.py",
+        "pyproject.toml",
+        "CHANGELOG.md",
+        ".github/workflows/release.yml",
+        "docs/adopters.md",
+        "docs/operations/release-runbook.md",
+        "docs/SKILLS.md",
+    }
+)
+
+_KNOWN_PATHS = _KIT_SHIPPED_PATHS | {dest for _tmpl, dest in ADOPT_PLAN}
+
+
+def _unresolved(span: str, target: Path, state_dir: str) -> bool:
+    """True when ``span``'s first token is command/path-shaped and resolves nowhere.
+
+    Every ambiguous shape returns False (fail open — no verdict); see the
+    module docstring's skip-rule ladder.
+    """
+    if "${" in span:
+        return False  # slot-bearing — rendered per project, not judgeable raw
+    if any(ord(ch) > 127 for ch in span):
+        return False  # commands are ASCII; ·/→/✔ mark report-format prose
+    tokens = span.split()
+    if not tokens:
+        return False
+    first = tokens[0]
+    if not _FIRST_TOKEN_RE.match(first):
+        return False  # prose / placeholder / flag / bracket shapes
+    if first.endswith("/") or first.startswith(f"{state_dir}/"):
+        return False  # directory prose; runtime state artifacts
+    if first in _EXECUTABLES or first in _KNOWN_PATHS:
+        return False
+    if (target / first).exists():
+        return False
+    path_shaped = "/" in first or _EXT_RE.search(first) is not None
+    if path_shaped:
+        return True  # names a concrete file that is nowhere
+    # Bare word: with arguments it reads as a command whose executable is
+    # unknown (the fake-command class); alone it is a prose token.
+    return len(tokens) > 1
+
+
+def _spans(body: str) -> list[str]:
+    """Return the backticked inline spans of ``body``, in order."""
+    return _SPAN_RE.findall(body)
+
+
+def _skill_doc_paths(target: Path, state_dir: str) -> list[Path]:
+    """Return the target's installed + staged skill documents (may be empty)."""
+    paths: list[Path] = []
+    for root in (target / ".claude" / "skills", target / state_dir / "skills"):
+        if root.is_dir():
+            paths.extend(sorted(root.glob("*/SKILL.md")))
+    return paths
+
+
+def check_skill_grounds(
+    target: Path,
+    *,
+    skills: list[dict] | None = None,
+    state_dir: str = ".substrate",
+) -> list[Finding]:
+    """Return advisory ``skill-ground-unresolved`` findings for ``target``.
+
+    Scans the kit-truth skill set (``skills`` defaults to :data:`SKILLS`) —
+    bodies + ``grounds`` — and any rendered skill documents installed in the
+    target. Advisory by contract: callers must NEVER count these findings
+    toward an exit code (§8 Q2=B — see module docstring). Fail-open on
+    unreadable files and on every ambiguous span shape.
+    """
+    skill_set = SKILLS if skills is None else skills
+    findings: list[Finding] = []
+    for skill in skill_set:
+        rel = f"skills/{skill['name']}/SKILL.md"
+        for span in _spans(skill.get("body", "")):
+            if _unresolved(span, target, state_dir):
+                findings.append(
+                    Finding(
+                        rel,
+                        "skill-ground-unresolved",
+                        f"body names `{span}` but its first token resolves to "
+                        "no whitelisted executable, target file, or "
+                        "kit-shipped path — a session following this skill "
+                        "would improvise; fix the body (or the grounds "
+                        "whitelist) this session.",
+                    ),
+                )
+        for ground in skill.get("grounds", []):
+            if _unresolved(ground, target, state_dir):
+                findings.append(
+                    Finding(
+                        rel,
+                        "skill-ground-unresolved",
+                        f"grounds entry `{ground}` resolves to no whitelisted "
+                        "executable, target file, or kit-shipped path — "
+                        "grounds are the skill's exact-command truth; an "
+                        "unresolvable ground is drift.",
+                    ),
+                )
+    for doc in _skill_doc_paths(target, state_dir):
+        try:
+            text = doc.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue  # fail open — an unreadable file is not a verdict
+        rel = str(doc.relative_to(target)) if doc.is_relative_to(target) else str(doc)
+        for span in _spans(text):
+            if _unresolved(span, target, state_dir):
+                findings.append(
+                    Finding(
+                        rel,
+                        "skill-ground-unresolved",
+                        f"rendered skill names `{span}` but its first token "
+                        "resolves to no whitelisted executable, target file, "
+                        "or kit-shipped path — verify the command before a "
+                        "session inherits it.",
+                    ),
+                )
+    return findings
+
+# --- engine/checks/check_seat_digest.py ---
+"""check_seat_digest — seat-digest drift guard (grounded-skills slice 6, §7.6).
+
+Why + provenance: slice 6's accept criterion is a ``--check-registry``-style
+drift guard "proving prompt blocks equal kit truth"
+(``docs/planning/2026-07-12-grounded-skills-program.md`` §7.6, §8 Q3=A).
+Fleet-manager's seat-prompt regen consumes the planted
+``docs/seat-digest.md`` by fence extraction + byte match — so the kit-side
+guard is a byte compare of the committed doc against a fresh
+:func:`engine.seatdigest.seat_digest_text` render (the ONE render path
+adopt/upgrade/CLI share), re-rendered with the committed doc's own venue
+filter. A stale digest means every downstream seat prompt ships yesterday's
+walls or a retired skill; the finding names the exact regenerate command.
+Added 2026-07-12 (grounded-skills slice 6, §8 Q2=B advisory-first).
+Reliability (PL-008): UNVERIFIED — confirm its findings against ground
+truth a few times across sessions before trusting it; **delete this if it
+proves unreliable over multiple sessions.**
+
+Posture is **advisory-only, never exit-affecting** (§8 Q2=B: no CI-red
+until proven; graduation is a later, deliberate step) — the same
+nudge-never-door contract as ``check_claims`` / ``check_skill_grounds`` /
+``check_capability_xref``. Input-gated: engages only when the planted
+digest exists (a bare or pre-slice-6 tree adds nothing); unreadable files
+fail open (no verdict). Pure stdlib, no ``subprocess`` (§3.2) — the fresh
+render is a pure function of tree content.
+
+What it flags:
+
+- ``seat-digest-stale`` — the committed doc's bytes differ from a fresh
+  render (ledger appends, skill-set changes, or a hand edit — the doc is a
+  derived render either way). Fix: ``python3 bootstrap.py seat-digest``.
+- ``seat-digest-over-budget`` — a fenced block exceeds
+  :data:`engine.grammar.SEAT_DIGEST_BLOCK_BUDGET`. A fresh render can never
+  overflow (the renderer truncates into a "+N more" pointer row), so this
+  only fires on hand-grown blocks — but it is the one drift class that
+  breaks the downstream 8,000-char seat-prompt budget outright, so it gets
+  its own sharper finding on top of the stale nudge.
+"""
+
+
+
+
+
+def _fenced_block(text: str, begin_prefix: str, end_prefix: str) -> str | None:
+    """Return the fenced block (markers inclusive), or None when unmatched.
+
+    Prefix-matched line-anchored, exactly like the upgrade refresher's
+    ``_capability_fence`` — an unmatched fence is no verdict, never a guess.
+    """
+    lines = text.splitlines(keepends=True)
+    begin = end = None
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if begin is None and stripped.startswith(begin_prefix):
+            begin = i
+        elif begin is not None and stripped.startswith(end_prefix):
+            end = i
+            break
+    if begin is None or end is None:
+        return None
+    return "".join(lines[begin : end + 1])
+
+
+def check_seat_digest(
+    target: Path,
+    config: Any,
+    *,
+    context: dict[str, str] | None = None,
+) -> list[Finding]:
+    """Return advisory drift findings for the planted seat-digest doc.
+
+    ``context`` is the caller's render context (``build_context`` output);
+    only ``project_name`` matters to the render. Advisory by contract:
+    callers must NEVER count these findings toward an exit code (§8 Q2=B —
+    see module docstring).
+    """
+    rel = seat_digest_relpath(config)
+    path = target / rel
+    if not path.is_file():
+        return []
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return []  # fail open — an unreadable file is not a verdict
+    findings: list[Finding] = []
+    fresh = seat_digest_text(
+        target,
+        config,
+        context or {},
+        venues=walls_digest_venues(text),
+    )
+    if text != fresh:
+        findings.append(
+            Finding(
+                rel,
+                "seat-digest-stale",
+                "committed digest differs from a fresh render of its "
+                "sources (skill index + capability ledger) — downstream "
+                "seat prompts extract these bytes, so drift here ships "
+                "stale walls/skills fleet-wide; regenerate with "
+                "`python3 bootstrap.py seat-digest` (never hand-edit — it "
+                "is a derived render).",
+            ),
+        )
+    for label, begin_prefix, end_prefix in (
+        ("skills", SKILLS_DIGEST_BEGIN_PREFIX, SKILLS_DIGEST_END_PREFIX),
+        ("walls", WALLS_DIGEST_BEGIN_PREFIX, WALLS_DIGEST_END_PREFIX),
+    ):
+        block = _fenced_block(text, begin_prefix, end_prefix)
+        if block is not None and len(block) > SEAT_DIGEST_BLOCK_BUDGET:
+            findings.append(
+                Finding(
+                    rel,
+                    "seat-digest-over-budget",
+                    f"the {label}-digest block is {len(block)} chars "
+                    f"(budget {SEAT_DIGEST_BLOCK_BUDGET}) — the consuming "
+                    "seat-prompt pastes have no headroom (digest + "
+                    "pointer, never inline); regenerate with "
+                    "`python3 bootstrap.py seat-digest` (a fresh render "
+                    "truncates into a '+N more' pointer row).",
+                ),
+            )
+    return findings
+
 # --- engine/currency.py ---
 """Fleet kit-currency scanner — tree truth vs self-report, per adopter repo.
 
@@ -10672,8 +13548,25 @@ currency``) is agent-side only, while CI validates just the committed
 output's format + staleness (``checks/check_adopters_current.py``, no
 network). All parse / drift / render logic here is pure and unit-testable:
 the network sits behind an injectable fetcher (``fetch(repo, path) -> str |
-None``); the default fetcher is stdlib ``urllib`` against
-``raw.githubusercontent.com`` (honours the environment's proxy settings).
+None``); the default fetcher is stdlib ``urllib`` (honours the
+environment's proxy settings), layered so PRIVATE repos read as tree
+truth, not as transport failure:
+
+1. ``raw.githubusercontent.com`` — primary; correct for public repos.
+2. The authenticated GitHub API contents endpoint (``GITHUB_TOKEN`` /
+   ``GH_TOKEN``) — a raw 404 is AMBIGUOUS (absent file, or a private repo
+   that 404s every unauthenticated path — the pokemon-mod-lab blindness,
+   kit #230), so a 404 only ever becomes ``None`` ("truly absent") once
+   the repo itself is proven readable.
+3. A ``codeload.github.com`` tarball of the branch — the whole committed
+   tree in one stdlib request; membership in it is definitive. This is
+   also the transport that works in proxy-mediated agent seats where
+   ``api.github.com`` REST is policy-blocked but GitHub credentials are
+   injected at the proxy.
+
+A repo readable by NO transport raises ``RepoUnreadableError``; the scan
+records the row as *unreadable* — loudly distinct from "not adopted",
+which is now always a statement about a tree we actually read.
 
 Read-only by law: the scanner only ever *reads* sibling repos (KF-2 — the
 lab never writes to consumers); the one file it writes is this repo's
@@ -10690,8 +13583,14 @@ lab never writes to consumers); the one file it writes is this repo's
 ADOPTERS_RELPATH = "docs/adopters.md"
 ROSTER_RELPATH = "docs/fleet-repos.txt"
 RAW_HOST = "https://raw.githubusercontent.com"
+API_HOST = "https://api.github.com"
+CODELOAD_HOST = "https://codeload.github.com"
 DEFAULT_BRANCH = "main"
 FETCH_TIMEOUT_S = 30
+# Env vars consulted (in order) for the authenticated API fallback. Optional:
+# without a token the API step still serves public repos and the codeload
+# step still serves proxy-credentialed agent seats.
+TOKEN_ENV_VARS = ("GITHUB_TOKEN", "GH_TOKEN")
 
 # The machine-readable proof that the file is generated output. The CI-side
 # format gate keys off this exact string; keep the two in lockstep (the
@@ -10711,6 +13610,30 @@ DEFAULT_HEARTBEAT = "control/status.md"
 _NUMERIC_RE = re.compile(r"\d+")
 
 Fetcher = Callable[[str, str], "str | None"]
+# The HTTP seam the layered default fetcher (and its tests) stand on:
+# ``(url, headers) -> (status, body_bytes)``. HTTP error statuses come back
+# as data; only genuine transport failures (connection refused, DNS) raise.
+HttpGet = Callable[[str, "dict[str, str]"], "tuple[int, bytes]"]
+
+
+class CurrencyFetchError(RuntimeError):
+    """Hard transport failure — aborts the run rather than faking evidence."""
+
+
+class RepoUnreadableError(RuntimeError):
+    """One repo is readable by NO transport — its evidence is UNKNOWN.
+
+    Raised per-repo (never aborts the whole scan): ``scan_repo`` catches it
+    and records the row as *unreadable*, which renders loudly distinct from
+    "not adopted" — a 404 from an unauthenticated transport must never
+    masquerade as "there is no tree" (the pokemon-mod-lab blindness,
+    kit #230).
+    """
+
+    def __init__(self, repo: str, reason: str) -> None:
+        self.repo = repo
+        self.reason = reason
+        super().__init__(f"{repo}: {reason}")
 
 
 @dataclass
@@ -10733,10 +13656,19 @@ class RepoCurrency:
     tree_source: str | None = None  # which vendored path carried it
     config_pin: str | None = None  # substrate.config.json kit_version
     reports: list[SelfReport] = field(default_factory=list)
+    # Transport verdict, not tree evidence: set when no transport could read
+    # the repo (RepoUnreadableError reason). An unreadable row must never
+    # render "not adopted" — we could not see the tree to say so.
+    unreadable: str | None = None
 
     @property
     def adopted(self) -> bool:
-        """Any kit artifact at all? No artifact = not adopted, not an error."""
+        """Any kit artifact at all? No artifact = not adopted, not an error.
+
+        Only meaningful for a repo the scan could actually read — verdict()
+        checks ``unreadable`` first, so transport failure never renders as
+        "not adopted".
+        """
         return bool(
             self.tree_version
             or self.config_pin
@@ -10772,10 +13704,18 @@ class RepoCurrency:
         return out
 
     def verdict(self, kit_version: str) -> str:
-        """One cell: current / stale / DRIFT / pin-only / not adopted."""
+        """One cell: current / stale / DRIFT / pin-only / not adopted /
+        unreadable."""
+        if self.unreadable and not self.adopted:
+            # No transport could read the repo and nothing was seen before
+            # the failure: adoption is UNKNOWN, never "not adopted".
+            return f"⚠️ unreadable — {self.unreadable}"
         if not self.adopted:
             return "not adopted / unknown"
         parts: list[str] = []
+        if self.unreadable:
+            # Partial evidence landed before the transport failed.
+            parts.append(f"⚠️ partially unreadable — {self.unreadable}")
         if self.drifts():
             parts.append("⚠️ DRIFT")
         tree = self.effective_tree
@@ -10837,27 +13777,145 @@ def parse_roster(text: str) -> list[tuple[str, list[str]]]:
     return out
 
 
+def _env_token() -> str:
+    """The GitHub token for the authenticated API fallback ('' = none)."""
+    for var in TOKEN_ENV_VARS:
+        value = os.environ.get(var)
+        if value:
+            return value
+    return ""
+
+
+def _urllib_get(url: str, headers: dict[str, str]) -> tuple[int, bytes]:
+    """Default ``HttpGet``: HTTP statuses are data, transport failures raise."""
+    request = urllib.request.Request(url, headers=headers)  # noqa: S310
+    try:
+        with urllib.request.urlopen(  # noqa: S310
+            request,
+            timeout=FETCH_TIMEOUT_S,
+        ) as resp:
+            return resp.status, resp.read()
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.read() or b""
+
+
+class _TarTree:
+    """A branch tarball held in memory — the committed tree, definitively.
+
+    Membership answers the absent-vs-unreadable question with the strongest
+    possible evidence: the whole tree is in hand, so a missing path IS a
+    missing file, not a transport artifact.
+    """
+
+    def __init__(self, data: bytes) -> None:
+        self._tar = tarfile.open(fileobj=io.BytesIO(data), mode="r:gz")
+        names = self._tar.getnames()
+        # codeload prefixes every member with `<repo>-<ref>/`.
+        self._root = names[0].split("/", 1)[0] if names else ""
+        self._names = set(names)
+
+    def read(self, path: str) -> str | None:
+        """File content at ``path``, or None when absent from the tree."""
+        member = f"{self._root}/{path}"
+        if member not in self._names:
+            return None
+        handle = self._tar.extractfile(member)
+        if handle is None:  # directory / link — no regular file at this path
+            return None
+        return handle.read().decode("utf-8", errors="replace")
+
+
 def default_fetcher(
     host: str = RAW_HOST,
     branch: str = DEFAULT_BRANCH,
+    api_host: str = API_HOST,
+    codeload_host: str = CODELOAD_HOST,
+    token: str | None = None,
+    http_get: HttpGet | None = None,
 ) -> Fetcher:
-    """Return a raw-content fetcher: 404 -> None, other failures raise.
+    """Return the layered fetcher: raw -> authenticated API -> tarball.
 
     The asymmetry is deliberate: a missing file is evidence ("not adopted"),
     but a network/auth failure must never masquerade as one — a proxy outage
     silently generating a "nobody adopted" registry would be worse than no
-    run at all.
+    run at all. Layering (per fetched path):
+
+    1. Raw content (unauthenticated). 200 is the answer; a non-404 failure
+       still raises (transport outage = abort). A 404 is AMBIGUOUS — absent
+       file, or a private repo that 404s every unauthenticated path — and
+       falls through.
+    2. GitHub API contents endpoint, ``Authorization`` from ``token`` (env
+       ``GITHUB_TOKEN``/``GH_TOKEN`` when None; works unauthenticated for
+       public repos). Used only once ``GET /repos/<repo>`` has proven the
+       repo readable — only then does a contents 404 mean "truly absent".
+    3. A ``codeload`` tarball of the branch (cached per repo): the whole
+       committed tree in one request; membership in it is definitive. Also
+       the transport that survives agent seats whose egress proxy blocks
+       ``api.github.com`` REST but injects GitHub credentials.
+
+    A repo no transport can read raises :class:`RepoUnreadableError` — the
+    scan records the row as *unreadable*, never as "not adopted".
     """
+    get = http_get or _urllib_get
+    auth = token if token is not None else _env_token()
+    api_headers = {"Accept": "application/vnd.github.raw+json"}
+    if auth:
+        api_headers["Authorization"] = f"Bearer {auth}"
+    # Per-repo resolution cache: "api" | _TarTree | RepoUnreadableError.
+    resolved: dict[str, object] = {}
+
+    def _resolve(repo: str, api_status: int) -> object:
+        """Prove the repo readable via API or tarball, else mark unreadable."""
+        reasons = [
+            f"raw 404 on every probe; API contents HTTP {api_status}"
+            + ("" if auth else " (unauthenticated — no GITHUB_TOKEN/GH_TOKEN)"),
+        ]
+        status, _body = get(f"{api_host}/repos/{repo}", api_headers)
+        if status == 200:
+            return "api"
+        reasons.append(f"API repo probe HTTP {status}")
+        status, body = get(
+            f"{codeload_host}/{repo}/tar.gz/refs/heads/{branch}",
+            api_headers,
+        )
+        if status == 200:
+            try:
+                return _TarTree(body)
+            except (tarfile.TarError, OSError) as exc:
+                reasons.append(f"codeload tarball unreadable: {exc}")
+        else:
+            reasons.append(f"codeload tarball HTTP {status}")
+        return RepoUnreadableError(repo, "; ".join(reasons))
 
     def fetch(repo: str, path: str) -> str | None:
         url = f"{host}/{repo}/{branch}/{path}"
-        try:
-            with urllib.request.urlopen(url, timeout=FETCH_TIMEOUT_S) as resp:  # noqa: S310
-                return resp.read().decode("utf-8", errors="replace")
-        except urllib.error.HTTPError as exc:
-            if exc.code == 404:
-                return None
-            raise
+        status, body = get(url, {})
+        if status == 200:
+            return body.decode("utf-8", errors="replace")
+        if status != 404:
+            raise CurrencyFetchError(f"GET {url} -> HTTP {status}")
+        # Raw 404: ambiguous. A previously-resolved repo answers instantly.
+        verdict = resolved.get(repo)
+        if isinstance(verdict, _TarTree):
+            return verdict.read(path)
+        if isinstance(verdict, RepoUnreadableError):
+            raise verdict
+        # Ask the API; trust its 404 only from a repo proven readable.
+        api_url = f"{api_host}/repos/{repo}/contents/{path}?ref={branch}"
+        api_status, api_body = get(api_url, api_headers)
+        if api_status == 200:
+            return api_body.decode("utf-8", errors="replace")
+        if verdict is None:
+            verdict = _resolve(repo, api_status)
+            resolved[repo] = verdict
+            if isinstance(verdict, _TarTree):
+                return verdict.read(path)
+            if isinstance(verdict, RepoUnreadableError):
+                raise verdict
+        # verdict == "api": the repo is API-readable, so its 404 is truth.
+        if api_status == 404:
+            return None  # truly absent from a readable repo's tree
+        raise CurrencyFetchError(f"GET {api_url} -> HTTP {api_status}")
 
     return fetch
 
@@ -10867,8 +13925,28 @@ def scan_repo(
     fetch: Fetcher,
     extra_heartbeats: list[str] | None = None,
 ) -> RepoCurrency:
-    """Scan one repo's committed tree for kit artifacts + self-reports."""
+    """Scan one repo's committed tree for kit artifacts + self-reports.
+
+    A :class:`RepoUnreadableError` from the fetcher marks the row
+    *unreadable* (keeping any evidence gathered before the failure) instead
+    of aborting the fleet scan — one dark repo must not black out the
+    registry, and its row must say "unreadable", never "not adopted".
+    """
     result = RepoCurrency(repo=repo)
+    try:
+        _scan_repo_evidence(result, fetch, extra_heartbeats)
+    except RepoUnreadableError as exc:
+        result.unreadable = exc.reason
+    return result
+
+
+def _scan_repo_evidence(
+    result: RepoCurrency,
+    fetch: Fetcher,
+    extra_heartbeats: list[str] | None,
+) -> None:
+    """Gather one repo's evidence, mutating ``result`` in place."""
+    repo = result.repo
     heartbeats = [DEFAULT_HEARTBEAT]
     config_text = fetch(repo, CONFIG_RELPATH)
     if config_text is not None:
@@ -10897,7 +13975,6 @@ def scan_repo(
             continue
         version, check, engaged = parse_kit_line(status_text)
         result.reports.append(SelfReport(rel, version, check, engaged, found=True))
-    return result
 
 
 def scan_fleet(
@@ -11014,6 +14091,10 @@ def render_adopters(
         "  — their channel is their own `control/status.md` `kit:` line.",
         "- **Staleness reads as dark**, not as wrong: the `Generated:` stamp",
         "  above is the evidence date; rerun the scan to refresh.",
+        "- **`unreadable` reads as dark too**: no transport (raw content,",
+        "  authenticated API, branch tarball) could see that repo's tree",
+        "  this run — adoption is UNKNOWN, deliberately never rendered as",
+        '  "not adopted" (private-repo 404s are transport, not evidence).',
         "- **Roster:** `docs/fleet-repos.txt` (one `owner/repo` per line;",
         "  extra tokens name per-lane heartbeat files).",
         "- **Releases point back here:** every release's notes carry the",
@@ -11294,10 +14375,18 @@ def verify_against_release_json(running: Path, release_json: Path) -> list[str]:
     return [f"verified: sha256 + version against {release_json.name}"]
 
 
-def _upgrade_context(backend: Any) -> dict[str, str]:
-    """Build the render context exactly the way adopt does."""
+def _upgrade_context(root: Path, backend: Any) -> dict[str, str]:
+    """Build the render context exactly the way adopt does.
+
+    ``agreement_home`` uses the same existence rule as :func:`_doc_plan`
+    (a live ``.claude/CLAUDE.md`` means the host opted in), so the doc-diff
+    classification renders the boot pointer adopt would compute — a mismatch
+    here would misclassify an untouched ``docs/AGENT_ORIENTATION.md`` as
+    diverged.
+    """
     context = build_context(backend.data)
     context.setdefault("integration_mode", str(backend.get("mode", "guided")))
+    context.setdefault("agreement_home", agreement_home(root))
     return context
 
 
@@ -11338,7 +14427,7 @@ def classify_planted_docs(
     diverged docs with old templates available — the template@old→new delta,
     both rendered through the *current* slot context for a readable diff).
     """
-    context = _upgrade_context(backend)
+    context = _upgrade_context(root, backend)
     templates = new_templates if new_templates is not None else load_templates()
     rows: list[dict[str, str]] = []
     for template_name, rel in _doc_plan(root, config):
@@ -11426,7 +14515,7 @@ def apply_doc_improvements(
     planted docs are never auto-edited without ``--apply-docs``, and never
     when the consumer diverged).
     """
-    context = _upgrade_context(backend)
+    context = _upgrade_context(root, backend)
     templates = new_templates if new_templates is not None else load_templates()
     lines: list[str] = []
     for row in rows:
@@ -11440,11 +14529,295 @@ def apply_doc_improvements(
     return lines
 
 
+# ── Capability-ledger seed refresh (grounded-skills slice 5, plan §4.2c) ────
+#
+# docs/CAPABILITIES.md is consumer-edited BY DESIGN (appending findings is
+# the point), so hash classification parks it `consumer-edited`/`diverged`
+# forever and --apply-docs never reaches it. The marker-fenced kit-owned
+# SEED block is the answer: upgrade re-renders ONLY the block between the
+# grammar.py fence markers, preserving every byte outside the fence (the
+# append log, all consumer prose). A fence the consumer modified is NEVER
+# clobbered — it downgrades to an upgrade-report line telling them what to
+# do. This is the ONLY channel by which new fleet-wide seeds reach an
+# adopter's ledger.
+
+CAPABILITIES_TEMPLATE = "CAPABILITIES.md.tmpl"
+
+# The Q-0270 collapse note (plan §7.5 accept criterion): travels on the
+# upgrade report whenever the seed-refresh step ran.
+CAPABILITY_POSTURE_COLLAPSE_NOTE = (
+    "This upgrade ships the venue-scoped capability ledger (grounded-skills "
+    "§4.2): entries carry a venue token (owner-live · autonomous-project · "
+    "routine-fired · subagent · any) and the ledger's kit-owned seed block "
+    "carries the posture decision rule. If this repo carries a local prose "
+    "copy of the boot-triad/venue-posture rule (superbot Q-0270), that copy "
+    "is now superseded by docs/CAPABILITIES.md's posture rule — collapse the "
+    "local copy into a pointer."
+)
+
+
+def _capability_fence(text: str) -> str | None:
+    """Return the marker-fenced seed block of ``text`` (markers inclusive).
+
+    Markers are matched by their grammar.py prefixes (never the full warning
+    wording, so a future tweak cannot orphan an existing fence). ``None``
+    when either marker is absent or they are out of order — an unmatched
+    fence is treated exactly like no fence (fail safe, never a guess).
+    """
+    lines = text.splitlines(keepends=True)
+    begin = end = None
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if begin is None and stripped.startswith(CAPABILITY_SEED_BEGIN_PREFIX):
+            begin = i
+        elif begin is not None and stripped.startswith(CAPABILITY_SEED_END_PREFIX):
+            end = i
+            break
+    if begin is None or end is None:
+        return None
+    return "".join(lines[begin : end + 1])
+
+
+_LEGACY_SEED_START = "## THE DISCOVERY RULE"
+_APPEND_LOG_HEADING = "## Append log"
+
+
+def _line_start_index(text: str, prefix: str, from_index: int = 0) -> int:
+    """Index of the first LINE starting with ``prefix``, at/after ``from_index``.
+
+    Line-anchored on purpose: the fence's own warning text names
+    ``## Append log`` mid-line, so a bare ``find`` would anchor inside the
+    BEGIN marker instead of at the heading.
+    """
+    if from_index == 0 and text.startswith(prefix):
+        return 0
+    idx = text.find("\n" + prefix, from_index)
+    return -1 if idx == -1 else idx + 1
+
+
+def _legacy_seed_segment(rendered: str) -> str | None:
+    """Return a pre-fence template render's kit-owned seed segment.
+
+    The pre-slice-5 ledger had no fence; its kit-owned region ran from the
+    discovery rule through the seeded Capabilities/Walls rows, i.e. from
+    ``## THE DISCOVERY RULE`` up to (not including) ``## Append log``. A
+    consumer who only ever appended below (the designed edit pattern) still
+    carries this segment byte-for-byte, which is what lets the first
+    post-fence upgrade adopt the fence automatically.
+    """
+    start = _line_start_index(rendered, _LEGACY_SEED_START)
+    if start == -1:
+        return None
+    end = _line_start_index(rendered, _APPEND_LOG_HEADING, start)
+    if end == -1 or end <= start:
+        return None
+    return rendered[start:end]
+
+
+def _fence_replacement(new_render: str) -> str | None:
+    """Return the new render's fence block plus its trailing separator.
+
+    Runs from the BEGIN-marker line, past the END-marker line, up to (not
+    including) the ``## Append log`` heading line — so a legacy-segment
+    replacement lands with the same blank-line spacing the template ships.
+    """
+    begin = _line_start_index(new_render, CAPABILITY_SEED_BEGIN_PREFIX)
+    if begin == -1:
+        return None
+    end_marker = _line_start_index(new_render, CAPABILITY_SEED_END_PREFIX, begin)
+    if end_marker == -1:
+        return None
+    end = _line_start_index(new_render, _APPEND_LOG_HEADING, end_marker)
+    if end == -1 or end <= begin:
+        return None
+    return new_render[begin:end]
+
+
+def refresh_capability_seed(
+    root: Path,
+    config: Config,
+    backend: Any,
+    rows: list[dict[str, str]],
+    old_templates: dict[str, str] | None,
+    new_templates: dict[str, str] | None = None,
+) -> list[str]:
+    """Refresh the kit-owned fenced seed block of a consumer-edited ledger.
+
+    Covenant (plan §4.2c): ONLY the block between the grammar.py fence
+    markers is ever rewritten; everything outside — the ``## Append log``
+    and all consumer text — is preserved byte-for-byte. Cases:
+
+    - doc fence == new template's fence → already current (report line).
+    - doc fence == OLD template's fence (consumer never touched inside) →
+      refreshed in place.
+    - doc fence differs from both → consumer modified inside the fence, or
+      the old templates are unavailable — DOWNGRADE to a report line, never
+      clobber.
+    - no fence at all (pre-slice-5 ledger): when the doc still carries the
+      old template's rendered seed segment verbatim, the fence is adopted
+      automatically (segment → new fenced block); otherwise a report line
+      explains the one-time hand-adoption.
+
+    Only ``consumer-edited``/``diverged`` classifications are touched:
+    ``unchanged``/``missing`` need nothing (identical render / replanted by
+    adopt) and ``template-improved`` is consumer-untouched, covered whole-file
+    by ``--apply-docs``. The consumer's recorded doc hash is deliberately NOT
+    re-recorded after a fence refresh — the file remains consumer-owned and
+    must keep classifying that way.
+    """
+    row = next(
+        (r for r in rows if r.get("template") == CAPABILITIES_TEMPLATE),
+        None,
+    )
+    if row is None:
+        return []
+    rel = row["relpath"]
+    if row["class"] in (CLASS_UNCHANGED, CLASS_MISSING):
+        return []
+    if row["class"] == CLASS_IMPROVED:
+        return [
+            f"capability-seed: {rel} is consumer-untouched — the whole file "
+            "(fence included) refreshes via `upgrade --apply-docs`; no "
+            "fence-only refresh needed.",
+        ]
+    path = root / rel
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return [
+            f"capability-seed: {rel} unreadable — fence refresh skipped.",
+        ]
+    context = _upgrade_context(root, backend)
+    templates = new_templates if new_templates is not None else load_templates()
+    if CAPABILITIES_TEMPLATE not in templates:
+        return []
+    new_render = _render_planted(
+        templates[CAPABILITIES_TEMPLATE],
+        CAPABILITIES_TEMPLATE,
+        context,
+    )
+    new_fence = _capability_fence(new_render)
+    if new_fence is None:
+        return []  # template carries no fence — nothing kit-owned to refresh
+    old_render = None
+    if old_templates and CAPABILITIES_TEMPLATE in old_templates:
+        old_render = _render_planted(
+            old_templates[CAPABILITIES_TEMPLATE],
+            CAPABILITIES_TEMPLATE,
+            context,
+        )
+    doc_fence = _capability_fence(text)
+    if doc_fence is not None:
+        if doc_fence == new_fence:
+            return [
+                f"capability-seed: {rel} fence already current — nothing to "
+                "refresh.",
+            ]
+        old_fence = _capability_fence(old_render) if old_render else None
+        if old_fence is not None and doc_fence == old_fence:
+            atomic_write_text(root / rel, text.replace(doc_fence, new_fence, 1))
+            return [
+                f"capability-seed: refreshed the kit-owned fenced seed block "
+                f"in {rel} (venue-scoped seeds at template@new); everything "
+                "outside the fence — the append log and all consumer text — "
+                "preserved byte-for-byte.",
+            ]
+        return [
+            f"capability-seed: NOT refreshed — the fenced seed block in {rel} "
+            "differs from the kit-form fence (edited inside the fence, or the "
+            "old templates are unavailable). The fence is kit-owned: move "
+            "your own findings BELOW the fence into the append log, restore "
+            "the block between the BEGIN/END markers to kit form (copy it "
+            "from the new template render), and the next upgrade refreshes "
+            "it automatically.",
+        ]
+    # No fence — a pre-slice-5 ledger. Adopt the fence when the old seed
+    # segment survives verbatim (the designed append-only edit pattern).
+    old_segment = _legacy_seed_segment(old_render) if old_render else None
+    replacement = _fence_replacement(new_render)
+    if old_segment and replacement and old_segment in text:
+        atomic_write_text(
+            root / rel,
+            text.replace(old_segment, replacement, 1),
+        )
+        return [
+            f"capability-seed: adopted the marker fence in {rel} — the "
+            "pre-fence kit seed section matched the old template exactly and "
+            "was replaced by the new fenced block; the append log and all "
+            "consumer text preserved byte-for-byte.",
+        ]
+    return [
+        f"capability-seed: {rel} carries no kit-owned seed fence and its "
+        "seed section does not match the old template — hand-adopt once: "
+        "replace your discovery-rule + Capabilities/Walls seed sections with "
+        "the fenced block (BEGIN/END markers) from the new template, keeping "
+        "your append log below it; afterwards upgrades refresh the fence "
+        "automatically.",
+    ]
+
+
+def refresh_seat_digest(
+    root: Path,
+    config: Config,
+    backend: Any,
+) -> list[str]:
+    """Regenerate the planted seat-digest doc (grounded-skills slice 6).
+
+    ``docs/seat-digest.md`` is a DERIVED RENDER of live tree content (the
+    SKILLS list + the capability ledger), so — unlike a slot template — it
+    goes stale whenever the LEDGER moves, not when a template does; the
+    upgrade must re-render it (with the committed doc's own venue filter
+    preserved) or every wave ships yesterday's walls. Covenant, mirroring
+    the fence refresh above: only a copy the kit last wrote
+    (:func:`doc_is_untouched`) is ever overwritten — the derived-render
+    contract says hand edits are drift, but clobbering them silently would
+    destroy the evidence; a hand-edited copy downgrades to a report line
+    naming the regenerate command. The refreshed write re-records the doc
+    hash (the file is kit-owned wholly, unlike the consumer-owned ledger).
+    Missing file → nothing here (the adopt pass replants it).
+    """
+    rel = seat_digest_relpath(config)
+    path = root / rel
+    if not path.is_file():
+        return []
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return [f"seat-digest: {rel} unreadable — refresh skipped."]
+    context = _upgrade_context(root, backend)
+    fresh = seat_digest_text(
+        root,
+        config,
+        context,
+        venues=walls_digest_venues(text),
+    )
+    if text == fresh:
+        return [f"seat-digest: {rel} already current — nothing to refresh."]
+    if doc_is_untouched(backend, rel, text):
+        atomic_write_text(path, fresh)
+        record_doc_hash(backend, rel, fresh)
+        return [
+            f"seat-digest: regenerated {rel} (derived render — skills index "
+            "+ venue-filtered walls re-rendered from the current tree; "
+            "venue filter preserved from the committed doc).",
+        ]
+    return [
+        f"seat-digest: NOT regenerated — {rel} differs from the last "
+        "kit-written render (hand-edited, or no hash recorded). It is a "
+        "derived render, never a copy of record: move any real finding into "
+        "the capability ledger / skill index, then regenerate with "
+        "`python3 bootstrap.py seat-digest` (overwrites this file only; "
+        "the sources are untouched).",
+    ]
+
+
 def upgrade_report_text(
     old_version: str,
     rows: list[dict[str, str]],
     applied: list[str],
     carveouts: list[str] | None = None,
+    capability_seed: list[str] | None = None,
+    seat_digest: list[str] | None = None,
 ) -> str:
     """Compose ``<state_dir>/upgrade-report.md``.
 
@@ -11458,9 +14831,13 @@ def upgrade_report_text(
     (queued fix 1, fleet-manager #40 finding): silence was indistinguishable
     from "the detector never ran", so the report now says which kit-owned
     workflows were scanned with 0 found — or that no kit-owned live workflow
-    exists to scan. Pass ``carveouts=None`` (the post-hoc ``--apply-docs``
-    path, which runs no adopt pass) to state nothing — absence of the block
-    honestly means the detector did not run in that flow.
+    exists to scan. ``carveouts=None`` states nothing — absence of the block
+    honestly means the detector did not run in that flow. The post-hoc
+    ``--apply-docs`` path used to pass ``None`` and thereby REWROTE the
+    report without its carve-out section (websites, v1.9.0 wave — the
+    section had to be hand-restored); it now passes the read-only rescan
+    plus any hits carried from the previous report
+    (:func:`scan_gate_carveouts` / :func:`_carried_carveout_hits`).
     """
     counts: dict[str, int] = {}
     for row in rows:
@@ -11502,6 +14879,22 @@ def upgrade_report_text(
                 "- carve-out scan: ran — no kit-owned live workflow "
                 "installed, nothing to scan.",
             ]
+    if capability_seed:
+        # Grounded-skills slice 5 (§4.2c): the fence-refresh outcome is
+        # report-file evidence like the carve-outs — a stdout-only line is
+        # too easy to lose, and the modified-fence downgrade instruction
+        # must reach the upgrade PR's body. The Q-0270 collapse note travels
+        # with the section (plan §7.5 accept criterion).
+        lines += ["", "## Capability-ledger seed refresh", ""]
+        lines += [f"- {line}" for line in capability_seed]
+        lines += ["", CAPABILITY_POSTURE_COLLAPSE_NOTE]
+    if seat_digest:
+        # Grounded-skills slice 6: the derived-render refresh outcome is
+        # report-file evidence like the seed refresh above — the
+        # hand-edited downgrade's regenerate instruction must reach the
+        # upgrade PR's body, not only stdout.
+        lines += ["", "## Seat-digest refresh", ""]
+        lines += [f"- {line}" for line in seat_digest]
     if applied:
         lines += ["", "## Applied (--apply-docs)", ""]
         lines += [f"- {line}" for line in applied]
@@ -11511,6 +14904,78 @@ def upgrade_report_text(
         for row in diffs:
             lines += [f"### {row['relpath']}", "", "```diff", row["diff"], "```", ""]
     return "\n".join(lines) + "\n"
+
+
+# Suffix marking a carve-out hit carried forward from a previous report —
+# the read-only rescan reflects the CURRENT live workflow (post-regen it
+# usually matches the kit template again), so without the carry a rewrite
+# would erase the historical detection the host may still need to act on.
+CARRIED_CARVEOUT_SUFFIX = " [carried from the previous upgrade report]"
+
+
+def scan_gate_carveouts(root: Path, config: Config) -> list[str]:
+    """Read-only carve-out scan of the installed kit-owned workflows.
+
+    Produces the same ``carve-out:`` / ``carve-out scan:`` line grammar as
+    adopt's regen pass emits, WITHOUT writing or regenerating anything —
+    the post-hoc ``--apply-docs`` flow runs no adopt pass, but its report
+    rewrite must still carry an honest carve-out section (the websites
+    v1.9.0-wave finding: the rewrite dropped the section entirely). A
+    workflow that is absent contributes nothing (nothing installed,
+    nothing to scan); unreadable is reported as skipped, never a crash.
+    """
+    lines: list[str] = []
+    gate_expected = live_ci_workflow(
+        config.interpreter_for_checks or "python3",
+        sessions_dir=config.sessions_dir,
+    )
+    enabler_patterns, enabler_context = _automerge_params(config)
+    enabler_expected = automerge_enabler_workflow(enabler_patterns, enabler_context)
+    for relpath, expected in (
+        (LIVE_CI_RELPATH, gate_expected),
+        (AUTOMERGE_ENABLER_RELPATH, enabler_expected),
+    ):
+        path = root / relpath
+        if not path.is_file():
+            continue
+        try:
+            live_text = path.read_text(encoding="utf-8")
+        except OSError:
+            lines.append(
+                f"carve-out scan: {relpath} — unreadable, scan skipped",
+            )
+            continue
+        found = [] if live_text == expected else gate_carveouts(live_text, expected)
+        if not found:
+            lines.append(f"carve-out scan: {relpath} — ran, 0 found")
+        for line in found:
+            lines.append(f"carve-out: {relpath} — {line}")
+    return lines
+
+
+def _carried_carveout_hits(report_path: Path) -> list[str]:
+    """Extract ``carve-out:`` hit lines from an existing upgrade report.
+
+    Returns them WITHOUT the leading ``- `` bullet and WITHOUT any
+    :data:`CARRIED_CARVEOUT_SUFFIX` (re-added by the caller, so repeated
+    post-hoc runs never stack suffixes). Scan-status lines are not carried
+    — the fresh rescan states the current status. Missing/unreadable
+    report → nothing to carry.
+    """
+    try:
+        text = report_path.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    hits: list[str] = []
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line.startswith("- carve-out:"):
+            continue
+        hit = line[2:]
+        if hit.endswith(CARRIED_CARVEOUT_SUFFIX):
+            hit = hit[: -len(CARRIED_CARVEOUT_SUFFIX)]
+        hits.append(hit)
+    return hits
 
 
 def newest_banked_archive(
@@ -11582,13 +15047,41 @@ def run_apply_docs_posthoc(
             "apply-docs: no template-improved docs to apply — every planted "
             "doc is already current or consumer-owned.",
         )
+    # Mirror the in-run capability-seed refresh (grounded-skills slice 5,
+    # decide-and-flag: YES — an operator who skipped the in-run window must
+    # recover the fence refresh the same way they recover --apply-docs;
+    # idempotent, so a re-run reports "already current" and writes nothing).
+    seed_lines = refresh_capability_seed(root, config, backend, rows, old_templates)
+    report += seed_lines
+    # Mirror the in-run seat-digest refresh too (slice 6, same rationale):
+    # the post-hoc window must recover the derived render the same way it
+    # recovers doc improvements and the fence refresh; idempotent.
+    digest_lines = refresh_seat_digest(root, config, backend)
+    report += digest_lines
+    # The report rewrite must not drop the carve-out section (websites,
+    # v1.9.0 wave): re-emit it from a read-only rescan of the installed
+    # kit-owned workflows, and carry forward hits recorded in the report
+    # being replaced (post-regen the live file usually matches the template
+    # again, so the rescan alone would erase the historical detection the
+    # host may still need to act on).
     report_rel = f"{config.state_dir}/{UPGRADE_REPORT_FILENAME}"
+    carveout_lines = scan_gate_carveouts(root, config)
+    fresh_hits = {
+        line for line in carveout_lines if line.startswith("carve-out:")
+    }
+    for hit in _carried_carveout_hits(root / report_rel):
+        if hit not in fresh_hits:
+            carveout_lines.append(hit + CARRIED_CARVEOUT_SUFFIX)
+            fresh_hits.add(hit)
     atomic_write_text(
         root / report_rel,
         upgrade_report_text(
             from_version or config.kit_version or "unknown",
             rows,
             applied,
+            carveout_lines,
+            capability_seed=seed_lines,
+            seat_digest=digest_lines,
         ),
     )
     report.append(f"report: {report_rel}")
@@ -11711,6 +15204,15 @@ def run_upgrade(
             "post-hoc from the banked pre-upgrade archive (no rollback needed).",
         )
 
+    # (4b) Capability-ledger fenced-seed refresh (grounded-skills slice 5,
+    # §4.2c): runs UNCONDITIONALLY at upgrade (the way staged artifacts
+    # regenerate), because a consumer-edited docs/CAPABILITIES.md — every
+    # good adopter's, by design — is out of --apply-docs' reach forever.
+    # Only the marker-fenced kit-owned block is ever rewritten; a modified
+    # fence downgrades to a report line (see refresh_capability_seed).
+    seed_lines = refresh_capability_seed(root, config, backend, rows, old_templates)
+    report += seed_lines
+
     # (5) Replace the vendored file with the running (new) one — only when the
     # running entry actually IS a stamped single-file bootstrap (in the
     # source/pip layouts there is no single file to install).
@@ -11756,6 +15258,15 @@ def run_upgrade(
         if line.startswith(("carve-out:", "carve-out scan:"))
     ]
 
+    # (6c) Seat-digest derived-render refresh (grounded-skills slice 6):
+    # AFTER the adopt pass on purpose — a missing digest (or ledger) has
+    # been replanted by now, and the ledger's fenced seed was refreshed in
+    # (4b), so the re-render reads the post-upgrade tree. Kit-written
+    # copies only; a hand-edited derived render downgrades to a report
+    # line (see refresh_seat_digest).
+    digest_lines = refresh_seat_digest(root, config, backend)
+    report += digest_lines
+
     # (6b) KL-3: the 📊 Model needle joins session_markers at upgrade time —
     # a consumer's gate only tightens when it upgrades, never mid-version
     # (founding plan §5.2); the report says so out loud.
@@ -11773,6 +15284,13 @@ def run_upgrade(
             "\N{MIDDLE DOT} <task-class>`; session-close harvests it into "
             "telemetry/model-usage.jsonl.",
         )
+        # The adopt pass in step (6) ran BEFORE the needle existed in this
+        # host's markers, so its doctrine merge no-op'd — re-run it now
+        # that the marker is live (idempotent; append-only under the
+        # provenance marker). Without this, the first upgrade that
+        # introduces the needle leaves the planted README doctrine-less
+        # until the NEXT upgrade (the v1.9.0 wave's retroactivity gap).
+        _merge_model_doctrine(root, config, report)
 
     # (7) State migration (backup already banked above).
     backend.migrate(STATE_SCHEMA_VERSION)
@@ -11782,7 +15300,14 @@ def run_upgrade(
     report_rel = f"{config.state_dir}/{UPGRADE_REPORT_FILENAME}"
     atomic_write_text(
         root / report_rel,
-        upgrade_report_text(old_version, rows, applied, gate_carveout_lines),
+        upgrade_report_text(
+            old_version,
+            rows,
+            applied,
+            gate_carveout_lines,
+            capability_seed=seed_lines,
+            seat_digest=digest_lines,
+        ),
     )
     report.append(f"report: {report_rel}")
 
@@ -12073,6 +15598,9 @@ def cmd_render(target: Path, live: bool = False) -> int:
         _emit(f"render: no state at {target} (run init first).")
         return 1
     context = build_context(backend.data)
+    # Engine-computed boot pointer (ORDER 015): same rule as adopt, so a
+    # staged/live render never strands ${agreement_home} as an unfilled slot.
+    context.setdefault("agreement_home", agreement_home(target))
     if live:
         return _render_live(target, context, backend)
     out_dir = target / config.state_dir / "rendered"
@@ -12221,7 +15749,10 @@ def _hook_sessionstart(target: Path) -> list[str]:
     The anchor (timestamp + git HEAD/branch, ``state["session_anchor"]``) is
     the evidence baseline the KL-5 auto-draft diffs against at session close.
     Recording is fail-open inside ``record_session_anchor`` — orientation
-    must never be blocked by evidence bookkeeping.
+    must never be blocked by evidence bookkeeping. The boot also regenerates
+    the repo-root ``HANDOFF.md`` pointer (the B1 run-6 delivery-gap fix: the
+    orchestrator→worker seam does not forward this hook's stdout, so the same
+    handoff content rides the working tree, where delegated workers look).
     """
     config = load_config(target)
     backend = JsonStateBackend(_state_path(target, config))
@@ -12229,6 +15760,7 @@ def _hook_sessionstart(target: Path) -> list[str]:
     if text:
         sys.stdout.write(text)
     record_session_anchor(target, config, backend)
+    write_handoff_pointer(target, config)
     return []
 
 
@@ -12367,10 +15899,33 @@ def cmd_check(
     *,
     require_session_log: bool = False,
     session_log: Path | None = None,
+    added_card: Path | None = None,
+    simulate_added_card: Path | None = None,
     status_only: bool = False,
     inbox_base: Path | None = None,
 ) -> int:
     """Run every hygiene checker against ``target``.
+
+    ``added_card`` (CLI ``--added-card``) names a session card the PR's diff
+    ADDS — the generated gate's added-card lane passes it so a born-red
+    heartbeat is graded by what it *declares* (see
+    :func:`engine.checks.check_session_log.check_added_card` for the
+    declared-status tiering): an in-progress/drafted card yields the
+    born-red HOLD (the superbot-games #40 card-only loophole fix — an
+    added mid-flight card holds the merge red until it flips complete,
+    never advisory-green); grammar misses red as before (the venture-lab
+    #15 false-green class). Findings ride the strict loop like any doc
+    finding and are never allowlistable (they are the session-gate seam);
+    a named file that does not exist is advisory-only — the gate derives
+    the path from the diff, so absence means nothing to judge.
+
+    ``simulate_added_card`` (CLI ``--simulate-added-card``) is the lane's
+    ADVISORY self-test: it prints exactly what the added-card lane WOULD
+    conclude for the named card (hold / findings / pass) without ever
+    touching the exit code. It exists because the lane is unobservable on
+    the very PR that ships gate changes — a PR touching the gate workflow
+    takes the full locked door, superseding ``--added-card`` — so gate
+    work needs an in-run way to verify the lane's grading.
 
     ``inbox_base`` (CLI ``--inbox-base``) names the merge-base version of
     ``control/inbox.md`` — extracted by CI in bash, because engine code never
@@ -12395,7 +15950,13 @@ def cmd_check(
     namespace/shadowing guard, the seam-authority fences, and the orientation
     word budget — each engaging only when its inputs exist. Findings always
     count toward the exit code (under ``--strict``); an *incomplete* existing
-    session log counts. A *missing* session log is **advisory by default** (a
+    session log counts — EXCEPT an **unadopted auto-draft** in the
+    mtime-fallback lane (no explicit ``--session-log``, no
+    ``require_session_log``): a card the engine itself drafted and no session
+    adopted reports as an advisory instead of a failure, so a departed
+    session's untouched skeleton cannot leave the repo red for the next cold
+    session (B1 run-8; see ``check_session_log.is_unadopted_draft``). Gate
+    mode is unaffected. A *missing* session log is **advisory by default** (a
     host may run ``check`` mid-session) but becomes a **hard failure** under
     ``require_session_log`` — the gate mode the live CI workflow runs, so a
     session that never writes its journal cannot merge (the "locked door" that
@@ -12466,9 +16027,13 @@ def cmd_check(
     # close the discovery-rule loop, never reds a required check (see the
     # checker docstring). Runs on both lanes: the asks live in the heartbeat
     # files the fast lane already validates.
+    # Slice-5 extensions ride the same call (grounded-skills §4.2d): the
+    # config hands the checker its staleness window (cadence.staleness_days,
+    # default-on-missing) + sessions_dir for the newest-card citation scan.
     xref_advisories = check_capability_xref(
         target,
         status_files=config.heartbeat_files,
+        config=config,
     )
     # Setup-script contract (EAP §6.5): advisory-only, like every nudge
     # above — the planted scripts/env-setup.sh is host-owned after adopt,
@@ -12476,6 +16041,28 @@ def cmd_check(
     # migrates by nag, never a required-check red. Full lane only: the hook
     # is not control-lane traffic (emitted below with the adopters block).
     setup_advisories = check_setup_script(target)
+    # Skill command-grounding scan (grounded-skills slice 2, §8 Q2=B):
+    # advisory-only by contract, like every nudge above — a skill body /
+    # grounds entry / rendered SKILL.md naming a command that resolves
+    # nowhere is a drift nudge for the session, never a required-check red
+    # (UNVERIFIED per its provenance header; graduation is a later,
+    # deliberate step). Full lane only: skills are not control-lane traffic.
+    grounds_advisories = check_skill_grounds(target, state_dir=config.state_dir)
+    # Seat-digest drift guard (grounded-skills slice 6, §8 Q2=B):
+    # advisory-only by contract, like every nudge above — a planted
+    # docs/seat-digest.md whose bytes differ from a fresh render of its
+    # sources (skill index + capability ledger) is a regenerate nudge,
+    # never a required-check red (UNVERIFIED per its PL-008 provenance
+    # header; graduation is a later, deliberate step). Full lane only: the
+    # digest is not control-lane traffic. The render context is rebuilt
+    # from state so the fresh render matches what adopt/upgrade/regen
+    # would write (only project_name matters to the render).
+    digest_backend = JsonStateBackend(_state_path(target, config))
+    digest_advisories = check_seat_digest(
+        target,
+        config,
+        context=build_context(digest_backend.data) if digest_backend.data else {},
+    )
     # The inbox append-only gate (issue #36 report 2): a control/inbox.md
     # change must be pure-append vs the merge-base + ORDER-grammar shaped.
     # Rides the finding loop like every checker; engages only when CI handed
@@ -12519,6 +16106,82 @@ def cmd_check(
     entries, allow_findings = load_allowlist(target, config.state_dir)
     doc_findings, suppressed = apply_allowlist(doc_findings, entries)
     doc_findings += allow_findings
+    # Added-card grading (queued kit fix 1, the venture-lab #15 false-green
+    # class + the superbot-games #40 born-red loophole): appended AFTER the
+    # allowlist pass on purpose — like the session-log gate it extends, it
+    # is never allowlistable. An in-progress ADDED card yields the born-red
+    # HOLD finding (kind `session-card-hold`, so the designed-hold banner
+    # below can recognise it); grammar misses keep `session-card-grammar`.
+    if added_card is not None and not status_only:
+        card_path = (
+            added_card if added_card.is_absolute() else target / added_card
+        )
+        if card_path.is_file():
+            card_rel = (
+                str(card_path.relative_to(target))
+                if card_path.is_relative_to(target)
+                else str(card_path)
+            )
+            doc_findings += [
+                Finding(
+                    card_rel,
+                    (
+                        "session-card-hold"
+                        if miss == BORN_RED_HOLD_MESSAGE
+                        else "session-card-grammar"
+                    ),
+                    miss,
+                )
+                for miss in check_added_card(card_path, config.session_markers)
+            ]
+        else:
+            _emit(
+                f"check: --added-card {added_card} does not exist "
+                "(advisory — nothing to grammar-check).",
+            )
+    # --simulate-added-card: the lane's advisory self-test (v1.9.0 wave
+    # finding — the --added-card grading is unobservable on the very PR
+    # that ships gate changes, because touching the gate workflow routes
+    # the PR through the full locked door instead). Prints the lane's
+    # would-be verdict; NEVER feeds doc_findings or the exit code.
+    if simulate_added_card is not None and not status_only:
+        sim_path = (
+            simulate_added_card
+            if simulate_added_card.is_absolute()
+            else target / simulate_added_card
+        )
+        if not sim_path.is_file():
+            _emit(
+                f"check: simulate-added-card {simulate_added_card} does not "
+                "exist — nothing to simulate (advisory).",
+            )
+        else:
+            sim_misses = check_added_card(sim_path, config.session_markers)
+            if not sim_misses:
+                _emit(
+                    f"check: simulate-added-card {simulate_added_card} — the "
+                    "added-card lane would PASS (card declares a completed "
+                    "Status and carries every marker).",
+                )
+            elif sim_misses == [BORN_RED_HOLD_MESSAGE]:
+                _emit(
+                    f"check: simulate-added-card {simulate_added_card} — the "
+                    "added-card lane would HOLD (born-red: the card declares "
+                    "an in-progress/drafted Status; the gate would stay red "
+                    "until it flips complete).",
+                )
+            else:
+                _emit(
+                    f"check: simulate-added-card {simulate_added_card} — the "
+                    f"added-card lane would RED with {len(sim_misses)} "
+                    "finding(s):",
+                )
+                for miss in sim_misses:
+                    _emit(f"  [simulated session-card-grammar] {miss}")
+            _emit(
+                "check: simulation is advisory-only — it never affects this "
+                "run's exit code.",
+            )
     if suppressed:
         _emit(
             f"check: {len(suppressed)} finding(s) suppressed by allowlist "
@@ -12643,6 +16306,46 @@ def cmd_check(
             posture="advisory",
             findings=setup_advisories,
         )
+    if grounds_advisories and not status_only:
+        # Same warn-only contract as the advisories above (grounded-skills
+        # slice 2, §8 Q2=B advisory-first): an unresolvable skill command is
+        # surfaced + telemetry-recorded, never counted toward the exit code
+        # — the checker is UNVERIFIED (PL-008 header) and a coarse prose
+        # scan can never be a verdict.
+        _emit(
+            f"check: {len(grounds_advisories)} skill-grounds advisory "
+            "warning(s) (never exit-affecting):",
+        )
+        for finding in grounds_advisories:
+            _emit(f"  [{finding.kind}] {finding.path}: {finding.message}")
+        record_guard_fires(
+            target,
+            config.state_dir,
+            cmd="check",
+            surface="check",
+            posture="advisory",
+            findings=grounds_advisories,
+        )
+    if digest_advisories and not status_only:
+        # Same warn-only contract as the advisories above (grounded-skills
+        # slice 6, §8 Q2=B advisory-first): a stale/over-budget seat digest
+        # is surfaced + telemetry-recorded, never counted toward the exit
+        # code — the checker is UNVERIFIED (PL-008 header); the fix is one
+        # `bootstrap.py seat-digest` regen, not a locked door.
+        _emit(
+            f"check: {len(digest_advisories)} seat-digest advisory "
+            "warning(s) (never exit-affecting):",
+        )
+        for finding in digest_advisories:
+            _emit(f"  [{finding.kind}] {finding.path}: {finding.message}")
+        record_guard_fires(
+            target,
+            config.state_dir,
+            cmd="check",
+            surface="check",
+            posture="advisory",
+            findings=digest_advisories,
+        )
     if adopters_advisories and not status_only:
         # Same warn-only contract as the advisories above (EAP §6.3): a
         # stale `Generated:` stamp is a rerun-the-scan nudge — CI cannot
@@ -12682,6 +16385,25 @@ def cmd_check(
     # In gate mode an absent log is itself a failing condition, so it must feed
     # the exit code exactly like an incomplete one.
     log_absent_fails = log is None and require_session_log
+    # Unadopted-auto-draft advisory lane (B1 run-8): a card the ENGINE wrote
+    # (Stop-hook draft) that no session ever adopted must not leave the repo
+    # red for the NEXT session's bare `check --strict` — run-8's ON arm ended
+    # exit=1 solely on its own untouched skeleton, and the next cold session
+    # would inherit that red without owning the judgment slots. Applies ONLY
+    # to the mtime-fallback lane: an explicit --session-log selection or
+    # --require-session-log gate mode keeps the locked door (a PR shipping a
+    # drafted card is the born-red discipline, not this class).
+    draft_advisory = False
+    if (
+        log is not None
+        and log_missing
+        and session_log is None
+        and not require_session_log
+    ):
+        try:
+            draft_advisory = is_unadopted_draft(log.read_text(encoding="utf-8"))
+        except OSError:
+            draft_advisory = False
     if log is None:
         if session_log is not None:
             absent = f"--session-log {session_log} does not exist"
@@ -12696,7 +16418,31 @@ def cmd_check(
             _emit(f"check: {absent} (advisory — not a failure).")
     else:
         rel = log.relative_to(target) if log.is_relative_to(target) else log
-        if log_missing:
+        if log_missing and draft_advisory:
+            _emit(
+                f"check: session log {rel} is an unadopted auto-draft "
+                f"({', '.join(log_missing)}) — advisory in the mtime-fallback "
+                "lane, not exit-affecting: adopt it (verify the evidence, "
+                "resolve the [[fill:]] slots, flip the Status badge) or it "
+                "holds the merge in gate mode (--require-session-log / "
+                "--session-log / --added-card).",
+            )
+            record_guard_fires(
+                target,
+                config.state_dir,
+                cmd="check",
+                surface="check",
+                posture="advisory",
+                findings=[
+                    Finding(
+                        str(rel),
+                        "session-log-draft",
+                        f"unadopted auto-draft: {', '.join(log_missing)}",
+                    ),
+                ],
+            )
+            log_missing = []
+        elif log_missing:
             _emit(f"check: session log {rel} is missing: {', '.join(log_missing)}")
         else:
             _emit(f"check: session log {rel} complete.")
@@ -12729,10 +16475,75 @@ def cmd_check(
             findings=[gate_finding],
         )
 
+    # Designed-hold signal (queued kit fix 4, the PL-006 observer-noise
+    # class): with parallel sessions, every born-red PR's mid-flight red CI
+    # draws "investigate this failure" pings from coordinators/observers —
+    # three live occurrences (#140/#144/#147 class, again on #153). When the
+    # ONLY thing holding the run red is a session card that itself DECLARES
+    # an in-progress/drafted Status, the red is the born-red discipline
+    # working as designed — say so, unmissably, in the failing output (and
+    # as a GitHub annotation when running in Actions) so an observer can
+    # tell a designed hold from a real defect without opening the job log's
+    # fine print. Any other finding alongside suppresses the banner: a
+    # partially-real failure must never be labelled "by design".
+    added_card_holds = [f for f in doc_findings if f.kind == "session-card-hold"]
+    hold_is_designed = (
+        strict
+        and not doc_findings
+        and not log_absent_fails
+        and log is not None
+        and bool(log_missing)
+        and _card_declares_in_progress(log)
+    )
+    # Same banner for the added-card lane's born-red HOLD (the
+    # superbot-games #40 loophole fix): when the ONLY thing holding the run
+    # red is the ADDED card's in-progress declaration, that red is the
+    # designed hold too — an observer must be able to tell it from a defect
+    # without opening the fine print. Any other finding alongside (a grammar
+    # miss, a doc finding, an incomplete --session-log card) suppresses it.
+    added_hold_is_designed = (
+        strict
+        and bool(added_card_holds)
+        and len(doc_findings) == len(added_card_holds)
+        and not log_missing
+        and not log_absent_fails
+    )
+    if added_hold_is_designed:
+        hold_rel = added_card_holds[0].path
+    elif hold_is_designed:
+        hold_rel = log.relative_to(target) if log.is_relative_to(target) else log
+    if hold_is_designed or added_hold_is_designed:
+        _emit(
+            f"check: HOLD (by design): session card {hold_rel} declares an "
+            "in-progress Status — the born-red session gate holds the merge "
+            "red until the card flips complete. This red is the designed "
+            "hold, not a defect; nothing to investigate.",
+        )
+        if os.environ.get("GITHUB_ACTIONS"):
+            _emit(
+                "::notice title=HOLD: session card in-progress (by design)::"
+                f"The born-red session gate is holding this red until {hold_rel} "
+                "flips complete. Designed hold — not a CI failure to "
+                "investigate.",
+            )
     if not doc_findings and not log_missing and not log_absent_fails:
         _emit("check: all checks passed.")
         return 0
     return 1 if strict else 0
+
+
+def _card_declares_in_progress(log: Path) -> bool:
+    """True when ``log``'s own Status badge carries an in-progress value.
+
+    The designed-hold banner's honesty condition (fix 4): the card must SAY
+    it is mid-flight — a card that claims ``complete`` but still reds is a
+    real defect and never gets the "by design" label. Unreadable → False
+    (never claim design intent on evidence that cannot be read).
+    """
+    try:
+        return status_in_progress(log.read_text(encoding="utf-8"))
+    except OSError:
+        return False
 
 
 def _require_state(
@@ -13216,7 +17027,9 @@ def cmd_session_start(target: Path) -> int:
 
     Also records the session-start evidence anchor (fail-open) — the same
     baseline the SessionStart hook records, so a session driven by the CLI
-    instead of the hook still gets an evidence-backed auto-draft at close.
+    instead of the hook still gets an evidence-backed auto-draft at close —
+    and regenerates the repo-root ``HANDOFF.md`` pointer (the B1 run-6
+    delivery-gap fix), exactly as the hook does.
     """
     loaded = _require_state(target, "session-start")
     if loaded is None:
@@ -13224,6 +17037,9 @@ def cmd_session_start(target: Path) -> int:
     config, backend = loaded
     _emit(compose_orientation(target, config, backend))
     record_session_anchor(target, config, backend)
+    note = write_handoff_pointer(target, config)
+    if note:
+        _emit(f"session-start: {note}")
     return 0
 
 
@@ -13514,6 +17330,15 @@ def cmd_currency(
         _emit(f"currency: wrote {out_path} ({len(scans)} repo(s) scanned).")
     for line in drift_report_lines(scans, KIT_VERSION):
         _emit(f"  {line}")
+    unreadable = [scan.repo for scan in scans if scan.unreadable]
+    if unreadable:
+        _emit(
+            f"currency: UNREADABLE {len(unreadable)} repo(s): "
+            + ", ".join(unreadable)
+            + " — no transport could read their trees; their rows say"
+            " 'unreadable' (adoption UNKNOWN, never 'not adopted')."
+            " Fix transport/auth (GITHUB_TOKEN/GH_TOKEN?) and rerun.",
+        )
     drifting = [scan.repo for scan in scans if scan.drifts()]
     if drifting:
         _emit(
@@ -13523,6 +17348,42 @@ def cmd_currency(
         )
     else:
         _emit("currency: no drift — every self-report matches its tree.")
+    return 0
+
+
+def cmd_seat_digest(target: Path, *, venues: list[str] | None = None) -> int:
+    """Regenerate the planted ``docs/seat-digest.md`` (grounded-skills slice 6).
+
+    The on-demand arm of the derived-render contract (adopt plants it,
+    upgrade refreshes it, this regenerates it whenever the sources moved —
+    the fix ``check_seat_digest``'s stale advisory names). ``venues``
+    overrides the walls-digest venue filter; without it, the committed
+    doc's own ``venues=`` marker is preserved (a regen never silently
+    resets a seat's venue choice), falling back to the Project-seat
+    default. The write re-records the planted-doc hash when an install
+    exists (so upgrade keeps recognizing the file as kit-written); like the
+    guard-fire log, it never CREATES state in an uninitialized tree.
+    """
+    config = load_config(target)
+    rel = seat_digest_relpath(config)
+    path = target / rel
+    if venues:
+        venue_tuple = tuple(venues)
+    elif path.is_file():
+        venue_tuple = walls_digest_venues(path.read_text(encoding="utf-8"))
+    else:
+        venue_tuple = SEAT_DIGEST_DEFAULT_VENUES
+    backend = JsonStateBackend(_state_path(target, config))
+    context = build_context(backend.data) if backend.data else {}
+    text = seat_digest_text(target, config, context, venues=venue_tuple)
+    atomic_write_text(path, text)
+    if backend.data:
+        record_doc_hash(backend, rel, text)
+    _emit(
+        f"seat-digest: wrote {rel} "
+        f"(walls venues: {', '.join(venue_tuple)}; derived render — the "
+        "sources stay the skill index + the capability ledger).",
+    )
     return 0
 
 
@@ -13747,6 +17608,27 @@ def build_parser() -> argparse.ArgumentParser:
         help="scan + print the drift report without writing docs/adopters.md",
     )
 
+    seat_digest = sub.add_parser(
+        "seat-digest",
+        help=(
+            "regenerate docs/seat-digest.md — the fence-marked skills + "
+            "walls digest blocks fleet-manager's seat-prompt regen "
+            "extracts (derived render; never hand-edit)"
+        ),
+    )
+    seat_digest.add_argument("--target", type=Path, default=Path.cwd())
+    seat_digest.add_argument(
+        "--venue",
+        action="append",
+        choices=CAPABILITY_VENUE_TOKENS,
+        default=None,
+        help=(
+            "walls-digest venue filter (repeatable). Default: the committed "
+            "doc's own venues= marker, else the Project-seat default "
+            f"({', '.join(SEAT_DIGEST_DEFAULT_VENUES)})"
+        ),
+    )
+
     check = sub.add_parser("check", help="run the doc + session-log hygiene checks")
     check.add_argument("--target", type=Path, default=Path.cwd())
     check.add_argument("--strict", action="store_true", help="exit 1 if any violation")
@@ -13763,6 +17645,31 @@ def build_parser() -> argparse.ArgumentParser:
             "gate on this session card explicitly (e.g. the card the PR's diff "
             "touches) instead of newest-by-mtime; a missing file counts as an "
             "absent log, never a silent fallback"
+        ),
+    )
+    check.add_argument(
+        "--added-card",
+        type=Path,
+        default=None,
+        help=(
+            "grade this session card as one newly ADDED by the PR (the "
+            "gate's added-card lane): an in-progress/drafted card is the "
+            "born-red HOLD (red until it flips complete — the "
+            "superbot-games #40 loophole fix); a missing Status badge — or "
+            "a card that declares itself complete while missing its "
+            "markers — reds (the venture-lab #15 false-green class)"
+        ),
+    )
+    check.add_argument(
+        "--simulate-added-card",
+        type=Path,
+        default=None,
+        help=(
+            "ADVISORY self-test: print what the gate's added-card lane "
+            "WOULD do for this card (hold / grammar findings / pass) "
+            "without affecting the exit code — makes the lane observable "
+            "on the very PR that ships gate changes, where the locked "
+            "door supersedes the --added-card path"
         ),
     )
     check.add_argument(
@@ -13822,12 +17729,16 @@ def main(argv: list[str] | None = None) -> int:
                 roster_file=args.roster,
                 dry_run=args.dry_run,
             )
+        if args.command == "seat-digest":
+            return cmd_seat_digest(args.target, venues=args.venue)
         if args.command == "check":
             return cmd_check(
                 args.target,
                 args.strict,
                 require_session_log=args.require_session_log,
                 session_log=args.session_log,
+                added_card=args.added_card,
+                simulate_added_card=args.simulate_added_card,
                 status_only=args.status_only,
                 inbox_base=args.inbox_base,
             )
@@ -13914,17 +17825,18 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 _TEMPLATES = {
-    'AGENT_ORIENTATION.md.tmpl': '# ${project_name} — agent orientation & reading order\n\n> **Status:** `reference`\n>\n> Generated by substrate-kit. The task reading-router: start here to find which\n> docs a given task needs. **NOT SOURCE OF TRUTH** — the binding contracts win.\n\n## Start every session\n\n1. `.claude/CLAUDE.md` — the working agreement.\n2. `docs/current-state.md` — the living status ledger.\n3. `docs/CAPABILITIES.md` — verified session capabilities & walls (the\n   discovery rule lives there; append what you learn).\n4. This file — task-specific reading routes.\n\n## Binding contracts\n\n- **Architecture / layering:** ${architecture_layers}\n- **Ownership** (who owns each write path): ${ownership_model}\n- **Mutation seam** (how writes are gated): ${mutation_seam}\n\n## Where things live\n\nDocumentation root(s): ${doc_roots}\n\nThe planted doc set (this router reaches every live doc — keep it that way):\n`docs/architecture.md` · `docs/ownership.md` · `docs/runtime_contracts.md` ·\n`docs/collaboration-model.md` · `docs/helper-policy.md` ·\n`docs/repo-navigation-map.md` · `docs/ai-project-workflow.md` ·\n`docs/owner-profile.md` · `docs/current-state.md` · `docs/decisions.md` ·\n`docs/question-router.md` · `docs/CAPABILITIES.md` · `docs/ideas/README.md` — plus the root\n`CONSTITUTION.md` (the working agreement) and `.session-journal.md`.\n\n## Verifying any change\n\n```\n${verify_command}\n```\n',
-    'CAPABILITIES.md.tmpl': '# ${project_name} — session capabilities & walls\n\n> **Status:** `living-ledger`\n>\n> Generated by substrate-kit. What agent sessions in THIS environment can and\n> cannot do — **verified findings, never assumptions**. Read at session start\n> (it is in the orientation reading order); append at session close. Fleet\n> master copy: `menno420/fleet-manager` → `docs/capabilities.md` — sync new\n> fleet-wide findings there via the manager when cross-repo access allows.\n\n## Why this file exists\n\nSessions repeatedly fail to discover what they CAN do (claiming `.mp4`s\nunviewable though ffmpeg frame-extraction is standard; forgetting provisioned\nenv tokens exist) and stall on imagined walls — burning owner attention as\nhand reminders. This ledger makes capability knowledge durable across\nsessions: one session\'s discovery is every later session\'s starting fact.\n\n## THE DISCOVERY RULE\n\nBefore declaring anything impossible, and before assuming a tool or\ncredential is missing:\n\n1. **Check this file** — the capability or wall may already be recorded.\n2. **Check the environment** — `printenv` / list the available tools BEFORE\n   assuming no credentials exist (provisioned env tokens are routinely\n   forgotten, not absent).\n3. **Attempt once** — try the operation and capture the **exact** error text;\n   a guessed wall and a verified wall are different facts.\n4. **Append the finding same session** — capability or wall, dated, with the\n   evidence (exact error, or proof it worked) and the workaround if one was\n   found. An unrecorded discovery is re-paid by every future session.\n\n## Capabilities — verified working\n\n- **Media is readable**: a video is never "unviewable" — extract frames\n  (`ffmpeg -i in.mp4 -vf fps=1 frame_%04d.png`) and read the images; same\n  idea for audio (transcribe) and PDFs (render pages). Try the recipe before\n  reporting a format wall.\n- **Provisioned credentials**: the environment often carries tokens/keys as\n  env vars — `printenv` first; a missing-looking credential is usually a\n  missing *look*.\n- **Release cutting despite the tag wall**: `workflow_dispatch` on the\n  release workflow (with a version input) creates the tag in-Actions —\n  proven repeatedly fleet-wide after direct tag pushes 403\'d.\n\n## Walls — verified blocked (use the workaround; don\'t rediscover)\n\n- **Tag push / release create via git**: HTTP 403 from the environment\'s git\n  proxy → use the workflow_dispatch release path.\n- **Branch deletion**: 403 on every path (git push `:branch` and API) →\n  owner deletes by hand / enables "Automatically delete head branches".\n- **`api.github.com` direct HTTP**: blocked → GitHub access is MCP-tools-only.\n- **Environment / routine / Project creation**: owner-click actions in the\n  console — queue them under `⚑ needs-owner`, never wait silently.\n- **Self-merge classifier**: sessions can be refused merging owner-gated PRs\n  while their other capabilities work — and the boundary differs by session\n  kind (a child session was refused where a coordinator was not). Record\n  which kind of session hit which boundary.\n- **GraphQL API quota**: tight — batch queries and prefer the REST-backed\n  MCP tools for bulk reads.\n\n## Append log — newest first\n\nFormat: `- YYYY-MM-DD · capability|wall · finding · evidence · workaround`.\n\n(Hand-filled by sessions, per the discovery rule. Seed walls/capabilities\nabove came from the fleet\'s lived 2026-07 findings; local ones go here.)\n',
-    'CLAUDE.md.tmpl': '# ${project_name} — agent working agreement\n\n> **Status:** `binding`\n>\n> Generated by substrate-kit from the staged interview. **NOT SOURCE OF TRUTH**\n> for code — source files always win. Re-render (`bootstrap render`) after the\n> interview fills more slots.\n\n## What this project is\n\n${project_name} is built in ${primary_language}.\n\n## Orientation — read first, in order\n\n1. This file — the working agreement.\n2. `docs/current-state.md` — what is true right now.\n3. `docs/CAPABILITIES.md` — what sessions here CAN and CANNOT do (verified).\n   Never declare a wall or a missing credential without its discovery rule:\n   check the file → check the env → attempt once + capture the exact error →\n   append the finding same session.\n4. `docs/AGENT_ORIENTATION.md` — the task-specific reading router.\n\n## Architecture — layers & import rules\n\n${architecture_layers}\n\n## Verifying a change\n\nRun before every push:\n\n```\n${verify_command}\n```\n\n## How the maintainer works\n\n${owner_profile}\n\n## Workflow adoption\n\nCurrent adoption pace for the substrate workflow: **${integration_mode}**.\n',
-    'CONSTITUTION.md.tmpl': "# ${project_name} — constitution\n\n> **Status:** `binding`\n>\n> Generated by substrate-kit. The working agreement + autonomy rails. **NOT\n> SOURCE OF TRUTH** for code — source files always win. Rules state their\n> **current value only**; provenance lives in `docs/decisions.md` as [D-NNNN]\n> links and is never narrated inline.\n\n## Working agreement\n\n- **The goal comes first.** Achieve the session's goal end-to-end; don't ship\n  the smallest safe slice.\n- **Session prompts are guidance, not orders.** Weigh every prompt (and every\n  cross-agent report) against source and the binding docs before acting.\n- **Approved plan = execute.** Once a plan is approved, finish it in the same\n  session, with the planning context still loaded — no re-confirming.\n- **Understand-and-reflect.** The owner often hands over a rough fragment, not\n  a full spec — and sometimes doesn't know yet if the idea is even possible.\n  Before substantive work, restate the fuller picture built from the ask —\n  the specs it implied but didn't state, and, when feasibility is uncertain,\n  the possibility space — inline in the first substantive response, never as\n  a separate blocking question. Two payoffs, not one: it catches a misread\n  before work happens, and the filled-in picture is itself new material the\n  owner reasons against and redirects.\n- **Capabilities are discovered, never assumed.** `docs/CAPABILITIES.md` is\n  the verified ledger of what sessions here can and cannot do — read it at\n  session start. Before declaring a wall or a missing credential: check that\n  file → check the environment (`printenv`, tool lists) → attempt once and\n  capture the exact error → append the finding same session. An imagined\n  wall stalls the session; an unrecorded real one taxes every later session.\n- When a doc and a source file disagree: ${drift_resolution}\n\n## Autonomy rails — act vs. ask\n\n- **Act** on contained, reversible, verifiable changes — including a\n  root-cause fix discovered mid-task.\n- **Ask** before anything irreversible (data loss, external publish),\n  large / cross-cutting (architectural), or when the goal itself is\n  genuinely ambiguous. No live owner to ask? Record the question in\n  `docs/question-router.md` instead of skipping it or guessing.\n- **Owner attention is the scarcest resource.** Before routing anything to\n  the owner: attempt it yourself, or cite the exact wall (the\n  `docs/CAPABILITIES.md` discipline) — assumption-based asks are banned.\n  Every ask carries the OWNER-ACTION fields — WHAT / WHERE / HOW /\n  WHY-IT-MATTERS / UNBLOCKS / VERIFIED-NEEDED (format:\n  `control/README.md`) — phrased so a non-technical owner can act on it\n  directly. Expire stale asks; fewer, clearer asks beat complete lists.\n\n## Changing the rules — propose, don't apply\n\n- A binding rule in this file changes by **proposal**, never by silent edit:\n  record the decision in `docs/decisions.md`, cite it here as its [D-NNNN]\n  id, and let the owner (or the review ritual) confirm before the rule text\n  changes.\n- Every rule change ships with its provenance id. This file carries **no\n  history** — the ledger does; superseded rules are looked up there.\n\n## Program law\n\nRulings that bind **every** repo in this program live canonically in the\nsubstrate-kit repo at `docs/program/rulings.md` — the [PL-NNN] register\n(https://github.com/menno420/substrate-kit/blob/main/docs/program/rulings.md):\nPL-001 decide-and-flag · PL-002 never-wait rebuild autonomy · PL-003\nrail-before-scale · PL-004 empirical model allocation · PL-005 observe-first\nbudgets · PL-006 source-wins / false-green · PL-007 enforce-don't-exhort ·\nPL-008 adopt-freely with a kill-switch · PL-009 the kit-lab's rails.\n**Cite PL-IDs — never copy ruling bodies into this repo.** The register is\nthe one home; a local copy is drift by construction. Repo-local rulings stay\nin `docs/decisions.md` / `docs/question-router.md`; a local ruling promoted\nprogram-wide becomes a PL-block there and a pointer here.\n\n## Rails specific to ${project_name}\n\n(Hand-filled: the project's own hard rules, one bullet each, each citing its\n[D-NNNN]. Keep the whole hand-filled file under 150 lines.)\n",
+    'AGENT_ORIENTATION.md.tmpl': "# ${project_name} — agent orientation & reading order\n\n> **Status:** `reference`\n>\n> Generated by substrate-kit. The task reading-router: start here to find which\n> docs a given task needs. **NOT SOURCE OF TRUTH** — the binding contracts win.\n\n## Start every session\n\n**Preflight first — land on origin's HEAD before reading anything else:**\n\n```\ngit fetch origin main && git reset --hard origin/main\n```\n\n(or `git checkout -B main origin/main`; substitute your default branch).\nThen verify: local HEAD (`git rev-parse HEAD`) must equal\n`git ls-remote origin main`. A warm container clone can lag origin by\ndozens of commits, and a stale clone reads stale orders and stale state —\nevery orientation read below assumes this step already ran. The hard reset\ndiscards uncommitted local changes by design: at session START there should\nbe none; if `git status` shows work you did not author, stop and report it\ninstead of resetting over it.\n\nThe boot set lives in the working agreement — `${agreement_home}` — and its\norientation guidance (one list, one home). This file is not boot reading —\nopen it when a task needs a route into the deeper docs.\n\n## Binding contracts\n\n- **Architecture / layering:** ${architecture_layers}\n- **Ownership** (who owns each write path): ${ownership_model}\n- **Mutation seam** (how writes are gated): ${mutation_seam}\n\n## Where things live\n\nDocumentation root(s): ${doc_roots}\n\nThe planted doc set (this router reaches every live doc — keep it that way):\n`docs/architecture.md` · `docs/ownership.md` · `docs/runtime_contracts.md` ·\n`docs/collaboration-model.md` · `docs/helper-policy.md` ·\n`docs/repo-navigation-map.md` · `docs/ai-project-workflow.md` ·\n`docs/owner-profile.md` · `docs/current-state.md` · `docs/decisions.md` ·\n`docs/question-router.md` · `docs/CAPABILITIES.md` · `docs/SKILLS.md` ·\n`docs/ROUTINES.md` · `docs/ideas/README.md` — plus the root\n`CONSTITUTION.md` (the working agreement) and `.session-journal.md`.\n\nRecurring action? **`docs/SKILLS.md`** — the skill index — names every\nkit-shipped skill and when to reach for it; check it before improvising a\nprocedure.\n\nArming, deleting, or auditing a scheduled trigger/routine/wake chain?\n**`docs/ROUTINES.md`** — binding choice, delivery verification,\nprobe-not-record, scheduler-health signatures, pacing — read it before\ntouching the trigger registry.\n\n## Verifying any change\n\nSee the working agreement (`${agreement_home}`) and its verify guidance\n(one home, never two copies).\n",
+    'CAPABILITIES.md.tmpl': '# ${project_name} — session capabilities & walls\n\n> **Status:** `living-ledger`\n>\n> Generated by substrate-kit. What agent sessions in THIS environment can and\n> cannot do — **verified findings, never assumptions**. Read at session start\n> (it is in the orientation reading order); append at session close. Fleet\n> master copy: `menno420/fleet-manager` → `docs/capabilities.md` — sync new\n> fleet-wide findings there via the manager when cross-repo access allows.\n\n## Why this file exists\n\nSessions repeatedly fail to discover what they CAN do (claiming `.mp4`s\nunviewable though ffmpeg frame-extraction is standard; forgetting provisioned\nenv tokens exist) and stall on imagined walls — burning owner attention as\nhand reminders. This ledger makes capability knowledge durable across\nsessions: one session\'s discovery is every later session\'s starting fact.\n\n<!-- substrate-kit:capability-seed BEGIN — kit-owned, refreshed at upgrade. Append your findings BELOW the fence (## Append log), never inside it. -->\n\n## Posture decision rule — establish your venue first\n\n- **Owner-live session:** assume NO special limitations apply — act and merge\n  directly (superbot Q-0269).\n- **Autonomous / routine-fired seat:** pre-route around every known stall\n  class recorded below; park only on a REAL denial, never preemptively\n  (superbot Q-0270 boot triad: model · venue · ability envelope).\n\nVenue tokens (every entry names where it was verified): `owner-live` ·\n`autonomous-project` · `routine-fired` · `subagent` · `any`. Capabilities are\n**venue-scoped, not global** — the same operation can work owner-live, be\norg-refused on a cross-session binding, and prompt-stall in a plain-started\nseat while never prompting in a Routine-spawned one (fleet night review,\n2026-07-12). A flat CAN/CANNOT ledger is wrong somewhere by construction.\n\n## THE DISCOVERY RULE\n\nBefore declaring anything impossible, and before assuming a tool or\ncredential is missing:\n\n1. **Check this file** — the capability or wall may already be recorded for\n   your venue.\n2. **Check the environment** — `printenv` / list the available tools BEFORE\n   assuming no credentials exist (provisioned env tokens are routinely\n   forgotten, not absent).\n3. **Attempt once** — try the operation and capture the **exact** error text;\n   a guessed wall and a verified wall are different facts.\n4. **Append the finding same session** — capability or wall, dated, with the\n   venue token, the evidence (exact error, or proof it worked) and the\n   workaround if one was found. An unrecorded discovery is re-paid by every\n   future session.\n5. **Staleness — re-verify what you build on**: an entry older than the\n   staleness window (config `cadence.staleness_days`, default 14) that your\n   work depends on is a **claim, not a fact** — re-verify it with one cheap\n   attempt and append the result. Re-verifications APPEND, never edit: a\n   refuted wall can self-resolve platform-side, and a ledger with no\n   freshness data is confidently stale — worse than ignorant.\n\n## Capabilities — verified working\n\n- `any` · **Media is readable**: a video is never "unviewable" — extract\n  frames (`ffmpeg -i in.mp4 -vf fps=1 frame_%04d.png`) and read the images;\n  same idea for audio (transcribe) and PDFs (render pages). Try the recipe\n  before reporting a format wall. — LAST-VERIFIED: 2026-07-10\n- `any` · **Provisioned credentials**: the environment often carries\n  tokens/keys as env vars — `printenv` first; a missing-looking credential is\n  usually a missing *look*. — LAST-VERIFIED: 2026-07-10\n- `any` · **Release cutting despite the tag wall**: `workflow_dispatch` on\n  the release workflow (with a version input) creates the tag in-Actions —\n  proven repeatedly fleet-wide after direct tag pushes 403\'d.\n  — LAST-VERIFIED: 2026-07-12\n\n## Walls — verified blocked (use the workaround; don\'t rediscover)\n\n- `any` · **Tag push / release create via git**: HTTP 403 from the\n  environment\'s git proxy → use the workflow_dispatch release path.\n  — LAST-VERIFIED: 2026-07-12\n- `any` · **Branch deletion**: 403 on every path (git push `:branch` and\n  API) → owner deletes by hand / enables "Automatically delete head\n  branches". — LAST-VERIFIED: 2026-07-10\n- `any` · **`api.github.com` direct HTTP**: blocked → GitHub access is\n  MCP-tools-only. — LAST-VERIFIED: 2026-07-10\n- `any` · **Environment / Project creation**: owner-click actions in the\n  console — queue them as structured owner asks, never wait silently.\n  Routine/schedule creation is NO LONGER a blanket wall: `create_trigger`\n  arms routines agent-side (proven 2026-07-11); the console-only knobs\n  (model class, branch-push, auto-fix PRs) remain owner-only.\n  — LAST-VERIFIED: 2026-07-11\n- `subagent` · **Self-merge classifier**: sessions can be refused merging\n  owner-gated PRs while their other capabilities work — and the boundary\n  differs by venue (a child session was refused where a coordinator was\n  not). Record which venue hit which boundary. — LAST-VERIFIED: 2026-07-10\n- `any` · **GraphQL API quota**: tight — batch queries and prefer the\n  REST-backed MCP tools for bulk reads. — LAST-VERIFIED: 2026-07-10\n- `routine-fired` · **Silent prompt-stalls**: a permission prompt in an\n  unattended seat is a silent stall, and grant boundaries differ by venue —\n  the same tool call can be pre-granted in a Routine-spawned seat and prompt\n  in a plain-started one. Pre-route around recorded stall classes; verify\n  grants per venue, never globally. — LAST-VERIFIED: 2026-07-12\n\n<!-- substrate-kit:capability-seed END -->\n\n## Append log — newest first\n\nFormat: `- YYYY-MM-DD · capability|wall · <venue> · finding · evidence · workaround`\n(venue ∈ `owner-live` · `autonomous-project` · `routine-fired` · `subagent` ·\n`any`; older five-field lines without a venue token stay valid — read them\nas venue `any`.)\n\n(Hand-filled by sessions, per the discovery rule. Seed rows above are\nkit-owned — they refresh at upgrade between the fence markers; local\nfindings go here, below the fence.)\n',
+    'CLAUDE.md.tmpl': '# ${project_name} — agent working agreement\n\n> **Status:** `binding`\n>\n> Generated by substrate-kit from the staged interview. **NOT SOURCE OF TRUTH**\n> for code — source files always win. Re-render (`bootstrap render`) after the\n> interview fills more slots.\n\n## What this project is\n\n${project_name} is built in ${primary_language}.\n\n## Orientation — read first, in order\n\n0. **Preflight — land on origin\'s HEAD before reading anything else:**\n   `git fetch origin main && git reset --hard origin/main` (or\n   `git checkout -B main origin/main`). A warm container clone can lag\n   origin by dozens of commits, and a stale clone reads stale orders.\n   Mechanics + safety notes: `docs/AGENT_ORIENTATION.md` § "Start every\n   session".\n1. This file — the working agreement.\n2. `HANDOFF.md` at repo root (when present) — the previous session\'s trail:\n   newest session card + where to pick up. Regenerated at every session\n   boot, untracked by design — read it before re-deriving history from\n   `git log`/`git show`; never commit or edit it.\n3. `docs/current-state.md` — what is true right now.\n\nThat is the whole boot set. Everything else is routed, **not front-loaded**\n(reading every planted doc up front buys ceremony, not context — measured):\nopen `docs/AGENT_ORIENTATION.md` when a task needs its reading route,\n`docs/SKILLS.md` (the skill index) **before improvising a procedure for a\nrecurring action**, and\n`docs/CAPABILITIES.md` (the verified can/cannot ledger) **before declaring\nany wall or missing credential** — its discovery rule: check the file →\ncheck the env → attempt once + capture the exact error → append the finding\nsame session — and `docs/ROUTINES.md` (the wake-chain/trigger doctrine)\n**before arming, deleting, or auditing any scheduled trigger/routine**.\n\n## Kit machinery — search hygiene\n\n`bootstrap.py` (~12k generated lines) and `.substrate/` (kit state + a byte\nbackup of the previous dist) are substrate-kit machinery, not project code.\nExclude them from repo-wide searches: `grep -r --exclude=bootstrap.py\n--exclude-dir=.substrate …`, or ripgrep `rg -g \'!bootstrap.py\' -g\n\'!.substrate\' …`.\n\n## Architecture — layers & import rules\n\n${architecture_layers}\n\n## Verifying a change\n\nRun before every push:\n\n```\n${verify_command}\n```\n\n## How the maintainer works\n\n${owner_profile}\n\n## Workflow adoption\n\nCurrent adoption pace for the substrate workflow: **${integration_mode}**.\n',
+    'CONSTITUTION.md.tmpl': '# ${project_name} — constitution\n\n> **Status:** `binding`\n>\n> Generated by substrate-kit. The working agreement + autonomy rails. **NOT\n> SOURCE OF TRUTH** for code — source files always win. Rules state their\n> **current value only**; provenance lives in `docs/decisions.md` as [D-NNNN]\n> links and is never narrated inline.\n\n## Working agreement\n\n- **The goal comes first.** Achieve the session\'s goal end-to-end; don\'t ship\n  the smallest safe slice.\n- **Session prompts are guidance, not orders.** Weigh every prompt (and every\n  cross-agent report) against source and the binding docs before acting.\n- **Approved plan = execute.** Once a plan is approved, finish it in the same\n  session, with the planning context still loaded — no re-confirming.\n- **Understand-and-reflect.** The owner hands over fragments, not full\n  specs. Before substantive work, restate the fuller picture built from the\n  ask — the implied specs, and the possibility space when feasibility is\n  uncertain — inline in the first substantive response, never as a blocking\n  question. It catches a misread early, and the filled-in picture is itself\n  new material the owner redirects.\n- **Capabilities are discovered, never assumed.** Before declaring a wall or\n  a missing credential: check `docs/CAPABILITIES.md` (the verified ledger) →\n  check the environment → attempt once and capture the exact error → append\n  the finding same session.\n- **Recurring actions run through the skill index.** `docs/SKILLS.md` names\n  every kit-shipped skill and when to reach for it — check it before\n  improvising a procedure or repo-searching "how do we do X here".\n- **Skills self-propagate — the registration reflex.** A recurring action\n  with no skill — or a skill whose body doesn\'t actually cover it — is a\n  gap to register, not to route around: the standard move is to **add or\n  extend the skill** — a registry entry, not ad-hoc prose — via the growth\n  loop prose workflow → index row → promoted skill (`docs/SKILLS.md`\n  § "Growing the set"). The boundary: skill bodies, grounds, and index rows\n  are free to ship directly, flagged self-initiated on the run report;\n  **binding working-agreement text and executable config** (this file,\n  `CLAUDE.md`-level rules, hooks, settings) route through\n  `docs/question-router.md` as a proposal — never self-applied — unless the\n  owner directs the change live in-session, recorded with its provenance id\n  ("Changing the rules" below; superbot Q-0194 · Q-0106 · Q-0172).\n- **Evidence — verify, don\'t trust.** A record is a claim; the live surface\n  is the proof — probe the registry/API/tree before acting on any recorded\n  state (probe-not-record). The committed **tree wins over a self-report**:\n  heartbeat/registry `kit:` lines chronically lag the target repo\'s tree by\n  1–3 releases — verify against the tree. A red or green **check is judged\n  by its job log, never its name** (alias/mirror jobs red without measuring\n  anything; a designed hold is not a failure). Staleness-sensitive reads are\n  **cross-checked before acting** (MCP PR-state reads observed ~25 min\n  stale — confirm merge/CI state via git fetch or the Actions runs). A green\n  check that contradicts visible evidence is **a bug in the CHECK, not a\n  clearance** (PL-006). Every load-bearing claim cites a commit / PR / tag /\n  run.\n- When a doc and a source file disagree: ${drift_resolution}\n\n## Autonomy rails — act vs. ask\n\n- **Act** on contained, reversible, verifiable changes — including a\n  root-cause fix discovered mid-task.\n- **Ask** before anything irreversible (data loss, external publish),\n  large / cross-cutting (architectural), or when the goal itself is\n  genuinely ambiguous. No live owner to ask? Record the question in\n  `docs/question-router.md` instead of skipping it or guessing.\n- **Owner attention is the scarcest resource.** Before routing anything to\n  the owner: attempt it yourself, or cite the exact wall — assumption-based\n  asks are banned. Every ask carries the OWNER-ACTION fields — WHAT / WHERE\n  / HOW / WHY-IT-MATTERS / UNBLOCKS / VERIFIED-NEEDED (format:\n  `control/README.md`) — phrased so a non-technical owner can act directly.\n  Expire stale asks; fewer, clearer asks beat complete lists. Owner-facing\n  output follows the owner-assist standard — paste-ready finished values, a\n  risk class (✅ / ↩️ / ⚠️) on every manual step, decisions as structured\n  choices with a **bolded recommendation**, answerable with one letter\n  (standard: `control/README.md`).\n\n## Changing the rules — propose, don\'t apply\n\n- A binding rule in this file changes by **proposal**, never by silent edit:\n  record the decision in `docs/decisions.md`, cite it here as its [D-NNNN]\n  id, and let the owner (or the review ritual) confirm before the rule text\n  changes.\n- Every rule change ships with its provenance id. This file carries **no\n  history** — the ledger does; superseded rules are looked up there.\n\n## Program law\n\nRulings that bind **every** repo in this program live canonically in the\nsubstrate-kit repo at `docs/program/rulings.md` — the [PL-NNN] register\n(https://github.com/menno420/substrate-kit/blob/main/docs/program/rulings.md),\ne.g. PL-001 decide-and-flag · PL-006 source-wins / false-green.\n**Cite PL-IDs — never copy ruling bodies into this repo** (the register is\nthe one home; a local copy is drift by construction). Repo-local rulings\nstay in `docs/decisions.md` / `docs/question-router.md`.\n\n## Rails specific to ${project_name}\n\n(Hand-filled: the project\'s own hard rules, one bullet each, each citing its\n[D-NNNN]. Keep the whole hand-filled file under 150 lines.)\n',
+    'SKILLS-index.md.tmpl': '# ${project_name} — skill index\n\n> **Status:** `reference`\n>\n> Generated by substrate-kit. The table below renders FROM the kit\'s\n> `SKILLS` list — the same source that emits the skills — and regenerates\n> at adopt/upgrade, so it cannot hand-drift. **NOT SOURCE OF TRUTH** for\n> skill bodies: the installed `.claude/skills/<name>/SKILL.md` wins.\n\n## What this is\n\nThe registered skill set for ${project_name}: every recurring action that\nhas a defined, kit-shipped procedure. **Check this index before improvising\na workflow or repo-searching "how do we do X here"** — when a row covers\nthe action, invoke the skill (or read its installed body) instead of\nderiving the procedure from scratch.\n\n## The skills\n\n${skills_index}\n\n## Where the bodies live\n\n- **Installed (live):** `.claude/skills/<name>/SKILL.md` — invoke as\n  `/<name>`.\n- **Staged (regenerated at every adopt/upgrade):** the kit state dir\'s\n  `skills/` tree (default `.substrate/skills/`); install with\n  `python3 bootstrap.py skills --build`.\n- **Precedence:** a skill\'s declared capability **wins over the ambient\n  stance** (an invoked `session-close` may write the session log even under\n  a `review` stance); stances stay advisory for anything a skill has not\n  declared.\n\n## Machine consumption — the seat digest\n\n`docs/seat-digest.md` is the machine-extractable DERIVED RENDER of this\nindex plus the capability ledger\'s venue-relevant walls — two fence-marked\nblocks sized for seat-prompt budgets, consumed by fleet-manager\'s\nseat-prompt regen via fence-prefix extraction + byte match. Never edit it;\nregenerate with `python3 bootstrap.py seat-digest` (adopt/upgrade refresh\nit too). The extraction contract and the no-third-copy deferral chain are\ndocumented in that file itself.\n\n## Growing the set\n\nThe skill set is kit-owned (the `SKILLS` list in the kit\'s\n`src/engine/skills/skills.py`) and this index regenerates from it — never\nhand-edit the table. A recurring action without a row here — or a row\nwhose body doesn\'t actually cover it — is the registration reflex firing:\nthe standard move is to **add or extend the skill**, as a registry entry,\nnot ad-hoc prose. The growth loop is prose workflow → index row → promoted\nskill: capture the procedure as an idea (`docs/ideas/README.md`) or\npropose it upstream to the kit, and it reaches every adopter at the next\nrelease. Skill bodies, grounds, and index rows are free to ship directly —\nflag them self-initiated on the run report; binding working-agreement text\nis proposed through `docs/question-router.md`, never self-applied — the\nfull clause and its provenance live in the working agreement\n(`${agreement_home}`, superbot Q-0194 · Q-0106 · Q-0172).\n',
     'ai-project-workflow.md.tmpl': "# ${project_name} — AI project workflow\n\n> **Status:** `reference`\n>\n> Generated by substrate-kit. The multi-agent pipeline: how ideas become work\n> and how sessions run. **NOT SOURCE OF TRUTH** — the binding contracts win.\n\n## Idea lifecycle\n\n```\ncaptured -> classified -> planned -> built -> verified\n```\n\nEvery idea ends implemented, planned, in discussion, or explicitly rejected —\nnever orphaned. Backlog + routing: `docs/ideas/README.md`.\n\n## Session workflow\n\n```\norient -> claim -> born-red card -> build -> verify -> close\n```\n\n1. **Orient** — working agreement, current state, task-specific reading route.\n2. **Claim** — declare your lane so parallel sessions don't collide.\n3. **Born-red card** — open the session record first, marked in-progress, so\n   the work is visible while it is still incomplete.\n4. **Build** — the goal, end-to-end.\n5. **Verify** — run `${verify_command}` before shipping.\n6. **Close** — flip the card complete; log the session, groom one idea, hand\n   off.\n\n## Handoff template\n\n(What the next session needs, four lines: state of the work · what is\nverified · what is still open · the first next step.)\n\n## Adoption pace\n\nCurrent substrate-workflow adoption: **${integration_mode}**.\n",
     'architecture.md.tmpl': '# ${project_name} — architecture\n\n> **Status:** `binding`\n>\n> Generated by substrate-kit. Layering, invariants, and decomposition rules.\n> **NOT SOURCE OF TRUTH** for code — source files always win.\n\n## Layers & import rules\n\n${architecture_layers}\n\n| Layer | May import | Must NOT import |\n|---|---|---|\n| (one row per layer, expanded from the summary above) | | |\n\n## Invariants\n\n(The rules that must survive every refactor — write each one as a testable\nstatement, and name the check that enforces it where one exists.)\n\n## Namespace protection — two mechanisms, both required\n\nTwo separate mechanisms guard the namespace, and they catch different\nfailure classes:\n\n1. **A registry for runtime string identities** — event names, command\n   names, settings keys, and any other string that selects behavior at\n   runtime. Collisions here are invisible to static analysis.\n2. **A static AST pass for Python symbol shadowing** — a later top-level\n   `def` / `class` with the same name silently shadows the earlier one, and\n   no import fails.\n\nNeither mechanism subsumes the other. The registry cannot see symbol\nshadowing; the AST pass cannot see string-keyed dispatch. Do not delete one\nbelieving the other covers it.\n\n## Verifying a change\n\n```\n${verify_command}\n```\n',
-    'collaboration-model.md.tmpl': "# ${project_name} — collaboration model\n\n> **Status:** `binding`\n>\n> Generated by substrate-kit. How the owner and agents work together. **NOT\n> SOURCE OF TRUTH** for code — source files always win.\n\n## The model\n\n- **Goal first.** The owner designs and directs; agents build. Each session\n  achieves its goal end-to-end — not the smallest safe slice.\n- **Session prompts are guidance, not orders.** Weigh every prompt (and every\n  cross-agent report) against source and the binding docs before acting; a\n  prompt is one input, never a command list.\n- **Approved plan = execute.** Once a plan is approved, finish it in the same\n  session, with the planning context still loaded — code, verify, ship —\n  without re-confirming.\n\n## Act vs. ask\n\n- **Act** on contained, reversible, verifiable changes — including a\n  root-cause fix discovered mid-task (that is expected, not scope creep).\n- **Ask** when the change is irreversible (data loss / external publish),\n  large and cross-cutting (architectural), or the goal itself is genuinely\n  ambiguous.\n\n## Routing work to the owner\n\nThe owner is the scarcest resource in the program. An ask reaches the owner\nonly when the agent has **attempted the action itself** or can name the\n**exact wall** (error text, permission denial) proving only the owner can do\nit — assumption-based asks are banned. Every ask uses the OWNER-ACTION\nformat — WHAT / WHERE / HOW / WHY-IT-MATTERS / UNBLOCKS / VERIFIED-NEEDED\n(canonical: `control/README.md`) — phrased so a non-technical owner can act\ndirectly: one plain sentence, an exact click path, paste-ready text.\nWithdraw asks that have gone stale; fewer, clearer asks beat complete lists.\n\n## Friction → guard\n\nAnything that interrupts a session's workflow — a stale file, a checker that\nlied, a footgun — is converted into the **cheapest enforcing prevention**\nbefore the session ends: checker / CI / test first, then hook, then written\nrule. Enforce, don't exhort.\n\n## Guiding questions\n\nDuring exploratory / brainstorming work, surface the single most useful\nquestion about the owner's idea that the agent genuinely cannot derive\nitself — rare and selective, never during routine execution, and only when\nthe answer would actually matter and be actionable. A big or vague idea\nearns a dedicated research pass or its own session before being answered\nfrom memory alone.\n\n## Program law\n\nThis model's program-wide form, and the rulings that bind every repo in the\nprogram, live canonically in the substrate-kit repo at\n`docs/program/rulings.md` (the [PL-NNN] register — e.g. PL-001\ndecide-and-flag, PL-002 never-wait, PL-007 enforce-don't-exhort) and\n`docs/program/collaboration-model.md`\n(https://github.com/menno420/substrate-kit/tree/main/docs/program).\n**Cite PL-IDs — never copy ruling bodies into this repo.**\n\n## Drift & staleness\n\n- When a doc and a source file disagree: ${drift_resolution}\n- Staleness review cadence: ${staleness_review}\n",
-    'control-README.md.tmpl': '# Fleet coordination protocol — `control/`\n\n> **Status:** `binding`\n>\n> Local copy for ${project_name}. Canonical spec: `menno420/superbot` →\n> `docs/planning/fleet-coordination-protocol-2026-07-09.md` (§1). Projects cannot talk to each\n> other directly — committed git files are the only shared medium; this directory is the bus.\n\n## The two files\n\n- `control/inbox.md` — ORDERS to this Project. **One writer: the manager** (appends via the\n  GitHub Contents API). Never edit this file.\n- `control/status.md` — STATE from this Project. **One writer: this Project** (overwrite it each\n  session).\n\n## The one rule that keeps it conflict-free\n\n**One writer per file.** The manager is the sole writer of `inbox.md`; this Project is the sole\nwriter of its own `status.md`. Two writers never touch the same file, so there are no merge\nconflicts. Everything is append-only / overwrite-own — forward-only git.\n\n## Multi-Project repos — per-lane heartbeats (optional extension)\n\nA SHARED repo can host several Projects ("lanes" — e.g. a mining lane and an exploration lane\ncohabiting one game repo). The one-writer rule scales by **splitting the heartbeat, never by\nsharing it**:\n\n- **One status file per lane** — `control/status-<lane>.md` (e.g. `control/status-mining.md` +\n  `control/status-exploration.md`). Each lane is the sole writer of its own file and overwrites\n  it as its session\'s deliberate LAST step; no lane ever edits another lane\'s heartbeat.\n- **`control/inbox.md` stays single** — the manager remains its one writer; a lane-specific\n  order names its lane in `do:`.\n- **Declare every lane heartbeat to the kit** — `substrate.config.json` →\n  `"heartbeat_files": ["control/status-mining.md", "control/status-exploration.md"]` (default\n  when unset: `["control/status.md"]`). The status checker then gates each listed file\n  independently (missing / heartbeat-less lane = strict RED; per-lane staleness warns), and the\n  Stop hook\'s overwrite reminder clears when any lane\'s heartbeat is fresh (it cannot know which\n  lane a session belongs to). An empty list falls back to the default — misconfiguration never\n  silently disables the gate.\n- **One command, not hand-edits** — a Project joining a SHARED repo runs\n  `bootstrap adopt --lane <name>`: it plants `control/status-<name>.md` (skip-if-exists),\n  declares it in `heartbeat_files`, and leaves `inbox.md`/`README.md` single — a second lane\n  never re-plants the first Project\'s files (the double-adoption fix).\n\n## Per-session ritual (every session, and every routine wake)\n\n- **FIRST:** git pull (a stale clone reads stale orders); read `control/inbox.md`; execute any\n  order whose status is `new`, in priority order (P0 before P1) — **claim it first** (see\n  "Claiming an order" below). An order\'s `do:` is a pointer to\n  a committed doc — read it. If an order is ambiguous or you disagree, do NOT guess: write it in\n  your status under `⚑ needs-owner` and proceed with the rest.\n- **LAST (deliberate final step):** overwrite `control/status.md` — updated timestamp, current\n  phase, health (green / red-by-design+why / broken+what), last-shipped PR, blockers, orders\n  acked/done, `⚑ needs-owner`. You report order progress ONLY here; never edit `inbox.md`\n  (the manager owns it — one writer per file).\n\nThe kit enforces this loop: `check` flags a missing or heartbeat-less `status.md`\n(strict = red), warns when the heartbeat goes stale, and the Stop hook reminds you when\n`status.md` was not overwritten this session.\n\n## Claiming an order — one executor per order (claim FIRST, build second)\n\nAn order\'s `status: new` is visible to every session that wakes, so two readers can both\nbelieve they are its executor — a realized failure, not a theoretical one (substrate-kit\nPRs #50/#51: two lanes independently executed the same ORDER 005 the same day, and a whole\nsession\'s work had to be reconciled as twins). The manager only flips `new→done` after\nseeing the status report; the claim covers the gap in between.\n\nBefore executing any `new` order:\n\n1. **Re-read the bus at origin/main HEAD** — `control/inbox.md` AND every sibling status\n   file (`control/status*.md`). If another lane\'s status already claims the order\n   (`claimed-by:` naming its id) or reports it in `done=`, stand down and pick other work.\n2. **Claim FIRST, on your own status file\'s orders line** — append\n   `claimed-by: <order-ids> <lane-or-session> <ISO8601>` — and land it on **main** BEFORE\n   any build work (a control-only fast-lane PR, or a direct commit where your rules allow\n   one). A claim that exists only on a branch is invisible; only main counts.\n3. **Re-read once more after the claim merges** — two claims can race in flight; the\n   tiebreak is the earliest claim merged to main. The loser withdraws its claim line in\n   its next status overwrite and stands down.\n4. **Claims expire** — a claim with no visible build activity (no open PR, no fresh\n   heartbeat referencing the order) after ~24h may be treated as abandoned and re-claimed;\n   note the takeover in your status `notes:`. A dead lane must never deadlock an order.\n\nWith an active claim the `orders:` line reads e.g.:\n`orders: acked=001-008 done=001-006 claimed-by: 007+008 coordinator-lane 2026-07-09T18:38Z`\n— the executor drops the `claimed-by:` annotation in the overwrite that moves those ids\ninto `done=`. One writer per file is preserved: you only ever claim on your OWN status.\n(Shipped by inbox ORDER 007 — the root-cause fix for the twin-execution failure; the\nritual was live-proven manually on this repo\'s own orders before graduating here.)\n\n## Claiming work (not an ORDER) — one file per claim under `control/claims/`\n\nOrder claims cover the inbox; **work claims** cover everything else two\nparallel sessions could both pick up — a coordinator-assigned slice, a\nself-initiated build, a shared-surface change. Before starting such work,\ncreate **one file per claim** — `control/claims/<branch-or-scope>.md`, a\nsingle bullet `` - `branch-or-scope` · **scope** — detail · YYYY-MM-DD `` —\nland it on main FAST (claims are `control/**` traffic and ride the CI fast\nlane), re-read the directory at HEAD, build, then **delete the file at\nsession close**. Per-file is the measured winner over any shared list (~98%\nmerge-conflict rate for shared-append vs 0% per-file — superbot\n`tools/sim/claim_layout_sim.py`); first claim merged to main wins a\ncollision; ~72h with no activity = abandoned, prune on sight. Full\nconvention + checker contract: `control/claims/README.md`. (`check` nags —\nadvisory-only — on unparseable, stale, duplicate, or legacy-located claims;\nlegacy homes `docs/owner/claims/` and root `claims/` are auto-detected\nduring the migration window, and a deliberate different home is pinned via\n`substrate.config.json` → `claims_dir`.)\n\n## `status.md` format (what you write every session — your heartbeat)\n\n```markdown\n# <project> · status\nupdated: <ISO8601>            # heartbeat — stale = the manager treats the Project as dark\nphase: <what I\'m doing right now, one line>\nhealth: green | red-by-design (<why>) | broken (<what>)\nkit: v<X.Y.Z> · check: green|red · engaged: yes|no   # kit self-report — see below\nlast-shipped: #<PR> — <one line>\nblockers: <what\'s stopping me, or `none`>\norders: acked=<ids> done=<ids> [claimed-by: <ids> <lane-or-session> <ISO8601>]\n⚑ needs-owner: <a decision/action only the owner can give, or `none`>\nnotes: <anything the manager should know>\n```\n\nGrammar source of truth: the tokens, field lists, and regexes of this format are kit-owned constants in the kit\'s `src/engine/grammar.py` (EAP §6.8) — the SAME module the `check` enforcers consume, so writer and enforcer cannot drift; agreement is pinned by the kit\'s `tests/test_grammar.py`.\n\nThe `kit:` line is the **substrate-coordinator visibility** channel (kit-lab reads it via the\nmanager relay — zero write access to this repo): `v<X.Y.Z>` = the vendored kit version this\nrepo actually runs (update it in the same session as every `bootstrap upgrade`); `check:` =\nthe latest `check --strict` verdict on this tree; `engaged:` = the post-adopt engagement gate\n(`yes` once no UNRENDERED banner/slot remains, live CI runs the gate, and the session loop\nhas engaged).\n\n## ⚑ needs-owner — the OWNER-ACTION item format (quality contract)\n\nThe owner is the scarcest resource in the program: every ask routed to the owner costs\nattention, and an unclear or unnecessary ask stalls your own lane on top of burning his.\n**Before routing ANYTHING to the owner, try it yourself or cite the exact wall** — an\nassumption-based ask ("agents probably can\'t do X") is banned; the bar is the capability\nledger (`docs/CAPABILITIES.md`) plus one real attempt with the captured error.\n\nEvery ⚑ needs-owner item carries ALL of these REQUIRED fields — inline on the item, or as a\nstructured block the item links to:\n\n```markdown\n⚑ OWNER-ACTION\nWHAT: <one plain sentence, zero jargon — the thing the owner does>\nWHERE: <exact click path or URL>\nHOW: <paste-ready text/values where applicable, or "click only">\nWHY-IT-MATTERS: <one sentence, in product terms>\nUNBLOCKS: <what starts moving the moment it\'s done>\nVERIFIED-NEEDED: <the attempt you made + the exact error/wall proving only the owner can do\nthis — never an assumption>\n```\n\nHygiene: **expire or withdraw stale asks every session** (an answered or obsolete ask left in\nthe list is drift), and **fewer, clearer asks beat complete lists**. `check` warns — advisory,\nnever exit-affecting — when a non-`none` ⚑ needs-owner list lacks these fields.\n\nGrammar source of truth: the tokens, field lists, and regexes of this format are kit-owned constants in the kit\'s `src/engine/grammar.py` (EAP §6.8) — the SAME module the `check` enforcers consume, so writer and enforcer cannot drift; agreement is pinned by the kit\'s `tests/test_grammar.py`.\n\n## `inbox.md` order format (manager-written, append-only)\n\n```markdown\n## ORDER <nnn> · <ISO8601> · status: new     # manager flips new→done after seeing status done=\npriority: P0 | P1 | P2\ndo: <pointer to a committed doc/section + the ask, kept short>\nwhy: <one line>\ndone-when: <acceptance test>\n```\n\nGrammar source of truth: the tokens, field lists, and regexes of this format are kit-owned constants in the kit\'s `src/engine/grammar.py` (EAP §6.8) — the SAME module the `check` enforcers consume, so writer and enforcer cannot drift; agreement is pinned by the kit\'s `tests/test_grammar.py`.\n\n## CI + auto-merge notes (learned live, 2026-07-09)\n\n- **Heartbeat commits ride a fast lane, not a `paths-ignore`.** A control-only diff (only\n  `control/**` files changed) must still *report* every required status check, or GitHub treats\n  the missing contexts as pending and auto-merge jams forever. The kit\'s planted\n  `substrate-gate.yml` therefore short-circuits GREEN inside the job on control-only diffs\n  instead of skipping the workflow — copy that pattern (an in-job early exit) into any other\n  heavy suite rather than adding `paths-ignore: [control/**]` to a workflow whose check is\n  required.\n- **API-authored PRs may not trigger CI.** A PR created purely through an app/integration token\n  (e.g. the GitHub Contents API + a REST PR create) can sit with **zero check runs** — required\n  checks then never report and the PR cannot auto-merge. The manager\'s canonical write path is\n  therefore a **direct Contents-API commit to the default branch of `inbox.md`** (it is the sole\n  writer, so no PR is needed). When this Project ships control changes by PR, push the branch\n  over git (a real `git push` triggers `pull_request`/`push` events) before or after creating\n  the PR, and verify the PR shows check runs before relying on auto-merge.\n',
+    'collaboration-model.md.tmpl': '# ${project_name} — collaboration model\n\n> **Status:** `binding`\n>\n> Generated by substrate-kit. How the owner and agents work together. **NOT\n> SOURCE OF TRUTH** for code — source files always win.\n\n## The model\n\n- **Goal first.** The owner designs and directs; agents build. Each session\n  achieves its goal end-to-end — not the smallest safe slice.\n- **Session prompts are guidance, not orders.** Weigh every prompt (and every\n  cross-agent report) against source and the binding docs before acting; a\n  prompt is one input, never a command list.\n- **Approved plan = execute.** Once a plan is approved, finish it in the same\n  session, with the planning context still loaded — code, verify, ship —\n  without re-confirming.\n\n## Act vs. ask\n\n- **Act** on contained, reversible, verifiable changes — including a\n  root-cause fix discovered mid-task (that is expected, not scope creep).\n- **Ask** when the change is irreversible (data loss / external publish),\n  large and cross-cutting (architectural), or the goal itself is genuinely\n  ambiguous.\n\n## Routing work to the owner\n\nThe owner is the scarcest resource in the program. An ask reaches the owner\nonly when the agent has **attempted the action itself** or can name the\n**exact wall** (error text, permission denial) proving only the owner can do\nit — assumption-based asks are banned. Every ask uses the OWNER-ACTION\nformat — WHAT / WHERE / HOW / WHY-IT-MATTERS / UNBLOCKS / VERIFIED-NEEDED\n(canonical: `control/README.md`) — phrased so a non-technical owner can act\ndirectly: one plain sentence, an exact click path, paste-ready text.\nWithdraw asks that have gone stale; fewer, clearer asks beat complete lists.\n\nEvery owner-facing OUTPUT — not just asks — follows the owner-assist output\nstandard (canonical: `control/README.md` § "Owner-assist output standard"):\nvalues arrive finished and paste-ready, with the exact link to where each\none goes (a full file in one copyable block — never a recipe the owner must\nderive); every manual step carries a risk class (✅ safe / ↩️ reversible /\n⚠️ irreversible); a decision put to the owner is a structured choice —\noptions A/B(/C) with a **bolded recommendation** and a one-line rationale,\nanswerable with one letter — never an ask that requires the owner to\nparse, derive, or transform anything; a large output ships as a control-plane\nrendered link plus a 3-line digest in chat, with full text in one copyable\nblock in chat as the fallback where the plane cannot render the repo yet.\n\n## Friction → guard\n\nAnything that interrupts a session\'s workflow — a stale file, a checker that\nlied, a footgun — is converted into the **cheapest enforcing prevention**\nbefore the session ends: checker / CI / test first, then hook, then written\nrule. Enforce, don\'t exhort.\n\n## Guiding questions\n\nDuring exploratory / brainstorming work, surface the single most useful\nquestion about the owner\'s idea that the agent genuinely cannot derive\nitself — rare and selective, never during routine execution, and only when\nthe answer would actually matter and be actionable. A big or vague idea\nearns a dedicated research pass or its own session before being answered\nfrom memory alone.\n\n## Program law\n\nThis model\'s program-wide form, and the rulings that bind every repo in the\nprogram, live canonically in the substrate-kit repo at\n`docs/program/rulings.md` (the [PL-NNN] register — e.g. PL-001\ndecide-and-flag, PL-002 never-wait, PL-007 enforce-don\'t-exhort) and\n`docs/program/collaboration-model.md`\n(https://github.com/menno420/substrate-kit/tree/main/docs/program).\n**Cite PL-IDs — never copy ruling bodies into this repo.**\n\n## Drift & staleness\n\n- When a doc and a source file disagree: ${drift_resolution}\n- Staleness review cadence: ${staleness_review}\n',
+    'control-README.md.tmpl': '# Fleet coordination protocol — `control/`\n\n> **Status:** `binding`\n>\n> Local copy for ${project_name}. Canonical spec: `menno420/superbot` →\n> `docs/planning/fleet-coordination-protocol-2026-07-09.md` (§1). Projects cannot talk to each\n> other directly — committed git files are the only shared medium; this directory is the bus.\n\n## The two files\n\n- `control/inbox.md` — ORDERS to this Project. **One writer: the manager** (appends via the\n  GitHub Contents API). Never edit this file.\n- `control/status.md` — STATE from this Project. **One writer: this Project** (overwrite it each\n  session).\n\n## The one rule that keeps it conflict-free\n\n**One writer per file.** The manager is the sole writer of `inbox.md`; this Project is the sole\nwriter of its own `status.md`. Two writers never touch the same file, so there are no merge\nconflicts. Everything is append-only / overwrite-own — forward-only git.\n\n## Multi-Project repos — per-lane heartbeats (optional extension)\n\nA SHARED repo can host several Projects ("lanes" — e.g. a mining lane and an exploration lane\ncohabiting one game repo). The one-writer rule scales by **splitting the heartbeat, never by\nsharing it**:\n\n- **One status file per lane** — `control/status-<lane>.md` (e.g. `control/status-mining.md` +\n  `control/status-exploration.md`). Each lane is the sole writer of its own file and overwrites\n  it as its session\'s deliberate LAST step; no lane ever edits another lane\'s heartbeat.\n- **`control/inbox.md` stays single** — the manager remains its one writer; a lane-specific\n  order names its lane in `do:`.\n- **Declare every lane heartbeat to the kit** — `substrate.config.json` →\n  `"heartbeat_files": ["control/status-mining.md", "control/status-exploration.md"]` (default\n  when unset: `["control/status.md"]`). The status checker then gates each listed file\n  independently (missing / heartbeat-less lane = strict RED; per-lane staleness warns), and the\n  Stop hook\'s overwrite reminder clears when any lane\'s heartbeat is fresh (it cannot know which\n  lane a session belongs to). An empty list falls back to the default — misconfiguration never\n  silently disables the gate.\n- **One command, not hand-edits** — a Project joining a SHARED repo runs\n  `bootstrap adopt --lane <name>`: it plants `control/status-<name>.md` (skip-if-exists),\n  declares it in `heartbeat_files`, and leaves `inbox.md`/`README.md` single — a second lane\n  never re-plants the first Project\'s files (the double-adoption fix).\n\n## Per-session ritual (every session, and every routine wake)\n\n- **FIRST:** git pull (a stale clone reads stale orders); read `control/inbox.md`; execute any\n  order whose status is `new`, in priority order (P0 before P1) — **claim it first** (see\n  "Claiming an order" below). An order\'s `do:` is a pointer to\n  a committed doc — read it. If an order is ambiguous or you disagree, do NOT guess: write it in\n  your status under `⚑ needs-owner` and proceed with the rest.\n- **LAST (deliberate final step):** overwrite `control/status.md` — updated timestamp, current\n  phase, health (green / red-by-design+why / broken+what), last-shipped PR, blockers, orders\n  acked/done, `⚑ needs-owner`. You report order progress ONLY here; never edit `inbox.md`\n  (the manager owns it — one writer per file).\n\nThe kit enforces this loop: `check` flags a missing or heartbeat-less `status.md`\n(strict = red), warns when the heartbeat goes stale, and the Stop hook reminds you when\n`status.md` was not overwritten this session.\n\n## Claiming an order — one executor per order (claim FIRST, build second)\n\nAn order\'s `status: new` is visible to every session that wakes, so two readers can both\nbelieve they are its executor — a realized failure, not a theoretical one (substrate-kit\nPRs #50/#51: two lanes independently executed the same ORDER 005 the same day, and a whole\nsession\'s work had to be reconciled as twins). The manager only flips `new→done` after\nseeing the status report; the claim covers the gap in between.\n\nBefore executing any `new` order:\n\n1. **Re-read the bus at origin/main HEAD** — `control/inbox.md` AND every sibling status\n   file (`control/status*.md`). If another lane\'s status already claims the order\n   (`claimed-by:` naming its id) or reports it in `done=`, stand down and pick other work.\n2. **Claim FIRST, on your own status file\'s orders line** — append\n   `claimed-by: <order-ids> <lane-or-session> <ISO8601>` — and land it on **main** BEFORE\n   any build work (a control-only fast-lane PR, or a direct commit where your rules allow\n   one). A claim that exists only on a branch is invisible; only main counts.\n3. **Re-read once more after the claim merges** — two claims can race in flight; the\n   tiebreak is the earliest claim merged to main. The loser withdraws its claim line in\n   its next status overwrite and stands down.\n4. **Claims expire** — a claim with no visible build activity (no open PR, no fresh\n   heartbeat referencing the order) after ~24h may be treated as abandoned and re-claimed;\n   note the takeover in your status `notes:`. A dead lane must never deadlock an order.\n\nWith an active claim the `orders:` line reads e.g.:\n`orders: acked=001-008 done=001-006 claimed-by: 007+008 coordinator-lane 2026-07-09T18:38Z`\n— the executor drops the `claimed-by:` annotation in the overwrite that moves those ids\ninto `done=`. One writer per file is preserved: you only ever claim on your OWN status.\n(Shipped by inbox ORDER 007 — the root-cause fix for the twin-execution failure; the\nritual was live-proven manually on this repo\'s own orders before graduating here.)\n\n## Claiming work (not an ORDER) — one file per claim under `control/claims/`\n\nOrder claims cover the inbox; **work claims** cover everything else two\nparallel sessions could both pick up — a coordinator-assigned slice, a\nself-initiated build, a shared-surface change. Before starting such work,\ncreate **one file per claim** — `control/claims/<branch-or-scope>.md`, a\nsingle bullet `` - `branch-or-scope` · **scope** — detail · YYYY-MM-DD `` —\nland it on main FAST (claims are `control/**` traffic and ride the CI fast\nlane), re-read the directory at HEAD, build, then **delete the file at\nsession close**. Per-file is the measured winner over any shared list (~98%\nmerge-conflict rate for shared-append vs 0% per-file — superbot\n`tools/sim/claim_layout_sim.py`); first claim merged to main wins a\ncollision; ~72h with no activity = abandoned, prune on sight. Full\nconvention + checker contract: `control/claims/README.md`. (`check` nags —\nadvisory-only — on unparseable, stale, duplicate, or legacy-located claims;\nlegacy homes `docs/owner/claims/` and root `claims/` are auto-detected\nduring the migration window, and a deliberate different home is pinned via\n`substrate.config.json` → `claims_dir`.)\n\n## `status.md` format (what you write every session — your heartbeat)\n\n```markdown\n# <project> · status\nupdated: <ISO8601>            # heartbeat — stale = the manager treats the Project as dark\nphase: <what I\'m doing right now, one line>\nhealth: green | red-by-design (<why>) | broken (<what>)\nkit: v<X.Y.Z> · check: green|red · engaged: yes|no   # kit self-report — see below\nlast-shipped: #<PR> — <one line>\nblockers: <what\'s stopping me, or `none`>\norders: acked=<ids> done=<ids> [claimed-by: <ids> <lane-or-session> <ISO8601>]\n⚑ needs-owner: <a decision/action only the owner can give, or `none`>\nnotes: <anything the manager should know>\n```\n\nGrammar source of truth: the tokens, field lists, and regexes of this format are kit-owned constants in the kit\'s `src/engine/grammar.py` (EAP §6.8) — the SAME module the `check` enforcers consume, so writer and enforcer cannot drift; agreement is pinned by the kit\'s `tests/test_grammar.py`.\n\nThe `kit:` line is the **substrate-coordinator visibility** channel (kit-lab reads it via the\nmanager relay — zero write access to this repo): `v<X.Y.Z>` = the vendored kit version this\nrepo actually runs (update it in the same session as every `bootstrap upgrade`); `check:` =\nthe latest `check --strict` verdict on this tree; `engaged:` = the post-adopt engagement gate\n(`yes` once no UNRENDERED banner/slot remains, live CI runs the gate, and the session loop\nhas engaged).\n\n**Exact grammar or invisible — keep the `kit:` token PLAIN.** The parser accepts a bold label\n*before* a plain token (`- **kit heartbeat:** kit: v1.2.3 · check: green · engaged: yes` is a\nlive valid shape), but bolding the token itself does NOT parse — the fleet registry then reads\nthe row as "no `kit:` line" and the lane\'s engaged signal silently vanishes (a live adopter\nincident, not a hypothetical). The taught negative example:\n\n```markdown\n- **kit:** v1.2.3 · check: green · engaged: yes\n```\n\n← does NOT parse (`KIT_LINE_RE`, kit `src/engine/grammar.py` — the optional bold group cannot\ncontain the `kit:` token). If your heartbeat wants a bold label, put it *before* a plain\n`kit:` token.\n\n**Version truth defers to the generated registry, never to this line.** Heartbeat `kit:`\nlines are self-reports and chronically lag 1–3 releases behind the tree (the fleet\'s\nrecurring self-report DRIFT class); the kit repo\'s generated `docs/adopters.md` —\nregenerated from each adopter\'s committed tree — is the fleet\'s version truth, and your own\ncommitted tree (the vendored dist) is yours. Never hand-assert a fleet version spread from\nheartbeat lines; keep this line in sync as a courtesy signal, not as proof.\n\n## ⚑ needs-owner — the OWNER-ACTION item format (quality contract)\n\nThe owner is the scarcest resource in the program: every ask routed to the owner costs\nattention, and an unclear or unnecessary ask stalls your own lane on top of burning his.\n**Before routing ANYTHING to the owner, try it yourself or cite the exact wall** — an\nassumption-based ask ("agents probably can\'t do X") is banned; the bar is the capability\nledger (`docs/CAPABILITIES.md`) plus one real attempt with the captured error.\n\nEvery ⚑ needs-owner item carries ALL of these REQUIRED fields — inline on the item, or as a\nstructured block the item links to:\n\n```markdown\n⚑ OWNER-ACTION\nWHAT: <one plain sentence, zero jargon — the thing the owner does>\nWHERE: <exact click path or URL>\nHOW: <paste-ready text/values where applicable, or "click only">\nRISK: <one class per manual step — ✅ safe / read-only · ↩️ reversible (say how to undo) · ⚠️ irreversible / destructive>\nWHY-IT-MATTERS: <one sentence, in product terms>\nUNBLOCKS: <what starts moving the moment it\'s done>\nVERIFIED-NEEDED: <the attempt you made + the exact error/wall proving only the owner can do\nthis — never an assumption>\n```\n\nHygiene: **expire or withdraw stale asks every session** (an answered or obsolete ask left in\nthe list is drift), and **fewer, clearer asks beat complete lists**. `check` warns — advisory,\nnever exit-affecting — when a non-`none` ⚑ needs-owner list lacks these fields.\n\nGrammar source of truth: the tokens, field lists, and regexes of this format are kit-owned constants in the kit\'s `src/engine/grammar.py` (EAP §6.8) — the SAME module the `check` enforcers consume, so writer and enforcer cannot drift; agreement is pinned by the kit\'s `tests/test_grammar.py`.\n\n## Owner-assist output standard — every owner-facing output, not just asks\n\nThe OWNER-ACTION block above covers the *needs-owner ask*; this standard\ncovers ALL output routed to the owner — reports, questions, values to paste,\nlinks. The contract in one line: **the owner never derives anything** — an\noutput that requires the owner to parse, derive, or transform anything is a\ndrafting defect, not an owner task.\n\n1. **Paste-ready, finished values.** Every value the owner must enter is\n   computed and printed final — `NAME=value`, the full command, the full\n   file body — never a recipe for deriving it. When the owner must paste\n   something, give the exact link to where it goes; a full file goes in ONE\n   copyable fenced block, directly in chat.\n2. **Exact destination, always.** Every action names its exact destination:\n   a deep URL, a console path to the exact field (surface → section →\n   field, e.g. `Railway → project → service → Variables`), or a repo path +\n   line. Never a bare "go to settings" — `check` nags that class (advisory).\n3. **Risk class on every manual step:** ✅ safe / read-only · ↩️ reversible\n   (say how to undo) · ⚠️ irreversible / destructive. One class per step,\n   stated on the step (the `RISK:` line in an OWNER-ACTION block).\n4. **Structured choices, recommendation first.** A decision put to the\n   owner is options A/B(/C) with a **bolded recommendation** and a one-line\n   rationale, answerable with one letter — never an ask that requires the\n   owner to parse, derive, or transform anything.\n5. **Large outputs: digest + rendered link, never a wall of text.** Default\n   delivery is a control-plane rendered link plus a 3-line digest in chat;\n   the fallback — full text in one copyable block directly in chat — applies\n   where the control plane cannot render the repo yet. Link rules: deep-link\n   the exact file, never the repo root; the rendered view for things the\n   owner should *read*, the GitHub blob URL for things the owner should\n   *edit*; post-merge, link `ref=main`; the control-plane render cache is\n   180 s — append `&refresh=1` when the owner must see a just-pushed change.\n\nWorked example — digest + rendered deep link + a six-field ask carrying its\nrisk class (every rule above in one output):\n\n```\n📄 Adopter-outcomes report — shipped (PR #247, merged b862e9a)\n\nDigest: before/after adoption is unmeasurable (9/10 adopters born <20h\nbefore their kit-install PR); false-claim audit near-clean (1 confirmed,\nself-corrected in 6 min); post-adoption time-to-ship baselines recorded.\n\nFull report (rendered, phone-readable):\nhttps://control-plane-production-abb0.up.railway.app/journal/substrate-kit/file?path=docs/reports/2026-07-11-adopter-outcomes-measurement.md\n\n⚑ OWNER-ACTION — set GITHUB_TOKEN on the control-plane service\nWHAT: paste one variable into Railway so private-repo pages stop degrading.\nWHERE: railway.app → project `websites` → service `control-plane` →\n       Variables → New Variable.\nHOW (paste-ready): name `GITHUB_TOKEN`, value = the fine-grained PAT you\n       created for the fleet\'s repos (contents: read). One paste, Save.\nRISK: ↩️ reversible — delete the variable to undo.\nWHY-IT-MATTERS: private-repo renders show "not-configured" banners until\n       this is set.\nUNBLOCKS: rendered file links + queue items for private repos.\nVERIFIED-NEEDED: attempted 2026-07-11 — raw fetch of a private path\n       returns 404 without a token (token-on-raw also verified NOT to\n       work, so the API fallback is the only private path).\n```\n\nGrammar source of truth: the risk-class tokens, the structured-choice phrases, and the vague-destination scan of this standard are kit-owned constants in the kit\'s `src/engine/grammar.py` — the SAME module the `check` enforcers AND the `/intake` skill pins consume, so writer, skill, and enforcer cannot drift; agreement is pinned by the kit\'s `tests/test_owner_assist.py`.\n\n## `inbox.md` order format (manager-written, append-only)\n\n```markdown\n## ORDER <nnn> · <ISO8601> · status: new     # manager flips new→done after seeing status done=\npriority: P0 | P1 | P2\ndo: <pointer to a committed doc/section + the ask, kept short>\nwhy: <one line>\ndone-when: <acceptance test>\n```\n\nGrammar source of truth: the tokens, field lists, and regexes of this format are kit-owned constants in the kit\'s `src/engine/grammar.py` (EAP §6.8) — the SAME module the `check` enforcers consume, so writer and enforcer cannot drift; agreement is pinned by the kit\'s `tests/test_grammar.py`.\n\n## CI + auto-merge notes (learned live, 2026-07-09)\n\n- **Heartbeat commits ride a fast lane, not a `paths-ignore`.** A control-only diff (only\n  `control/**` files changed) must still *report* every required status check, or GitHub treats\n  the missing contexts as pending and auto-merge jams forever. The kit\'s planted\n  `substrate-gate.yml` therefore short-circuits GREEN inside the job on control-only diffs\n  instead of skipping the workflow — copy that pattern (an in-job early exit) into any other\n  heavy suite rather than adding `paths-ignore: [control/**]` to a workflow whose check is\n  required.\n- **API-authored PRs may not trigger CI.** A PR created purely through an app/integration token\n  (e.g. the GitHub Contents API + a REST PR create) can sit with **zero check runs** — required\n  checks then never report and the PR cannot auto-merge. The manager\'s canonical write path is\n  therefore a **direct Contents-API commit to the default branch of `inbox.md`** (it is the sole\n  writer, so no PR is needed). When this Project ships control changes by PR, push the branch\n  over git (a real `git push` triggers `pull_request`/`push` events) before or after creating\n  the PR, and verify the PR shows check runs before relying on auto-merge.\n',
     'control-claims-README.md.tmpl': '# `control/claims/` — claim before build, one file per claim\n\n> **Status:** `binding`\n>\n> Local copy for ${project_name}. The kit-owned work-claim convention\n> (EAP program review 2026-07-10 §6.4 — the fleet\'s forked claim mechanisms\n> unified on the measured winner). Order claims are different and stay on\n> your heartbeat — see `control/README.md` § "Claiming an order".\n\n## What this is\n\nA lightweight **claim ledger** so parallel agent sessions don\'t duplicate each\nother\'s work. Several sessions can run at once; two of them picking up the\nsame task is pure waste. This directory makes "is someone already on this?"\nanswerable **before a PR exists** — the claim is the early in-flight signal,\nthe PR is the late one.\n\n## Why one file per claim (measured, not vibes)\n\nA shared "active work" list that every session appends to and prunes is a\nmerge-conflict machine: a real-`git merge` simulation\n(menno420/superbot `tools/sim/claim_layout_sim.py`) measured the shared-append\npattern at a **~98% conflict rate** under concurrent sessions; splitting by\nsector only halved it. **One file per claim is structurally conflict-free —\n0% at every concurrency level** — because two sessions never touch the same\nfile. The rule that preserves that 0%: **no hand-edited shared index**.\nDiscover claims with `ls control/claims/` — this README never lists them.\n\n## How to use it\n\n1. **Before starting work**, scan this directory AND the open PRs. If your\n   task is already claimed or in flight, coordinate or pick something else.\n2. **Create one claim file** — `control/claims/<branch-or-scope>.md` — with a\n   single bullet:\n   `` - `branch-or-scope` · **scope** — one-line detail · expected files/area · YYYY-MM-DD ``\n   (Keep the backticks around the branch/scope token and the ISO date — the\n   `check_claims` checker parses both; an unparseable claim is invisible to\n   its duplicate scan.)\n   Grammar source of truth: the bullet\'s regexes (backticked token + ISO date) are kit-owned constants in the kit\'s `src/engine/grammar.py` (EAP §6.8) — the SAME module `check_claims` consumes; agreement is pinned by the kit\'s `tests/test_grammar.py`.\n3. **Land the claim on main FAST** (claims are `control/**` traffic — they\n   ride the CI control fast lane), then re-read this directory at HEAD before\n   you build: if both lanes do this, the second claimer always sees the first.\n4. **Delete your own claim file at session close.** The durable record is the\n   PR and the living ledger — a claim is a whiteboard note, not an audit\n   trail.\n\n## Arbitration + expiry\n\n- **First claim merged to main wins** a collision — a deterministic tiebreak\n  beats re-litigating every race; the loser deletes its file and stands down.\n- **Claims expire**: a claim file older than ~72h with no visible build\n  activity may be treated as abandoned — prune it on sight (the checker nags\n  with `claims-stale`).\n\n## What the checker enforces (all advisory, never exit-affecting)\n\n`check` warns on: `claims-format` (no parseable bullet), `claims-stale`\n(older than the ~72h horizon), `claims-duplicate` (two files, one\nbranch/scope token), and `claims-legacy-location` (claims living in a\npre-unification home — `docs/owner/claims/` or root `claims/`; move them\nhere, or pin your deliberate location via `substrate.config.json` →\n`claims_dir`).\n\n## Not for inbox ORDERS\n\nAn inbox ORDER is claimed on your OWN heartbeat\'s `orders:` line\n(`claimed-by: <ids> <lane> <ISO8601>` — `control/README.md` § "Claiming an\norder"), never here: the heartbeat annotation preserves one-writer-per-file\nfor the order lifecycle the manager reconciles. This directory is for\n**work** — coordinator-assigned slices, self-initiated builds, anything that\nisn\'t an ORDER id.\n',
     'control-inbox.md.tmpl': '# ${project_name} · inbox\n\n> ORDERS to this Project. **ONE writer: the manager** — never edit this file. Report order\n> progress in `control/status.md` (`orders: acked=… done=…`). Protocol: `control/README.md`.\n\n*(no orders yet — the manager appends `## ORDER 001 · <ISO8601> · status: new` blocks here)*\n',
-    'control-status.md.tmpl': '# ${project_name} · status\nupdated: (seeded at adopt — no real heartbeat yet: overwrite this whole file at your first session close)\nphase: adopted — first session not yet run\nhealth: green\nkit: v${kit_version} · check: red · engaged: no\nlast-shipped: none\nblockers: none\norders: acked= done=\n⚑ needs-owner: none\nnotes: seeded skeleton planted by substrate-kit adopt. This Project is the SOLE writer of this\nfile — overwrite it (never append) as the deliberate LAST step of every session, per\n`control/README.md`. `check` holds strict RED until the first real heartbeat replaces this seed.\nThe `kit:` line is your kit self-report (substrate-coordinator visibility): keep the version in\nsync with your vendored kit on every upgrade, `check:` = your last `check --strict` verdict,\n`engaged:` = the post-adopt engagement gate (yes once `check` reports ENGAGED/green live CI).\n',
+    'control-status.md.tmpl': '# ${project_name} · status\nupdated: (seeded at adopt — no real heartbeat yet: overwrite this whole file at your first session close)\nphase: adopted — first session not yet run\nhealth: green\nkit: v${kit_version} · check: red · engaged: no\nlast-shipped: none\nblockers: none\norders: acked= done=\n⚑ needs-owner: none\nnotes: seeded skeleton planted by substrate-kit adopt. This Project is the SOLE writer of this\nfile — overwrite it (never append) as the deliberate LAST step of every session, per\n`control/README.md`. `check` holds strict RED until the first real heartbeat replaces this seed.\nThe `kit:` line is your kit self-report (substrate-coordinator visibility): keep the version in\nsync with your vendored kit on every upgrade, `check:` = your last `check --strict` verdict,\n`engaged:` = the post-adopt engagement gate (yes once `check` reports ENGAGED/green live CI).\nKeep the `kit:` token PLAIN — the bold-label form `- **kit:** v1.2.3 · check: green · engaged: yes`\ndoes NOT parse and the fleet registry reads it as no `kit:` line at all (grammar + the valid\nbold-label-before-plain-token shape: `control/README.md` § "status.md format"). And this line is\na self-report, not version truth — self-reports chronically lag; the kit repo\'s generated\n`docs/adopters.md` and your committed tree are the version truth to defer to.\n',
     'current-state.md.tmpl': '# ${project_name} — Current State\n\n> **Status:** `living-ledger`\n>\n> Generated by substrate-kit. **Living status ledger.** Source code and merged\n> work always win over this file. Read it second (right after the working\n> agreement) and keep it current as the project moves.\n\n## Stability baseline\n\n(Describe the accepted-stable baseline once established — what is known-good and\nshould not be re-audited without a reported regression.)\n\n## In flight\n\n(Verify against live source control — this section is a dated snapshot.)\n\n## Recently shipped (newest first)\n\n(Merged work only, newest first.)\n\n## Review rhythm\n\n${review_ritual}\n',
     'decisions.md.tmpl': '# ${project_name} — decisions\n\n> **Status:** `living-ledger`\n>\n> Generated by substrate-kit. Append-only decision ledger — entries are\n> superseded, never deleted. Rule docs cite entries as bare [D-NNNN] ids;\n> this file holds the provenance so rules never narrate it inline.\n\n<!-- Grammar: ## [D-NNNN] <title> / - status: decided|superseded|retired / - date: YYYY-MM-DD / - supersedes: D-NNNN (opt) / - superseded-by: D-NNNN (opt) / - verdict: <one line> / - why: <2-3 lines> / - provenance: <ref> -->\n\n## [D-0001] Adopt the substrate-kit workflow\n\n- status: decided\n- date:\n- verdict: ${project_name} runs on the substrate-kit agent workflow.\n- why: A repo-resident working agreement, decision ledger, and session\n  discipline let agents work correctly with little steering; adopting the\n  kit starts ${project_name} governed instead of accreting rules ad hoc.\n- provenance: substrate-kit adoption interview\n',
     'env-setup.sh.tmpl': '#!/usr/bin/env bash\n# scripts/env-setup.sh — this repo\'s environment setup hook (kit-planted).\n#\n# THE SETUP-SCRIPT CONTRACT (EAP program review 2026-07-10 §6.5; rendered\n# from the fleet-manager archetype material — environments/archetypes.md +\n# templates/setup-universal.sh, the shim every archetype script derives\n# from). Every fleet environment\'s setup shim prefers THIS file when it\n# exists, so repo-specific setup lives here — one durable per-repo hook\n# instead of divergent hand-rolled environment scripts. Four rules, paid\n# for in dead sessions across 4+ lanes:\n#\n#   1. ALWAYS exit 0. A failing setup script = dead session, no signal —\n#      the worker never even reports. Worst case is a session with missing\n#      deps that can still report and self-repair; that beats no session.\n#   2. NO SECRET VALUES — ever. Variable NAMES may be referenced; real\n#      values live only in the environment panel (owner-side). If it is\n#      not a name or a placeholder, it does not go in this file.\n#   3. Defensive posture: set +e (no -e / -u / pipefail), and every\n#      install step guarded by an existence check — one missing manifest\n#      must never block the rest.\n#   4. Run from the repo root: the environment shim invokes this as\n#      `cd <repo> && bash scripts/env-setup.sh`.\n#\n# HOST-OWNED after planting: add repo-specific steps (interpreter pins,\n# extra manifests, toolchains) in the marked section below, keeping the\n# contract. The kit\'s `check` validates the contract (advisory-only):\n# no fatal shell posture, no secret-shaped literals, and an unconditional\n# `exit 0` as the last effective line.\n\nset +e\n\nlog() { echo "[env-setup] $*"; }\n\nPY=python3\n\n# Guarded dependency installs — each manifest only if present, never fatal.\nfor req in requirements.txt requirements-dev.txt; do\n  if [ -f "$req" ]; then\n    log "$PY -m pip install -r $req"\n    "$PY" -m pip install --quiet -r "$req" \\\n      || log "$req install failed (non-fatal, continuing)"\n  fi\ndone\n\nif [ -f pyproject.toml ]; then\n  log "$PY -m pip install -e . (pyproject.toml present)"\n  "$PY" -m pip install --quiet -e . \\\n    || log "editable install failed (non-fatal, continuing)"\nfi\n\n# --- repo-specific steps go below (keep every step guarded + non-fatal) ----\n\n# Contract rule 1 — the single most important line. Do not "improve" this.\nlog "env-setup complete (defensive: always exit 0)"\nexit 0\n',
@@ -13932,8 +17844,9 @@ _TEMPLATES = {
     'ideas-README.md.tmpl': '# ${project_name} — idea backlog & lifecycle\n\n> **Status:** `ideas`\n>\n> Generated by substrate-kit. Capture ideas here so they live in the repo, not in\n> chat. Nothing here is approved until it graduates. A **conveyor, not a graveyard**:\n> every idea ends implemented, on a roadmap, in discussion, or explicitly rejected.\n\n## Lifecycle\n\n```\n(1) INTAKE   capture the idea (raw -> captured)\n(2) MAP      name the owning area, rough size, rough risk\n(3) ROUTE    -> quick-win | structured plan | discuss-first (question router)\n(4) GROOM    pull one routable idea forward each session\n(5) OUTCOME  implemented | on a roadmap | in discussion | rejected\n```\n\n## Frontmatter — the idea-outcome record\n\nEvery idea file in this directory (README excepted) opens with a flat\nYAML-subset frontmatter block — the machine-readable outcome record\n("ideas that ship and survive"), so a sweep can score the backlog without\nparsing prose:\n\n```\n---\nstate: captured | routed | promoted | historical\norigin: lab | owner | consumer:<owner>/<repo>\nshipped_pr: null | <PR number in shipped_repo>\nshipped_repo: null | <owner>/<repo>\nmerged_date: null | YYYY-MM-DD\noutcome: open | shipped | survived | reverted | rejected\n---\n```\n\nConventions: `shipped`/`survived`/`reverted` require all three ship fields;\n`open`/`rejected` keep them null; `survived` means the merge is ≥ 30 days old\nwith no revert; name files `<slug>-YYYY-MM-DD.md` (the generation-date cohort\nkey) and link every file from this README. The prose keeps the story, the\nfrontmatter keeps the score.\n\n## Backlog\n\n(Captured ideas, each with a state and a next destination — none left at `raw`.)\n',
     'owner-profile.md.tmpl': "# ${project_name} — owner working profile\n\n> **Status:** `owner-guidance`\n>\n> Generated by substrate-kit. Captures the owner's **working style** so\n> agents collaborate well — never personal data. The person is not shipped\n> with the kit.\n\n## How the owner works\n\n${owner_profile}\n\n## Review ritual\n\n${review_ritual}\n\n## Privacy note\n\nThis doc records working style only: communication preferences, review\ncadence, decision boundaries, autonomy expectations. No contact details, no\npersonal history, nothing that identifies the person beyond their role on\n${project_name}. When in doubt, leave it out.\n",
     'ownership.md.tmpl': "# ${project_name} — ownership\n\n> **Status:** `binding`\n>\n> Generated by substrate-kit. Which area / service / pipeline owns each\n> table, event, and write path. **NOT SOURCE OF TRUTH** for code — source\n> files always win.\n\n> **Steady state:** this doc's table is **generated** from store / manifest\n> specs where those exist — a projection, not hand-prose. This skeleton is\n> the interim hand-maintained form until that projection lands.\n\n## Ownership model\n\n${ownership_model}\n\n## Ownership table\n\n| Area | Owner (module / service) | Writes it owns | Notes |\n|---|---|---|---|\n| (one row per owned area) | | | |\n\n## New areas\n\n${new_area_ownership}\n",
-    'question-router.md.tmpl': '# ${project_name} — maintainer question router\n\n> **Status:** `owner-guidance`\n>\n> Generated by substrate-kit. Append-only `## Q-NNNN` blocks capture owner-intent\n> decisions and open questions. The interview writes here; confirmed answers route\n> into the durable docs. **Append only** (next free Q-number) — never rewrite history.\n> Any session may append a block, not only the interview — including an unattended\n> run that hits a genuinely useful, non-derivable question with no live owner to ask.\n\n## Block format\n\n```\n## Q-0001\n- **Area / Type / Priority / Status:** ...\n- **Question:** ...\n- **Why agents need this:** ...\n- **Options:** ...\n- **Safe default:** ...\n- **Maintainer answer:** (verbatim)\n- **Routing result:** (which doc / slot the answer landed in)\n```\n\n## Open questions\n\n(Unanswered Q-blocks live here until the maintainer decides; a blocking one gates\ngraduation.)\n',
+    'question-router.md.tmpl': '# ${project_name} — maintainer question router\n\n> **Status:** `owner-guidance`\n>\n> Generated by substrate-kit. Append-only `## Q-NNNN` blocks capture owner-intent\n> decisions and open questions. The interview writes here; confirmed answers route\n> into the durable docs. **Append only** (next free Q-number) — never rewrite history.\n> Any session may append a block, not only the interview — including an unattended\n> run that hits a genuinely useful, non-derivable question with no live owner to ask.\n\n## Block format\n\n```\n## Q-0001\n- **Area / Type / Priority / Status:** ...\n- **Question:** ...\n- **Why agents need this:** ...\n- **Options:** ...\n- **Safe default:** ...\n- **Maintainer answer:** (verbatim)\n- **Routing result:** (which doc / slot the answer landed in)\n```\n\nOptions are structured choices — A/B(/C) with a **bolded recommendation**\nand a one-line rationale, answerable with one letter; never a question that\nrequires the owner to parse, derive, or transform anything (the owner-assist\noutput standard, `control/README.md`).\n\n## Open questions\n\n(Unanswered Q-blocks live here until the maintainer decides; a blocking one gates\ngraduation.)\n',
     'repo-navigation-map.md.tmpl': '# ${project_name} — repo navigation map\n\n> **Status:** `reference`\n>\n> Generated by substrate-kit. Where things live; where new code goes. **NOT\n> SOURCE OF TRUTH** — the tree itself wins.\n\n## Where things live\n\n| Path | What lives there | New code goes here when… |\n|---|---|---|\n| (one row per top-level area) | | |\n\n## Documentation roots\n\n${doc_roots}\n\n## Placement rule of thumb\n\nBefore creating a new file, find the row above that matches it; if no row\nmatches, the map is stale — extend the table in the same change.\n',
+    'routines.md.tmpl': '# ${project_name} — routines & wake-chain doctrine\n\n> **Status:** `binding`\n>\n> Generated by substrate-kit. How agent sessions arm, verify, and audit\n> scheduled triggers / routines / wake chains. Every rule below is\n> incident-backed (one fleet\'s overnight forensics: recorded-live triggers\n> that vanished, a cron mode that never delivered, a manual fire misread as\n> scheduler health). Platform observations are dated evidence, not eternal\n> truths — re-verify them in YOUR environment before building on them.\n\n## Choosing the binding — by lifetime, then VERIFY delivery\n\n- **A self-bound trigger dies with its session.** Arm self-bind only for a\n  failsafe tied to a live persistent seat, and **re-arm it at every seat\n  cutover** — an archived seat\'s failsafe fires into nothing.\n- **A standing loop wants fresh-session-per-fire** by lifetime rationale: it\n  survives session archive. **BUT the platform caveat is verified the other\n  way around**: observed delivery was 0-for-2 on fresh-session cron fires vs\n  100% on self-bound crons and one-shot chains (2026-07-12 forensics) —\n  treat fresh-session cron as **UNVERIFIED-BROKEN until a scheduled fire is\n  proven in your environment**. Handle the tension explicitly: choose the\n  binding by lifetime rationale, then **verify the first scheduled delivery\n  actually landed** — never assume either mode works.\n- **Never hardcode environment or session ids** in prompts, docs, or\n  templates: the registry has been observed surfacing a DIFFERENT\n  environment id than the one recorded at arm time (a load-bearing\n  suspect in the fresh-session delivery failure, not cosmetic). Ids belong\n  in dated records; re-read them live at use.\n\n## Record verbatim — every create/delete call\n\nRecord every trigger create/delete call **verbatim** — id, cron, binding,\nnext-fire — in the same session\'s heartbeat/log (and the session card).\nAn unrecorded arm is invisible to every later session; a paraphrased one\ncannot be probed against the registry.\n\n## Re-verify at every wake — probe, never record\n\n- **A record is a claim; the live registry is the proof.** Verify trigger\n  state by listing the registry at every wake, never by reading your own\n  notes forward.\n- **Presence is cheap, absence is expensive:** a fresh trigger shows on the\n  first page; an ABSENCE claim requires walking the registry **to\n  exhaustion** before you assert it.\n- **Deleted triggers may vanish with no tombstone.** Auto-disabled triggers\n  stay listed with an `ended_reason` (auto-disable values are observed);\n  **total absence means hard deletion, actor unknown** — a trigger recorded\n  "verified live" has vanished within hours, unfired, with no audit trail\n  visible agent-side.\n\n## Scheduler health — read the fields, not the vibes\n\n- **Wedge signature:** `enabled ∧ next_run_at < now − 15min` = an\n  undelivered fire. A healthy trigger **advances `next_run_at` after each\n  fire**; a `next_run_at` frozen in the past means the scheduler is not\n  delivering.\n- **The manual-fire trap:** a manual `fire_trigger` sets `last_fired_at`\n  WITHOUT advancing `next_run_at` — **never read `last_fired_at` alone as\n  scheduler health**; a hand-kicked trigger looks alive while its schedule\n  stays wedged.\n\n## Pacing — one trigger write at a time\n\nTrigger-MCP writes are paced **sequentially, one write at a time** —\nparallel multi-call writers hung reliably under load (four workers, one\nnight). A short `send_later` chain is a **pacemaker for a live seat only**\nand ends with the seat — the cron failsafe is the dead-man backstop, not\nthe pacer.\n\n## The failsafe wake pattern\n\nOn every failsafe wake, **verify the standing loop\'s last slot actually\ndelivered** (compare the loop\'s expected slot against the registry and the\nrepo\'s activity) — the failsafe is the only thing that can see a missed\nloop fire, and without this check a miss sits in a blind window until a\nhuman notices. Detection latency is bounded by the failsafe cadence; the\ncheck makes it bounded instead of unbounded.\n\n## Boundaries\n\nThe working agreement (`${agreement_home}`) governs when to act vs ask;\ncapability walls around trigger tooling (what arms agent-side, what stays\nconsole-only, venue-scoped grants) live in `docs/CAPABILITIES.md` — append\nnew trigger findings there same session, per its discovery rule.\n',
     'runtime_contracts.md.tmpl': '# ${project_name} — runtime contracts\n\n> **Status:** `binding`\n>\n> Generated by substrate-kit. Lifecycle guarantees and failure modes. **NOT\n> SOURCE OF TRUTH** for code — source files always win.\n\n## Lifecycle guarantees\n\n### Startup\n\n(What is guaranteed initialized before work begins, and in what order.)\n\n### Steady state\n\n(The invariants that hold while the system is running — connection health,\nqueue bounds, cache coherence.)\n\n### Shutdown\n\n(What is flushed / persisted / cancelled on the way down, and in what order.)\n\n## Mutation seam\n\n${mutation_seam}\n\n## Failure modes\n\n(For each subsystem: what failing looks like from the outside, the blast\nradius, and the recovery step. One subsection per subsystem.)\n',
     'session-journal.md.tmpl': "# ${project_name} — session journal (process memory)\n\n> **Status:** `reference`\n>\n> Generated by substrate-kit. Cross-session working memory — a **guidebook, not a\n> log**. Per-session logs live in `.sessions/<date>-<slug>.md` (newest first);\n> older history archives out. Keep THIS file lean.\n\n## ⚡ Quick reference\n\n(Boot / run-checks / common-recovery commands for ${project_name}.)\n\n## Environment & boot runbook\n\n(How to bring a working dev/test environment up.)\n\n## Recurring problems + fixes\n\n(Known traps and their resolutions — so the next session doesn't re-discover them.)\n\n## Past mistakes to avoid\n\n(Things that went wrong before; don't repeat them.)\n\n## Candidate rules (not yet promoted)\n\n(Proposed working-agreement rules awaiting owner review.)\n",
 }

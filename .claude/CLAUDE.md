@@ -12,13 +12,37 @@ superbot-mineverse is built in Python 3.10 (stdlib-only backend) plus a vanilla 
 
 ## Orientation — read first, in order
 
+0. **Preflight — land on origin's HEAD before reading anything else:**
+   `git fetch origin main && git reset --hard origin/main` (or
+   `git checkout -B main origin/main`). A warm container clone can lag
+   origin by dozens of commits, and a stale clone reads stale orders.
+   Mechanics + safety notes: `docs/AGENT_ORIENTATION.md` § "Start every
+   session".
 1. This file — the working agreement.
-2. `docs/current-state.md` — what is true right now.
-3. `docs/CAPABILITIES.md` — what sessions here CAN and CANNOT do (verified).
-   Never declare a wall or a missing credential without its discovery rule:
-   check the file → check the env → attempt once + capture the exact error →
-   append the finding same session.
-4. `docs/AGENT_ORIENTATION.md` — the task-specific reading router.
+2. `HANDOFF.md` at repo root (when present) — the previous session's trail:
+   newest session card + where to pick up. Regenerated at every session
+   boot, untracked by design — read it before re-deriving history from
+   `git log`/`git show`; never commit or edit it.
+3. `docs/current-state.md` — what is true right now.
+
+That is the whole boot set. Everything else is routed, **not front-loaded**
+(reading every planted doc up front buys ceremony, not context — measured):
+open `docs/AGENT_ORIENTATION.md` when a task needs its reading route,
+`docs/SKILLS.md` (the skill index) **before improvising a procedure for a
+recurring action**, and
+`docs/CAPABILITIES.md` (the verified can/cannot ledger) **before declaring
+any wall or missing credential** — its discovery rule: check the file →
+check the env → attempt once + capture the exact error → append the finding
+same session — and `docs/ROUTINES.md` (the wake-chain/trigger doctrine)
+**before arming, deleting, or auditing any scheduled trigger/routine**.
+
+## Kit machinery — search hygiene
+
+`bootstrap.py` (~12k generated lines) and `.substrate/` (kit state + a byte
+backup of the previous dist) are substrate-kit machinery, not project code.
+Exclude them from repo-wide searches: `grep -r --exclude=bootstrap.py
+--exclude-dir=.substrate …`, or ripgrep `rg -g '!bootstrap.py' -g
+'!.substrate' …`.
 
 ## Architecture — layers & import rules
 

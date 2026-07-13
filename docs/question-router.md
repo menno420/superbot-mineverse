@@ -21,6 +21,11 @@
 - **Routing result:** (which doc / slot the answer landed in)
 ```
 
+Options are structured choices — A/B(/C) with a **bolded recommendation**
+and a one-line rationale, answerable with one letter; never a question that
+requires the owner to parse, derive, or transform anything (the owner-assist
+output standard, `control/README.md`).
+
 ## Open questions
 
 (Unanswered Q-blocks live here until the maintainer decides; a blocking one gates
