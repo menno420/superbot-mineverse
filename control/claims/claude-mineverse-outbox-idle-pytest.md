@@ -1,0 +1,1 @@
+- `claude/mineverse-outbox-idle-pytest` · **outbox owner-ask: idle pytest required-check** — append one outbox entry (owner ask: make `pytest` required on superbot-idle main + idle kit v1.15.0 upgrade report) · control/outbox.md only · 2026-07-13
