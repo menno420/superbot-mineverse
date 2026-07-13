@@ -1,78 +1,65 @@
 # superbot-mineverse · status
-updated: 2026-07-12T23:41:43Z
-phase: heartbeat — backlog wave shipped (#47–#53), kit finding routed to kit-lab (branch claude/heartbeat-2314). COORDINATOR-DELEGATED heartbeat write — the coordinator seat authorized this status overwrite.
+updated: 2026-07-13T04:12:00Z
+phase: heartbeat — ORDER 004 morning tally (night-run ~2026-07-13T00:40–04:05Z, whole SuperBot World seat). COORDINATOR-DELEGATED heartbeat write — the coordinator seat authorized this status overwrite.
 health: green
 kit: v1.8.0
-last-shipped: #53 — web: seasonal decorations (date-keyed cosmetic layer over the cave theme, backlog item 6); merged 2026-07-12.
+last-shipped: #63 — tests+server: shared served-bytes fixtures + views uses cached schema loader; merged 2026-07-13T02:21Z.
 blockers: none
-orders: acked=001,002,003 done=001,002,003
-⚑ needs-owner: provision the six host env secrets (block below) — the SECURITY BEFORE SECRETS gate is CLEAR (#42 in main).
-notes: interim practice (flip-race guard) — push the full stack INCLUDING the card flip BEFORE opening the PR, so the substrate gate never evaluates a PR whose card is born red. Root cause + manager-routed ask: see pointer section below.
+orders: acked=001,002,003,004 done=001,002,003,004
+⚑ needs-owner: MINING_WRITE_ENDPOINT + MINING_WRITE_SHARED_SECRET pair (conformance is then one command: `python3 scripts/conformance_run.py`, docs/conformance-runbook.md) — full OWNER-ACTION block (WHAT/WHERE/HOW/WHY-IT-MATTERS/UNBLOCKS/VERIFIED-NEEDED/RISK): control/outbox.md entry 2026-07-12T21:05Z. Owner-decision queue: § QUEUED below.
+notes: ORDER 004 done-when met — tally posted here, per-game state table below, minigame section spec at docs/design/minigame-section-spec-2026-07-13.md (landed #58, outbox pointer #59). Verification labels: mineverse PR states API-verified at this stamp; games/idle/next merge states verified against each repo's main history at HEAD; suite counts, goldens, and run details are lane-reported (sources cited).
 
-## Shipped since last heartbeat (all MERGED; suite at HEAD 030a3e9: 437 passed, 1 skipped)
+## ORDER 004 NIGHT-RUN TALLY (2026-07-13, ~00:40–04:05Z)
 
-- #47 control: heartbeat routine record + seat parked-PR list.
-- #48 tests: JS logic harness — execute web/ pure functions in CI (backlog item 2).
-- #49 web+views: deterministic cosmetic hats on pixel avatars (backlog item 7).
-- #50 session: land stranded close-out flips for PRs #48/#49 (records fix).
-- #51 web: ambient cave audio — synthesized, muted-default, honest toggle (backlog item 5).
-- #52 docs+control: substrate-gate born-red fail-open finding (flip-race) + manager-routed outbox ask.
-- #53 web: seasonal decorations — date-keyed cosmetic layer (backlog item 6).
+### SHIPPED (merged)
 
-## Kit finding pointer
+- **superbot-games** (suite 310→516, lane-reported per PR bodies; merges verified in main): #68 mining seam · #69 fishing seam · #70 mining CLI · #71 fishing CLI · #72 hub launcher · #73 persistence owner-queue · #74 docs · #75 D&D · #77 exploration · #76 fm-ORDER-037 stamp fix. All four world games reviewed/standalone/hub-integrated ✅ (`python -m games`).
+- **superbot-idle** (suite →1260, 15 packs; lane-reported per PR bodies; merges verified in main): #75 adapter inc1 · #76 wave-4 packs · #78 adapter inc2 (settings/events/render-forwarding) · #79 milestones skinned · #80 playability + tools/play.py REPL · #81 docs truth-fix · #82 outbox entries. Idle reviewed/standalone/hub-adapter ✅.
+- **superbot-mineverse** (suite 437→522 per #63 body; all merges API-verified): #55 ORDER 004 landing · #56/#59 spec claim+outbox · #57 FLAG-1 consume seam (MINING_SNAPSHOT_PATH) · #58 minigame section spec · #60 FLAG-2 write-path hardening · #61 conformance runner+runbook · #62/#63 generative dedupe. FLAG consume-side + conformance prep ✅.
+- **superbot-next** — FISHING PORT COMPLETE (merges verified in main): #324 claim, #313 slice-1 (sibling), #330 rods, #342 bait, #350 curios/structures; plus #338 re-scoped bait-leg tests (merged 6d74fff). Lane-reported: fishing `_unmapped` 15→0, directory retired repo-wide, goldens 484, full-corpus report job SUCCESS; one real codex P1 (coral double-spend) fixed stricter-than-oracle. WRITE-PARITY lane: #306 merged (WP-1). Lane-reported: deep-mining WP goldens ~18 minted, all 8 guard-only-capture exemptions retired, 5 PG concurrency regression tests (red-without-lock proven).
 
-- Finding: docs/findings/substrate-gate-born-red-fail-open-2026-07-12.md (substrate gate fails open on PR-added cards born red — flip-race).
-- Ask: manager-routed message in control/outbox.md — awaiting kit-lab pickup.
+### OPEN PRs (parked per tonight's rule, one-pass sweep; API-verified open at this stamp)
 
-## Truth-stamp (API-verified 2026-07-12T20:56Z)
+- superbot-next write-parity stack: #312 → #317 → #335 → #344 (order in each body; green per lane report).
+- superbot-next #320 — mining energy pure domain core (slice 0) — **OPEN, not merged** (earlier lane report said merged; corrected against the API). Carries the dig-gating A/B/C energy decision ask in its body.
+- Stale-duplicate item RESOLVED, no owner action needed: #328 closed unmerged 02:19Z (superseded by slices #330/#342); #338 was re-scoped after #342 and merged.
 
-- PR #42 (security: OAuth login-CSRF binding + snapshot validation at ingestion) MERGED 2026-07-12T13:54:21Z, merge commit 3591c77; payload confirmed in main (server/auth.py binding, server/snapshot_validation.py, server/app.py wiring, +22 tests).
-- PR #44 (deploy: Dockerfile + HOST env binding, Railway) MERGED 2026-07-12T16:49:58Z, merge commit ac312e8.
-- PR #45 (auth: real User-Agent on Discord requests) MERGED 2026-07-12T18:22:10Z, merge commit e6d4ac7.
-- PR #31 (Codex pre-provisioning security report) MERGED 2026-07-12T19:52:53Z, merge commit 52fe2ca; docs/pre-provisioning-security-report-2026-07-11.md in main.
-- Open PRs at session boot: ZERO (API list, 2026-07-12T20:56Z).
-- Local suite on main @ 52fe2ca: 359 passed, 1 skipped; `python3 bootstrap.py check --strict` → all checks passed.
+### QUEUED (owner decisions / asks — homes cited)
+
+- D1/D2 audit-schema D2 ratification + 4 SIM-REQUESTs (mining/fishing/dnd/exploration economies) + persistence governance + rung-3 packaging — superbot-games control/outbox.md.
+- idle SIM-001 economy-feel + A10-fail evidence + 2 Q-blocks needing fleet Q-numbers — superbot-idle control/outbox.md.
+- mining dig-gating A/B/C energy decision — superbot-next #320 body (open PR).
+- six-secret pair MINING_WRITE_ENDPOINT/MINING_WRITE_SHARED_SECRET → conformance is one command: `python3 scripts/conformance_run.py` (docs/conformance-runbook.md).
+- substrate-kit born-red fail-open fix ask — this repo control/outbox.md; finding docs/findings/substrate-gate-born-red-fail-open-2026-07-12.md.
+- Named follow-ups: wood-vs-mining cross-domain race · fish-pool sibling · check_money_race mis-classification at mining/ops.py:598 (fishing lane PR bodies).
+
+### STALLED-with-error
+
+- None. (The permission-walled fishing session was superseded by the rebuild lane — its container-local build is now redundant; recommend owner archive it.)
+
+## PER-GAME STATE TABLE (owner deliverable; reviewed/standalone/integrated)
+
+| game | state |
+| --- | --- |
+| mining (games) | ✅ / ✅ / ✅ |
+| fishing (games) | ✅ / ✅ / ✅ |
+| dnd (games) | ✅ / ✅ / ✅ |
+| exploration (games) | ✅ / ✅ / ✅ |
+| idle | ✅ / ✅ / adapter ✅ |
+| fishing (next) | ported 20/20 ✅ |
+| deep-mining (next) | write-parity complete pending stack sweep (#312→#317→#335→#344) |
+| mineverse | read ✅ / write-ready (conformance one command; needs secret pair) |
+
+Improvements lists live in the lane PRs + games control/outbox.md.
 
 ## ROUTINE RECORD (Q-0265)
 
-- Failsafe cron "SuperBot World failsafe wake": id trig_0131tbQZs8HKmxKR4u5ZD1Hb, cron `15 1-23/2 * * *`, bound to the live coordinator session.
-- Predecessor cron trig_01KQbKNiSVfZRWutKEWFx2q2 deleted at cutover 2026-07-12.
-- ~15-min send_later pacemaker chain active (one pending at a time).
-
-## SEAT PARKED-PR LIST
-
-- games #65 (truth-stamp) — READY + green; landing path: owner-click.
-- games #66 (host-adapter scoping doc) — READY + green; landing path: owner-click.
-- idle #75 (PLUG-001 adapter) — READY + green; independently review-approved 2026-07-12; landing path: owner-click.
-- idle #76 — READY + green; independently review-approved 2026-07-12; landing path: owner-click.
-
-## CROSS-REPO NOTES
-
-Recorded here because the games/idle control status files are frozen archives.
-
-- idle ORDER 003 complete — pytest CI landed via idle #74, merged 2026-07-12T19:40Z.
-- games ORDER 002 record gap documented in games PR #65 body.
-
-## ⚑ OWNER-ACTION — provision the six host secrets (gate cleared by #42)
-
-WHAT: set the six environment secrets on the web host so sign-in and (later) test-guild writes can leave degraded mode: DISCORD_OAUTH_CLIENT_ID, DISCORD_OAUTH_CLIENT_SECRET, OAUTH_REDIRECT_URI, WEB_SESSION_SIGNING_KEY, MINING_WRITE_ENDPOINT, MINING_WRITE_SHARED_SECRET. Names only — values stay owner-side, never in this repo.
-WHERE: Railway dashboard → project `superbot-mineverse` → service `web` → Variables tab (the live host since #44); the client id/secret and redirect URI come from the Discord Developer Portal → your app → OAuth2.
-HOW: paste-ready, names only — fill each value yourself:
-  - Railway UI: Variables → New Variable → name `DISCORD_OAUTH_CLIENT_ID` (repeat for `DISCORD_OAUTH_CLIENT_SECRET`, `OAUTH_REDIRECT_URI`, `WEB_SESSION_SIGNING_KEY`, `MINING_WRITE_ENDPOINT`, `MINING_WRITE_SHARED_SECRET`) → Deploy.
-  - Or Railway CLI: `railway variables --set "WEB_SESSION_SIGNING_KEY=<value>"` (one per name).
-  - Note: per PR #44/#45, DISCORD_OAUTH_CLIENT_ID, OAUTH_REDIRECT_URI, WEB_SESSION_SIGNING_KEY (and per #45's live evidence the client secret) were already provisioned on Railway during the owner-live session — the outstanding pair is MINING_WRITE_ENDPOINT + MINING_WRITE_SHARED_SECRET, which additionally waits on the bot lane's write endpoint (FLAG 2).
-WHY-IT-MATTERS: until the OAuth four are set players cannot sign in (site runs read-only anonymous by design); until the write pair is set the action UI stays in TEST ECONOMY degraded mode.
-UNBLOCKS: signed-in My-miner view on next deploy; test-guild write mode once the bot write endpoint (FLAG 2) exists and the write pair is set.
-VERIFIED-NEEDED: agent sessions have no access to the Railway host environment or the Discord Developer Portal (docs/CAPABILITIES.md); only the owner provisions secrets. The ordering gate is now satisfied: #42 (login-CSRF binding) merged 2026-07-12T13:54:21Z, so sign-in never runs unbound.
-RISK: OAUTH_REDIRECT_URI must exactly match the URI registered in the Discord app or every callback 400s; MINING_WRITE_SHARED_SECRET must match the bot endpoint's HMAC key or all writes are refused; never paste secret values into any repo file or PR.
-
-## next-2-tasks baton
-
-1. kit-lab response on the born-red fail-open ask (control/outbox.md; finding docs/findings/substrate-gate-born-red-fail-open-2026-07-12.md) — apply whatever fix or guidance comes back; until then the interim flip-race guard practice (notes line) stands.
-2. Remaining groomed-backlog items are blocked on FLAGs/owner: items 1, 3, 4, 8 (docs/ideas/founding-day-groomed-backlog-2026-07-11.md) — resume when FLAG 1/2 or the owner secrets land.
+- Failsafe cron "SuperBot World failsafe wake": id trig_0131tbQZs8HKmxKR4u5ZD1Hb, cron `15 1-23/2 * * *`, live.
+- send_later pacemaker chain (one-tick); anti-stack check added after one duplicate incident, pruned same wake.
 
 ## Externally pending (pointers, unchanged)
 
-- Bot-lane FLAG 1 (READ relay) + FLAG 2 (WRITE endpoint) — full verbatim specs preserved at control/status.md@52fe2ca (git history) and summarized in docs/current-state.md § Externally pending.
+- Owner secrets block (six names, write pair outstanding): control/outbox.md entry 2026-07-12T21:05Z; docs/live-prod-cutover.md.
+- Bot-lane FLAG 1 (READ relay) + FLAG 2 (WRITE endpoint) — consume-side seams now merged here (#57, #60); full verbatim specs preserved at control/status.md@52fe2ca (git history), summarized in docs/current-state.md § Externally pending.
 - Stage-(d) live-prod flag — owner-only, via a control/inbox.md ORDER.
 - Groomed backlog: docs/ideas/founding-day-groomed-backlog-2026-07-11.md.
