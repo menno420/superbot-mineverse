@@ -1,1 +1,0 @@
-- `claude/server-internals-dedupe` · **server internals dedupe (self-initiated, ORDER 004 generative rung)** — collapse the four load-validate-or-503 snapshot blocks in server/app.py onto one `_load_valid_snapshot` helper + lru_cache the two committed-schema loaders; both from tonight's session-card 💡 ideas · 2026-07-13
