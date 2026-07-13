@@ -35,6 +35,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from server import actions, auth  # noqa: E402
+from tests._server_helpers import run_server  # noqa: E402
 from tests.shim.shim_bot import (  # noqa: E402
     ACTION_PATH,
     PLACEHOLDER_ACTION_ID,
@@ -134,13 +135,9 @@ def shim():
         yield None, CONFORMANCE_BASE_URL
         return
     server, state = make_shim_server(port=0, secret=TEST_SECRET)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    host, port = server.server_address[:2]
-    yield state, f"http://{host}:{port}"
-    server.shutdown()
-    server.server_close()
-    thread.join(timeout=5)
+    with run_server(server):
+        host, port = server.server_address[:2]
+        yield state, f"http://{host}:{port}"
 
 
 # The kwargs-taking ``serve`` fixture lives in tests/conftest.py

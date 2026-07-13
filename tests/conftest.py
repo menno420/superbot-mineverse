@@ -23,7 +23,6 @@ fixture defined here.
 """
 
 import sys
-import threading
 import urllib.request
 from pathlib import Path
 
@@ -33,7 +32,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from server.app import make_server  # noqa: E402
-from tests._server_helpers import serve_factory  # noqa: E402
+from tests._server_helpers import run_server, serve_factory  # noqa: E402
 
 
 @pytest.fixture()
@@ -52,13 +51,9 @@ def serve():
 def base_url():
     """One real server for the whole module — these are read-only GETs."""
     server = make_server(port=0)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    host, port = server.server_address[:2]
-    yield f"http://{host}:{port}"
-    server.shutdown()
-    server.server_close()
-    thread.join(timeout=5)
+    with run_server(server):
+        host, port = server.server_address[:2]
+        yield f"http://{host}:{port}"
 
 
 def fetch_text(base_url, path):

@@ -28,6 +28,34 @@ from server.app import make_server  # noqa: E402
 
 
 @contextmanager
+def run_server(server):
+    """Own the thread lifecycle of an ALREADY-CONSTRUCTED server.
+
+    Starts ``server.serve_forever`` in a daemon thread; on exit, tears
+    down in the suites' canonical order — ``shutdown()`` →
+    ``server_close()`` → ``join(timeout=5)``. Construction (and with it
+    the yield shape: base URL, ``(state, url)``, ``(host, port)``…)
+    stays at the call site; only the lifecycle lives here (recorded 💡
+    from ``.sessions/2026-07-13-serve-helper-dedupe.md``).
+
+    Single-server sites only. The factory-style fixtures that start N
+    servers and tear them down first-started-first (``serve_factory``
+    below, test_actions.py's ``fake_executor``,
+    test_server_robustness.py's ``serve``) keep their list loops:
+    stacking N of these contexts would flip that multi-server teardown
+    to last-started-first.
+    """
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield server
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+@contextmanager
 def serve_factory():
     """Yield a ``start(**make_server kwargs) -> base URL`` factory.
 
