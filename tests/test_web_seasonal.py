@@ -11,51 +11,8 @@ gate stays single. The pure decision seams (date → season id, id → spec,
 spec → SVG) are executed per-CI-run in tests/test_js_logic.py.
 """
 
-import sys
-import threading
-import urllib.request
-from pathlib import Path
-
-import pytest
-
-REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT))
-
-from server.app import make_server  # noqa: E402
-
-
-@pytest.fixture(scope="module")
-def base_url():
-    """One real server for the whole module — these are read-only GETs."""
-    server = make_server(port=0)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    host, port = server.server_address[:2]
-    yield f"http://{host}:{port}"
-    server.shutdown()
-    server.server_close()
-    thread.join(timeout=5)
-
-
-def fetch_text(base_url, path):
-    with urllib.request.urlopen(base_url + path) as res:
-        assert res.status == 200
-        return res.read().decode("utf-8")
-
-
-@pytest.fixture(scope="module")
-def html(base_url):
-    return fetch_text(base_url, "/")
-
-
-@pytest.fixture(scope="module")
-def js(base_url):
-    return fetch_text(base_url, "/app.js")
-
-
-@pytest.fixture(scope="module")
-def css(base_url):
-    return fetch_text(base_url, "/style.css")
+# The served-bytes fixture stack (base_url server, fetch_text, html/js/css)
+# is shared in tests/conftest.py.
 
 
 def seasonal_js_block(js):
