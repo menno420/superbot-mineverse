@@ -1,68 +1,53 @@
 # superbot-mineverse · status
-updated: 2026-07-13T12:47:00Z
-phase: SESSION ENDER — coordinator close-out (boot 2026-07-12T20:39Z → ender 2026-07-13T~12:00Z); retro landed, routines dispositioned, successor baton below. Day-wave window preserved in § DAY WAVE at the bottom.
+updated: 2026-07-13T13:34:32Z
+phase: SEAT HEARTBEAT — coordinator-dispatched worker session (landing wave 2026-07-13T~13:20Z): fleet verify at HEAD, records fixes, baton below. Session type: worker, not a coordinator seat.
 health: green
 kit: v1.8.0
-last-shipped: #73 — heartbeat, day-wave refresh; merged 2026-07-13. This ender PR (retro + heartbeat + card) is the session's final landing.
+last-shipped: #74 — coordinator session close-out (retro + heartbeat + card); merged 2026-07-13, current main a84b3d0.
 blockers: none
-orders: acked=001,002,003,004,005 done=001,002,003,004,005 (005 = NIGHT REPORT, served via #67; full ORDER 004/005 report sections preserved in git history at e44a80c)
-⚑ needs-owner: MINING_WRITE_ENDPOINT + MINING_WRITE_SHARED_SECRET pair (conformance is then one command: `python3 scripts/conformance_run.py`, docs/conformance-runbook.md) — full OWNER-ACTION block (WHAT/WHERE/HOW/WHY-IT-MATTERS/UNBLOCKS/VERIFIED-NEEDED/RISK): control/outbox.md entry 2026-07-12T21:05Z. Full owner-decision queue: § OWNER ASKS below.
-practice (2026-07-13T05:27:28Z): ORDER 038 adopted (fm inbox, standing, 2026-07-13): VERDICT 016 authenticity gate applied to every cross-agent reviewer reply before acting (cited line ranges must be ≤ EOF at the reviewed head; failed reply = fabricated, discarded with citation) — Q-0120 still governs replies that pass.
-notes: seat retro at docs/retro/coordinator-session-2026-07-13.md (linked from docs/current-state.md). Session card .sessions/2026-07-13-coordinator-ender.md. Successor: re-verify landing paths at boot — enablers appeared mid-night in games/idle and stale seat notes cost time; do not trust the brief.
+orders: acked=001,002,003,004,005 done=001,002,003,004,005 (unchanged from #74 close-out; zero unserved ORDERs found in this repo's inbox at landing)
+⚑ needs-owner: MINING_WRITE_ENDPOINT + MINING_WRITE_SHARED_SECRET pair — full OWNER-ACTION block: control/outbox.md entry 2026-07-12T21:05Z. Full owner-decision queue: § PENDING OWNER ITEMS below (pointers only).
+practice (carried, 2026-07-13T05:27:28Z): ORDER 038 standing — VERDICT 016 authenticity gate on every cross-agent reviewer reply before acting (cited line ranges ≤ EOF at the reviewed head; failed reply = fabricated, discarded with citation).
+notes: this heartbeat rides PR branch `claude/truthful-records-heartbeat` together with the docs/current-state.md § Externally-pending fix (PR #31 merged 2026-07-12T19:52:53Z by menno420, previously recorded as open). Session card: .sessions/2026-07-13-truthful-records-heartbeat.md.
 
-## ROUTINE DISPOSITION AT CLOSE (verified)
+## VERIFY AT HEAD (this session, this container)
 
-- **Pacemaker `trig_01Uhbi4MLK5xydayCHH3GKfP` DELETED.** Full-registry sweep
-  (1216 triggers, 13 pages) confirms ZERO live session-bound triggers remain
-  for this seat (coordinator-verified at close; the close-out worker's spot
-  re-check of the newest 300 registry entries found no pacemaker residue).
-- **FAILSAFE `trig_0131tbQZs8HKmxKR4u5ZD1Hb` LEFT ARMED** as the successor's
-  bridge — "SuperBot World failsafe wake", cron `15 1-23/2 * * *`, next fire
-  2026-07-13T13:15:00Z (independently re-verified live via the trigger
-  registry 2026-07-13T12:42Z: enabled, bound to the closing coordinator
-  session). The successor's boot cutover REBINDS-THEN-DELETES: arm its own
-  failsafe first, then delete this one.
-- **No business crons were created by this session.**
+- **games** 57f69be: `python3 bootstrap.py check --strict` exit 0; `python3 -m pytest -q` → `516 passed`.
+- **idle** b03cc96: `bootstrap.py check --strict` → `check: all checks passed.` exit 0; pytest → `1260 passed, 1 skipped`.
+- **mineverse** a84b3d0: `bootstrap.py check --strict` exit 0; pytest → `551 passed, 1 skipped`.
+- Env gap, container-only: this container needed `pip install jsonschema` before the suites ran (CI installs it itself; no repo change needed).
 
-## PARKED-PR LIST (at close)
+## FLEET STATE FOUND (at landing, 2026-07-13T~13:20Z)
 
-- **superbot-next write-parity stack #312 → #317 → #335 → #344 → #371** —
-  landing path: owner-click ordered sweep (stack order in the PR bodies;
-  non-claude/* branches sit outside the enabler's scope).
-- **No draft or red session PRs** anywhere on this seat.
-- **No claims held:** `control/claims/` = README only (verified in this
-  ender's tree).
+- Zero open PRs in all three repos (games, idle, mineverse) at landing.
+- Zero unserved ORDERs in all three inboxes.
 
-## OWNER ASKS (⚑ pointers — paste-ready copies live in the outbox / PR bodies)
+## SHIPPED / PARKED THIS SESSION
 
-render-dispatch seam a/b letter · dig-gating A/B/C (superbot-next #320 body) ·
-D2 audit-schema ratification (games outbox) · SIM-REQUESTs ×5 (games ×4 +
-idle SIM-001, each lane's outbox) · persistence governance (games outbox) ·
-rung-3 packaging (games outbox) · MINING_WRITE_ENDPOINT +
-MINING_WRITE_SHARED_SECRET pair (this outbox 2026-07-12T21:05Z) ·
-substrate-kit born-red gate fix (this outbox 2026-07-12T22:10Z, PR #52).
+- **idle PR #87** — control: prune stale claim files (merged as #85/#86) — https://github.com/menno420/superbot-idle/pull/87 — parked READY (non-draft), all four checks green at first poll (pytest, substrate-gate, theme-gate, enable-auto-merge); NOTE: a server-side `enable-auto-merge` check ran at PR creation, contrary to prior seat notes that idle lacked an enabler — this seat armed nothing.
+- **This PR #75** — https://github.com/menno420/superbot-mineverse/pull/75 — records: stale #31 line fix + this heartbeat.
 
-## NEXT-2 BATON (successor)
+## RECORDS FIXED THIS SESSION
 
-1. **Serve the owner letters the moment they land:** render seam a/b → feed
-   the guild-effects lane context; dig-gating → the energy lane
-   (superbot-next #320); WP-stack sweep → just-in-time rebases only.
-2. **Conformance run on secret-pair provisioning:** the instant
-   MINING_WRITE_ENDPOINT + MINING_WRITE_SHARED_SECRET exist host-side, run
-   `python3 scripts/conformance_run.py` (docs/conformance-runbook.md).
+- idle: two stale `control/claims/` files pruned (work merged as idle #85/#86) — PR #87 above.
+- mineverse: docs/current-state.md § Externally pending — PR #31 line corrected from "OPEN awaiting owner review" to MERGED 2026-07-12T19:52:53Z (this PR).
 
-Pointers: full session narrative + lessons at
-docs/retro/coordinator-session-2026-07-13.md; ORDER 004 tally + ORDER 005
-night report preserved verbatim in git history (control/status.md @ e44a80c);
-groomed backlog at docs/ideas/founding-day-groomed-backlog-2026-07-11.md.
+## ROUTINES (neutral facts)
 
-## DAY WAVE 2026-07-13 (~09:15Z → 11:44Z) — coordinator-delegated refresh
+- Failsafe + pacemaker are managed by the coordinator session, not this seat.
+- Operational fact: failsafe trigger (cron `15 1-23/2 * * *`) is still bound to the prior CLOSED coordinator session; next fire 2026-07-13T13:15Z. The rebind-then-delete cutover is with the coordinator, not this seat.
 
-Merge states as relayed by the delegating coordinator: all verified merged unless noted.
+## CLAIMS
 
-- **Plugin line COMPLETE headless**: superbot-next #370 (two real plugins, hello+idle, boot together, pinned) + #377 (compile-time command/group collision gate) merged; idle #85 (3-part capability fix) + #86 (KNOWN_EVENTS registration + /idle PREFIX-only) merged — three real live-path bugs fixed at source. HELD on owner letter: render-dispatch seam approach (host shim vs async forwarders).
-- **Mineverse lane waves 3–4**: #68–#72 merged (fixture dedupe, status↔reason coherence, Retry-After allowlist, run_server helper, shim rate-limit path); suite 522 → **551 passed, 1 skipped**; lane dry honestly.
-- **Deep-mining**: WP-7 #371 green, parked; sweep stack now #312 → #317 → #335 → #344 → #371; only title-equip (needs UI) + cook/use (energy) remain parked in mining.
-- **Fishing cast-depth #373**: 7 codex findings handled (6 fixed with regression tests, 1 refuted with oracle citation); auto-merge armed.
-- **Night reports served per fm orders**: games #79, idle #84, mineverse #67 (ORDER 005 done).
-- **OWNER LETTERS PENDING (unchanged)**: render seam a/b · dig-gating A/B/C · D2 ratification · SIM-REQUESTs ×5 · persistence · rung-3 packaging · MINING_WRITE_* pair · kit born-red fix (outbox).
+- No claims held at merge: this slice's `control/claims/truthful-records-heartbeat.md` is removed in this PR's flip commit; `control/claims/` = README only once merged.
+
+## NEXT-2 BATON (known stale records)
+
+1. **Groom superbot-games docs/current-state.md** — the night wave #67–#78 is not reflected; "Recently shipped" stops ~67 merges behind actual main.
+2. **Groom superbot-idle docs/current-state.md** — #85/#86 missing; "In flight: shop composition" is contradicted by the SHIPPED RECORD (#36 + #38).
+
+## PENDING OWNER ITEMS (carried forward — pointers only, no steering)
+
+- idle OA-003 (mark pytest a required check) — see idle control/inbox + current-state.
+- mineverse MINING_WRITE_ENDPOINT + MINING_WRITE_SHARED_SECRET pair — control/outbox.md 2026-07-12T21:05Z.
+- D1/D2 ratification + SIM asks — see the respective lanes' outboxes / current-state files rather than re-quoting here.

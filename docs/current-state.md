@@ -74,8 +74,9 @@ rule: push the full stack including the flip BEFORE opening the PR.
 - **Stage-(d) live-prod owner flag** — owner adds prod guild ids to the
   bot-side allowlist AND says so via a `control/inbox.md` ORDER.
 - **PR #31 (owner-side)** — the owner's Codex-authored pre-provisioning
-  security report is OPEN awaiting the owner's own review/merge; it is not
-  a claude/* lane and no agent session owns it.
+  security report MERGED 2026-07-12T19:52:53Z by menno420 (API-verified);
+  no longer pending. It was not a claude/* lane and no agent session
+  owned it.
 
 ## Recently shipped (newest first)
 
