@@ -781,6 +781,90 @@ def test_nonconformant_executor_answer_is_never_relayed(
     assert payload == {"error": "invalid executor response"}, label
 
 
+def canned_envelope(reason_code: str, *, replayed: bool = False) -> dict:
+    """A schema-conformant envelope for the canned executor (accepted iff
+    reason_code is 'ok', per the contract)."""
+    envelope = {
+        "contract_version": "1",
+        "action_id": "00000000-0000-4000-8000-000000000777",
+        "status": "accepted" if reason_code == "ok" else "rejected",
+        "reason_code": reason_code,
+        "message": "canned",
+        "replayed": replayed,
+    }
+    if reason_code == "ok":
+        envelope["result"] = {
+            "state_delta": {"depth": 2},
+            "snapshot_generated_at": "2026-07-13T02:00:00Z",
+        }
+    return envelope
+
+
+# Schema-CONFORMANT envelopes under an HTTP status the contract's mapping
+# table does NOT pair with their reason_code (PR #60's flagged follow-up):
+# each is a lying answer and must draw the same honest 502 as garbage.
+INCOHERENT_EXECUTOR_ANSWERS = {
+    "ok under 500": (500, canned_envelope("ok")),
+    "ok under 409": (409, canned_envelope("ok")),
+    "ok replay under 502": (502, canned_envelope("ok", replayed=True)),
+    "economy rejection under 200": (200, canned_envelope("economy_rejection")),
+    "key reuse under 422": (422, canned_envelope("replayed_action")),
+    "rate limited under 200": (200, canned_envelope("rate_limited")),
+    "internal error under 400": (400, canned_envelope("internal_error")),
+}
+
+
+@pytest.mark.parametrize("label", INCOHERENT_EXECUTOR_ANSWERS)
+def test_incoherent_status_envelope_pair_is_never_relayed(
+    serve, fake_executor, label
+):
+    """A conformant body under a lying status is still a lying answer — the
+    coherence layer refuses it with the same distinct 502."""
+    exec_status, envelope = INCOHERENT_EXECUTOR_ANSWERS[label]
+    assert_response_conforms(envelope)  # conformance alone would have relayed
+    endpoint = fake_executor(status=exec_status, body=json.dumps(envelope).encode())
+    auth_config = make_auth_config()
+    config = actions.WriteConfig(endpoint=endpoint, secret=TEST_SECRET)
+    base = serve(auth_config=auth_config, write_config=config)
+    status, payload = post(
+        base + "/api/action",
+        browser_body("mine", {}),
+        headers=session_headers(auth_config, DEEPDELVER),
+    )
+    assert status == 502, label
+    assert payload == {"error": "invalid executor response"}, label
+
+
+# The contract-coherent complement: conformant envelopes under their table
+# status — accepts, replays of accepts, rejections, executor faults — keep
+# relaying verbatim, error statuses included.
+COHERENT_EXECUTOR_ANSWERS = {
+    "accepted replay under 200": (200, canned_envelope("ok", replayed=True)),
+    "economy rejection under 422": (422, canned_envelope("economy_rejection")),
+    "rate limited under 429": (429, canned_envelope("rate_limited")),
+    "internal error under 500": (500, canned_envelope("internal_error")),
+}
+
+
+@pytest.mark.parametrize("label", COHERENT_EXECUTOR_ANSWERS)
+def test_coherent_status_envelope_pair_relays_verbatim(
+    serve, fake_executor, label
+):
+    exec_status, envelope = COHERENT_EXECUTOR_ANSWERS[label]
+    assert_response_conforms(envelope)
+    endpoint = fake_executor(status=exec_status, body=json.dumps(envelope).encode())
+    auth_config = make_auth_config()
+    config = actions.WriteConfig(endpoint=endpoint, secret=TEST_SECRET)
+    base = serve(auth_config=auth_config, write_config=config)
+    status, payload = post(
+        base + "/api/action",
+        browser_body("mine", {}),
+        headers=session_headers(auth_config, DEEPDELVER),
+    )
+    assert status == exec_status, label
+    assert payload == envelope, label
+
+
 def test_conformant_rejection_from_any_executor_relays_verbatim(
     serve, fake_executor
 ):

@@ -188,9 +188,11 @@ class MineverseHandler(SimpleHTTPRequestHandler):
         the VERIFIED session cookie (never from the browser), attaches the
         snapshot's ``guild_id``, signs with the shared secret the browser
         never sees, and relays the executor's response envelope verbatim —
-        after a runtime conformance check (server/response_validation.py):
-        a non-conformant envelope on any status answers an honest 502
-        instead of being relayed.
+        after a runtime conformance check plus a status↔reason_code
+        coherence check (server/response_validation.py): a non-conformant
+        envelope on any status, or a conformant one under an HTTP status
+        the contract's mapping table does not pair with its reason_code,
+        answers an honest 502 instead of being relayed.
         """
         write_config = self.write_config
         if not write_config.configured:
@@ -231,11 +233,15 @@ class MineverseHandler(SimpleHTTPRequestHandler):
         # Runtime sanity check of the executor's answer BEFORE it reaches the
         # browser: whatever the HTTP status (200 included), a body that is not
         # a conformant v1 response envelope is never relayed — a lying 200 is
-        # worse than a clean failure. Conformant envelopes (contract
-        # rejections included) relay verbatim, exactly as before. The distinct
-        # error body separates "executor unreachable" ("action relay failed")
-        # from "executor answered garbage" for the frontend and the logs.
-        problem = response_validation.envelope_error(body)
+        # worse than a clean failure. Passing http_status adds the coherence
+        # layer on top: a CONFORMANT envelope whose HTTP status contradicts
+        # its reason_code (ok under a 4xx/5xx, a rejection under 200 — the
+        # contract's status-mapping table) draws the same 502. Coherent
+        # conformant envelopes (contract rejections included) relay verbatim,
+        # exactly as before. The distinct error body separates "executor
+        # unreachable" ("action relay failed") from "executor answered
+        # garbage" for the frontend and the logs.
+        problem = response_validation.envelope_error(body, http_status=status)
         if problem is not None:
             LOGGER.warning(
                 "executor response (HTTP %s) failed v1 envelope validation: %s",
