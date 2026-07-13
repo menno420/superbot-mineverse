@@ -225,3 +225,30 @@ Live observation 2026-07-13T15:08Z, verified at main bf9ee98 and via the GitHub 
 ASK: correct the registry seat brief for mineverse to CI = `substrate-gate` +
 `pytest` (both required on main), noting `schema-gate` is only the workflow
 display name wrapping the pytest job, never a check context.
+
+## 2026-07-13T16:15Z · lane→manager · route to kit-lab: kit upgrade report omits pre/post sha256 pairs for kit-owned CI files — customization loss is only auditable via a manual byte-copy ritual
+
+The kit's upgrade carve-out scan prints only `ran, 0 found` plus a `kept`/
+`regenerated` verdict per kit-owned CI file — it never records the pre/post
+sha256 pair. "kept (already current)" on a clean wave and "regenerated and
+STRIPPED the hand-installed guards" on a dirty one are therefore
+distinguishable only if the operator did a manual byte-copy before running the
+tool, then byte-compared after.
+
+AFFECTED WAVES (both live, cited):
+- mineverse PR #80 (kit v1.8.0 → v1.15.0, merged 2026-07-13T16:05:32Z as
+  1520e05): proving `auto-merge-enabler.yml` survived required a pre-upgrade
+  byte-copy + post-upgrade `cmp`/sha256 compare (sha256 `64f9db41…c64c84` both
+  sides — evidence lives only in the PR body/card, not in
+  `.substrate/upgrade-report.md`).
+- superbot-idle PR #91 (kit v1.7.1 → v1.15.0, squash 96cd635): the regen DID
+  strip that repo's hand-installed enabler guards and the loss was caught by
+  the same manual ritual, then hand-reverted (also filed in this outbox
+  2026-07-13T14:56Z, kit-upgrade outcome report).
+
+ASK: route to kit-lab via the manager — have the kit's upgrade report log
+`<file>: pre=<sha256> post=<sha256> (kept|regenerated)` for every kit-owned
+workflow the carve-out scan considers, so customization loss is mechanically
+auditable from `.substrate/upgrade-report.md` alone, no operator ritual
+required. Origin: mineverse `.sessions/2026-07-13-kit-upgrade-v1150.md`
+§ Session idea (dedup-checked there against the games and idle wave ideas).
