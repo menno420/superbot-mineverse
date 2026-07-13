@@ -1,9 +1,9 @@
 # superbot-mineverse · status
-updated: 2026-07-13T09:28:00Z
-phase: heartbeat — ORDER 005 night report (owner ask 2026-07-13, fm relay); the ORDER 004 morning-tally content below is PRESERVED. COORDINATOR-DELEGATED heartbeat write.
+updated: 2026-07-13T11:44:00Z
+phase: heartbeat — day-wave refresh (COORDINATOR-DELEGATED write); the ORDER 005 night report and ORDER 004 morning-tally content below are PRESERVED. Day-wave window covered in § DAY WAVE at the bottom.
 health: green
 kit: v1.8.0
-last-shipped: #63 — tests+server: shared served-bytes fixtures + views uses cached schema loader; merged 2026-07-13T02:21Z.
+last-shipped: #72 — shim rate-limit path (mineverse lane wave 4 close); merged 2026-07-13, see § DAY WAVE.
 blockers: none
 orders: acked=001,002,003,004,005 done=001,002,003,004,005 (005 = NIGHT REPORT section below)
 ⚑ needs-owner: MINING_WRITE_ENDPOINT + MINING_WRITE_SHARED_SECRET pair (conformance is then one command: `python3 scripts/conformance_run.py`, docs/conformance-runbook.md) — full OWNER-ACTION block (WHAT/WHERE/HOW/WHY-IT-MATTERS/UNBLOCKS/VERIFIED-NEEDED/RISK): control/outbox.md entry 2026-07-12T21:05Z. Owner-decision queue: § QUEUED below.
@@ -124,3 +124,14 @@ scope; states below are as verified by the ORDER 004 tally session at 04:12Z)
 1. Run the conformance sweep the moment the write secret pair lands (`python3 scripts/conformance_run.py`).
 2. Kit-lab response on the born-red fail-open ask (outbox 2026-07-12T22:10Z) — adopt the fixed gate when it ships.
 3. Backlog trigger probes (groomed-backlog items 3/4) next generative wave.
+
+## DAY WAVE 2026-07-13 (~09:15Z → 11:44Z) — coordinator-delegated refresh
+
+Merge states as relayed by the delegating coordinator: all verified merged unless noted.
+
+- **Plugin line COMPLETE headless**: superbot-next #370 (two real plugins, hello+idle, boot together, pinned) + #377 (compile-time command/group collision gate) merged; idle #85 (3-part capability fix) + #86 (KNOWN_EVENTS registration + /idle PREFIX-only) merged — three real live-path bugs fixed at source. HELD on owner letter: render-dispatch seam approach (host shim vs async forwarders).
+- **Mineverse lane waves 3–4**: #68–#72 merged (fixture dedupe, status↔reason coherence, Retry-After allowlist, run_server helper, shim rate-limit path); suite 522 → **551 passed, 1 skipped**; lane dry honestly.
+- **Deep-mining**: WP-7 #371 green, parked; sweep stack now #312 → #317 → #335 → #344 → #371; only title-equip (needs UI) + cook/use (energy) remain parked in mining.
+- **Fishing cast-depth #373**: 7 codex findings handled (6 fixed with regression tests, 1 refuted with oracle citation); auto-merge armed.
+- **Night reports served per fm orders**: games #79, idle #84, mineverse #67 (ORDER 005 done).
+- **OWNER LETTERS PENDING (unchanged)**: render seam a/b · dig-gating A/B/C · D2 ratification · SIM-REQUESTs ×5 · persistence · rung-3 packaging · MINING_WRITE_* pair · kit born-red fix (outbox).
