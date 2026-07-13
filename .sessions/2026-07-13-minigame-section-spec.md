@@ -1,6 +1,6 @@
 # Session — 2026-07-13 — minigame section spec (ORDER 004 item 4)
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 > **Branch:** `claude/minigame-section-spec`
 > **Venue:** lane worker session (coordinator-delegated ORDER 004 item 4).
 
@@ -22,7 +22,30 @@ flip pushed BEFORE the PR opens.
 
 ## Close-out
 
-(to be written at session close)
+Shipped on `claude/minigame-section-spec` → main:
+`docs/design/minigame-section-spec-2026-07-13.md` (badge `plan`, reachable
+via a backtick ref from `docs/current-state.md` § Recently shipped — same
+route the flip-race finding doc uses). The spec carries: provenance table
+pinning the four repo SHAs (with the #313 post-HEAD delta flagged); the
+repos' OWN game groups (🏆 Competitive / 🎲 Activities hub sections, world
+hub, BTD6 own-category, four_twenty easter egg, plugin exemplar,
+games-repo pure-domain lanes, idle engine + theme catalog, mineverse
+link-out); enable-all-or-pick semantics grounded ONLY in existing
+mechanisms (section "enable all" = batch `capability_execution_overrides`
+allow rows; pick = individual rows; `!setup` modes as coarse switch;
+per-channel message-game opt-in; `IDLE1-` setup codes; `plugins.lock.json`
+pinning; mineverse env tiers), with the default-on/off list marked
+PROPOSAL; a design-level dynamic-panel model (PanelSpec-driven, hide/badge
+on disabled capability or open readiness gates, `idle.status` via PLUG-001,
+mineverse as web link-out); a 20-row per-game readiness table with
+file@sha / PR# citations and honest "not verified" cells; and a carried-over
+honest-nulls section. Docs-only — no runtime file touched. Local checks:
+`bootstrap.py check --strict` had exactly one finding pre-flip (this card's
+born-red hold, the intended behavior) and doc badge/link/reachability all
+green; full pytest suite run for the record (docs-only diff). Flip-race
+interim rule obeyed: full stack incl. this flip pushed BEFORE the PR opens.
+Follow-up (separate control-only PR per the landing plan): outbox pointer +
+claim close for `control/claims/minigame-section-spec.md`.
 
 ## 💡 Session idea
 
