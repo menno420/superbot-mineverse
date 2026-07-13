@@ -28,7 +28,8 @@ The planted doc set (this router reaches every live doc — keep it that way):
 `docs/collaboration-model.md` · `docs/helper-policy.md` ·
 `docs/repo-navigation-map.md` · `docs/ai-project-workflow.md` ·
 `docs/owner-profile.md` · `docs/current-state.md` · `docs/decisions.md` ·
-`docs/question-router.md` · `docs/CAPABILITIES.md` · `docs/ideas/README.md` — plus the root
+`docs/question-router.md` · `docs/CAPABILITIES.md` · `docs/ideas/README.md` ·
+`docs/SKILLS.md` · `docs/ROUTINES.md` · `docs/seat-digest.md` — plus the root
 `CONSTITUTION.md` (the working agreement) and `.session-journal.md`.
 
 Data contracts: `docs/mining-data-contract.md` (READ contract v1 — the

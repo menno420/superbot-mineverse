@@ -35,6 +35,18 @@ format — WHAT / WHERE / HOW / WHY-IT-MATTERS / UNBLOCKS / VERIFIED-NEEDED
 directly: one plain sentence, an exact click path, paste-ready text.
 Withdraw asks that have gone stale; fewer, clearer asks beat complete lists.
 
+Every owner-facing OUTPUT — not just asks — follows the owner-assist output
+standard (canonical: `control/README.md` § "Owner-assist output standard"):
+values arrive finished and paste-ready, with the exact link to where each
+one goes (a full file in one copyable block — never a recipe the owner must
+derive); every manual step carries a risk class (✅ safe / ↩️ reversible /
+⚠️ irreversible); a decision put to the owner is a structured choice —
+options A/B(/C) with a **bolded recommendation** and a one-line rationale,
+answerable with one letter — never an ask that requires the owner to
+parse, derive, or transform anything; a large output ships as a control-plane
+rendered link plus a 3-line digest in chat, with full text in one copyable
+block in chat as the fallback where the plane cannot render the repo yet.
+
 ## Friction → guard
 
 Anything that interrupts a session's workflow — a stale file, a checker that
