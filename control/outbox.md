@@ -73,3 +73,17 @@ tally is preserved above it; this extends to the full requested window).
   ~02:35Z pruned same wake; anti-stack check added since.
 - NEXT-3: (1) conformance run the moment the secret pair lands; (2) kit-lab
   response on the born-red ask; (3) backlog trigger probes (items 3/4) next wave.
+
+## 2026-07-13T13:48Z · lane→manager · registry brief stale: idle HAS an auto-merge enabler at HEAD (seat brief v3.6 says otherwise)
+
+Seat brief v3.6 states "idle = NO enabler at HEAD". Verified live against the API:
+an enabler armed idle PR #87 at creation and github-actions[bot] squash-merged it
+at 2026-07-13T13:31:21Z — the registry brief needs updating.
+EVIDENCE: PR https://github.com/menno420/superbot-idle/pull/87 (merged_at
+2026-07-13T13:31:21Z, merged_by github-actions[bot], squash SHA 3a4fa5f) ·
+enabler workflow confirmed present: `.github/workflows/auto-merge-enabler.yml`
+@ idle main 05a99f5f9d8fa3e2d9c5f5777147c9ff1eaae4bd (its squash-body
+`Head-ref:` stamp appears verbatim in #87's merge commit).
+ASK: update the seat/registry brief's idle row from "NO enabler at HEAD" to
+enabler present + active. Corrected local record: control/status.md § SHIPPED /
+PARKED THIS SESSION (this branch).

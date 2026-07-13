@@ -1,5 +1,5 @@
 # superbot-mineverse · status
-updated: 2026-07-13T13:34:32Z
+updated: 2026-07-13T13:47:49Z
 phase: SEAT HEARTBEAT — coordinator-dispatched worker session (landing wave 2026-07-13T~13:20Z): fleet verify at HEAD, records fixes, baton below. Session type: worker, not a coordinator seat.
 health: green
 kit: v1.8.0
@@ -24,7 +24,7 @@ notes: this heartbeat rides PR branch `claude/truthful-records-heartbeat` togeth
 
 ## SHIPPED / PARKED THIS SESSION
 
-- **idle PR #87** — control: prune stale claim files (merged as #85/#86) — https://github.com/menno420/superbot-idle/pull/87 — parked READY (non-draft), all four checks green at first poll (pytest, substrate-gate, theme-gate, enable-auto-merge); NOTE: a server-side `enable-auto-merge` check ran at PR creation, contrary to prior seat notes that idle lacked an enabler — this seat armed nothing.
+- **idle PR #87** — control: prune stale claim files (merged as #85/#86) — https://github.com/menno420/superbot-idle/pull/87 — MERGED 2026-07-13T13:31:21Z, squash-merged by github-actions[bot] via the auto-merge enabler (armed at PR creation; merge SHA 3a4fa5f), all four checks green at first poll (pytest, substrate-gate, theme-gate, enable-auto-merge); NOTE: the enabler exists at idle HEAD (`.github/workflows/auto-merge-enabler.yml` @ idle main 05a99f5), contrary to prior seat notes that idle lacked one — this seat armed nothing.
 - **This PR #75** — https://github.com/menno420/superbot-mineverse/pull/75 — records: stale #31 line fix + this heartbeat.
 
 ## RECORDS FIXED THIS SESSION
