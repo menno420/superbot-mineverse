@@ -219,7 +219,9 @@ def test_shim_responses_conform_at_runtime():
         "pre-auth reject": b"{}",
         "malformed": b"{not json",
     }.items():
-        status, envelope = state.handle("POST", "/relay/mining/action", {}, body)
+        status, envelope, _headers = state.handle(
+            "POST", "/relay/mining/action", {}, body
+        )
         assert (
             response_validation.envelope_error(
                 json.dumps(envelope).encode(), http_status=status

@@ -871,8 +871,9 @@ def test_coherent_status_envelope_pair_relays_verbatim(
 # `rate_limited` rejection. The relay forwards exactly the allowlisted
 # contract-relevant headers (actions.RELAYED_RESPONSE_HEADERS) — never a
 # blanket passthrough, so executor-internal headers stop at the web server.
-# The shim has NO rate-limit path at all (no 429 anywhere in
-# tests/shim/shim_bot.py), so these pins run against the canned executor.
+# The shim's rate-limit path is OPT-IN and off by default, so these
+# relay-side pins run against the canned executor; the reference shim's
+# own 429 is exercised in the rate-limit section further down.
 
 
 def post_with_headers(url, body: bytes, headers=None):
@@ -1007,6 +1008,196 @@ def test_conformant_rejection_from_any_executor_relays_verbatim(
     )
     assert status == 409
     assert payload == envelope
+
+
+# --- the reference rate-limit path (opt-in, contract § Rate limits) ----------
+#
+# The shim now implements the one mapping-table row nothing exercised
+# executably: armed with rate_limit=(max_requests, window_seconds) — DEFAULT
+# OFF — it answers over-budget proposals with 429 `rate_limited` plus the
+# contract's `Retry-After` header (integer seconds), per (suid, guild_id),
+# never stored for idempotency. Everything here is ALWAYS loopback and
+# in-process, even in conformance mode (same posture as ``fake_executor``):
+# provoking a REAL executor's 429 would burn a whole budget of real actions
+# against executor-configured limits and starve the rest of the sweep's
+# shared (suid, guild_id) budget, so the real-endpoint rate-limit check
+# stays a manual cutover-checklist step (docs/live-prod-cutover.md §1).
+
+
+RATE_LIMIT_MAX = 3
+RATE_LIMIT_WINDOW = 10.0
+
+
+class ManualClock:
+    """Deterministic injectable ``now``: frozen until advanced. Starts on an
+    integer epoch so Retry-After arithmetic is float-exact; stays within the
+    signing skew window of real time throughout a test."""
+
+    def __init__(self):
+        self.t = float(int(time.time()))
+
+    def __call__(self):
+        return self.t
+
+    def advance(self, seconds):
+        self.t += seconds
+
+
+@pytest.fixture()
+def limited_shim():
+    """(state, base_url, clock) — the in-process shim with the OPT-IN
+    limiter armed at 3 requests / 10 s on a manual clock."""
+    clock = ManualClock()
+    server, state = make_shim_server(
+        port=0,
+        secret=TEST_SECRET,
+        rate_limit=(RATE_LIMIT_MAX, RATE_LIMIT_WINDOW),
+        now=clock,
+    )
+    with run_server(server):
+        host, port = server.server_address[:2]
+        yield state, f"http://{host}:{port}", clock
+
+
+def send_with_headers(shim_base, proposal, *, secret=TEST_SECRET):
+    """Like ``send`` but also returns the shim's response headers."""
+    body = json.dumps(proposal, separators=(",", ":"), sort_keys=True).encode()
+    ts = str(int(time.time()))
+    sig = actions.sign(secret, "POST", ACTION_PATH, ts, body)
+    status, payload, headers = post_with_headers(
+        shim_base + ACTION_PATH,
+        body,
+        headers={
+            "Content-Type": "application/json",
+            actions.HEADER_TIMESTAMP: ts,
+            actions.HEADER_SIGNATURE: sig,
+        },
+    )
+    assert_response_conforms(payload)
+    return status, payload, headers
+
+
+def test_rate_limiter_is_opt_in_and_default_off():
+    """DEFAULT-OFF pin: without the knob the shim NEVER rate-limits — the
+    hermetic suite and the conformance sweep's default behavior stay
+    byte-identical to the pre-knob shim. 12 back-to-back proposals (over
+    the contract's own 10/10 s burst default) all execute."""
+    server, state = make_shim_server(port=0, secret=TEST_SECRET)
+    assert state.rate_limit is None  # the constructor's default
+    with run_server(server):
+        host, port = server.server_address[:2]
+        base = f"http://{host}:{port}"
+        for i in range(12):
+            status, payload = send(base, make_proposal("mine", {}))
+            assert status == 200, i
+            assert payload["reason_code"] == "ok", i
+
+
+def test_rate_limited_shim_answer_is_429_with_retry_after(limited_shim):
+    """Over budget → 429 `rate_limited`, schema-conformant (checked by
+    ``send_with_headers``), status-coherent, and carrying the contract's
+    integer-seconds `Retry-After` — the full frozen window here."""
+    state, base, clock = limited_shim
+    for _ in range(RATE_LIMIT_MAX):
+        status, payload, headers = send_with_headers(
+            base, make_proposal("mine", {})
+        )
+        assert status == 200
+        assert headers.get("Retry-After") is None  # only the 429 carries it
+    status, payload, headers = send_with_headers(base, make_proposal("mine", {}))
+    assert status == 429
+    assert payload["status"] == "rejected"
+    assert payload["reason_code"] == "rate_limited"
+    assert payload["replayed"] is False
+    assert "result" not in payload
+    assert headers.get("Retry-After") == "10"
+    # Post-auth and attributable → audited like every other rejection.
+    assert state.audit_log[-1]["outcome"] == "rejected:rate_limited"
+
+
+def test_retry_after_counts_down_and_the_budget_recovers(limited_shim):
+    """`Retry-After` is the seconds until the oldest in-window request ages
+    out — deterministic under the injected clock — and once the window has
+    fully passed the budget is back."""
+    state, base, clock = limited_shim
+    for _ in range(RATE_LIMIT_MAX):
+        send(base, make_proposal("mine", {}))
+    clock.advance(4)
+    status, payload, headers = send_with_headers(base, make_proposal("mine", {}))
+    assert status == 429
+    assert headers.get("Retry-After") == "6"  # 10-s window, 4 s in
+    clock.advance(6)  # the window has now fully aged out
+    status, payload = send(base, make_proposal("mine", {}))
+    assert status == 200
+    assert payload["reason_code"] == "ok"
+
+
+def test_rate_limited_proposals_are_not_stored_for_idempotency(limited_shim):
+    """Contract § Rate limits: a 429 is never stored — retrying the SAME
+    action_id after the window is a FRESH evaluation, not a replay."""
+    state, base, clock = limited_shim
+    for _ in range(RATE_LIMIT_MAX):
+        send(base, make_proposal("mine", {}))
+    proposal = make_proposal("mine", {})
+    status, payload = send(base, proposal)
+    assert status == 429
+    clock.advance(RATE_LIMIT_WINDOW)
+    status, payload = send(base, proposal)  # byte-identical retry
+    assert status == 200
+    assert payload["replayed"] is False  # fresh evaluation, never a replay
+
+
+def test_rate_limit_budget_is_per_actor_and_post_auth(limited_shim):
+    """The budget is keyed per (suid, guild_id) — one actor over budget
+    never throttles another — and auth still comes FIRST: an unattributable
+    probe draws the pre-auth 401, never a 429, so it can neither consume
+    nor probe anyone's budget."""
+    state, base, clock = limited_shim
+    for _ in range(RATE_LIMIT_MAX):
+        send(base, make_proposal("mine", {}))
+    status, payload = send(base, make_proposal("mine", {}))
+    assert (status, payload["reason_code"]) == (429, "rate_limited")
+    status, payload = send(base, make_proposal("descend", {}, suid=PEBBLEPICKER))
+    assert status == 200  # the other actor's budget is untouched
+    body = json.dumps(make_proposal("mine", {})).encode()
+    status, payload = signed_post(base, body, signature="0" * 64)
+    assert status == 401
+    assert payload["reason_code"] == "invalid_signature"
+    assert not any(  # nothing unattributable was ever audited
+        entry["outcome"] == "rejected:invalid_signature"
+        for entry in state.audit_log
+    )
+
+
+def test_rate_limited_shim_429_reaches_the_browser_with_retry_after(
+    limited_shim, serve
+):
+    """End to end against the REFERENCE executor (not the canned one): the
+    shim's own 429 passes the relay's conformance + coherence checks and
+    the browser-facing response carries the shim's `Retry-After` through
+    the allowlist relay path."""
+    state, shim_base, clock = limited_shim
+    auth_config = make_auth_config()
+    write_config = actions.WriteConfig(
+        endpoint=shim_base + ACTION_PATH, secret=TEST_SECRET
+    )
+    base = serve(auth_config=auth_config, write_config=write_config)
+    for _ in range(RATE_LIMIT_MAX):
+        status, payload, _headers = post_with_headers(
+            base + "/api/action",
+            browser_body("mine", {}),
+            headers=session_headers(auth_config, DEEPDELVER),
+        )
+        assert status == 200
+    status, payload, headers = post_with_headers(
+        base + "/api/action",
+        browser_body("mine", {}),
+        headers=session_headers(auth_config, DEEPDELVER),
+    )
+    assert status == 429  # relayed, not refused — coherent by construction
+    assert_response_conforms(payload)
+    assert payload["reason_code"] == "rate_limited"
+    assert headers.get("Retry-After") == "10"
 
 
 def test_action_route_refuses_bad_snapshots_pre_relay(shim, serve, tmp_path):
