@@ -24,8 +24,8 @@ notes: this heartbeat rides PR branch `claude/truthful-records-heartbeat` togeth
 
 ## SHIPPED / PARKED THIS SESSION
 
-- **idle PR #87** — control: prune stale claim files (merged as #85/#86) — https://github.com/menno420/superbot-idle/pull/87 — parked READY (non-draft) awaiting green + owner; idle has no auto-merge enabler.
-- **This PR** — branch `claude/truthful-records-heartbeat` (records: stale #31 line fix + this heartbeat); PR number added in the flip commit.
+- **idle PR #87** — control: prune stale claim files (merged as #85/#86) — https://github.com/menno420/superbot-idle/pull/87 — parked READY (non-draft), all four checks green at first poll (pytest, substrate-gate, theme-gate, enable-auto-merge); NOTE: a server-side `enable-auto-merge` check ran at PR creation, contrary to prior seat notes that idle lacked an enabler — this seat armed nothing.
+- **This PR #75** — https://github.com/menno420/superbot-mineverse/pull/75 — records: stale #31 line fix + this heartbeat.
 
 ## RECORDS FIXED THIS SESSION
 
