@@ -1,1 +1,0 @@
-- `claude/write-path-hardening` · **FLAG-2 mineverse-side write-path hardening** — runtime response-envelope validation + untested error-path coverage + replay-posture doc · server/actions.py, server/app.py, server/response_validation.py, tests/test_actions.py, tests/test_response_validation.py, docs/mining-write-contract.md · 2026-07-13
