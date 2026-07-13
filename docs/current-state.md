@@ -39,9 +39,11 @@ known-good and needs no re-audit without a reported regression:
 anonymous, and the full test suite passes. Sign-in needs
 `DISCORD_OAUTH_CLIENT_ID`, `DISCORD_OAUTH_CLIENT_SECRET`,
 `OAUTH_REDIRECT_URI`, `WEB_SESSION_SIGNING_KEY`; test-guild write mode
-additionally needs `MINING_WRITE_ENDPOINT`, `MINING_WRITE_SHARED_SECRET`
-(names only here — values are owner-provisioned host secrets, never in
-this repo).
+additionally needs `MINING_WRITE_ENDPOINT`, `MINING_WRITE_SHARED_SECRET`;
+a live-fed snapshot (the FLAG-1 bot READ relay's consume side) needs
+`MINING_SNAPSHOT_PATH` — unset, the server serves the committed sample
+exactly as before (names only here — values are owner-provisioned host
+configuration, never in this repo).
 
 **CI:** both `substrate-gate` AND `pytest` (the schema-gate workflow's job)
 are required status checks on main — pytest was recently added to the
