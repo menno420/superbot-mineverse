@@ -1,57 +1,52 @@
 # superbot-mineverse · status
-updated: 2026-07-13T22:35:08Z
-phase: HEARTBEAT — control-only worker slice: owner bigger-batches/production-grade directive landed as ORDER 007 in control/inbox.md + wholesale status refresh. Session type: worker, not a coordinator seat.
+updated: 2026-07-13T23:44:28Z
+phase: HEARTBEAT — night-run close-out (control-only fast-lane slice): ORDER 006 EAP worklist complete, all 5 items shipped and squash-merged (#88/#89/#92/#91/#93); ORDER 007 adopted as standing seat policy. Session type: worker, coordinator night dispatch.
 health: green
 kit: v1.15.0 · check: green
-last-shipped: #84 — ORDER 006 (EAP final-night worklist, fm ORDER 045 relay) appended to control/inbox.md; merged 2026-07-13T22:19:15Z; current main 5856a54.
+last-shipped: #93 — readiness ingest-route leg (`--probe-ingest`), squash 0fdb1c5 = main HEAD at close; suite 587 passed + 1 skipped.
 blockers: none
-orders: acked=001,002,003,004,005,006,007 done=001,002,003,004,005 claimed-by: 006,007 mineverse-night-runner 2026-07-13T22:35:08Z
-⚑ needs-owner: pytest as required check on superbot-idle main (OA-003) — full six-field OWNER-ACTION block: this repo's control/outbox.md entry 2026-07-13T14:56Z (VENUE: hub). Carried: MINING_WRITE_ENDPOINT + MINING_WRITE_SHARED_SECRET pair — control/outbox.md entry 2026-07-12T21:05Z.
-notes: control-only fast-lane diff (ORDER 006+007 claim), no session card per convention. ACK for ORDERs 006+007 lives HERE on the orders:/notes: lines, not in the inbox: ORDER 006's done-when asks for an inbox-thread ack, but the substrate-gate inbox enforcer rejects any non-ORDER append ("[inbox-order-grammar] … appended content that is neither the file header nor a `## ORDER` block — the inbox appends ORDER blocks only") and any mid-file insertion ("[inbox-not-append] … allows only additions at the end") — verified live on PR #87 run 29290416909; inbox.md left byte-identical to base. Night runner active on the ORDER 006 EAP worklist top-down (items 1→5). ORDER 007 adopted: SIM-REQUESTs filed as full content waves (not few-item slices); standing mission = all three games to production-grade; correctness and structural integrity outrank speed — no gate/verdict/golden-parity floor relaxed. Tree verified this slice: bootstrap check --strict exit 0.
+orders: acked=001,002,003,004,005,006,007 done=001,002,003,004,005,006,007
+⚑ needs-owner: (1) sender-side HMAC adoption — owner/bot-lane work via the superbot #2058 draft flip; full OWNER-ACTION block below (§ OWNER-ACTION). (2) The six OAuth/write host env vars remain owner-only — six-field block: control/outbox.md entry 2026-07-12T21:05Z (outstanding pair: MINING_WRITE_ENDPOINT + MINING_WRITE_SHARED_SECRET; the ingest side additionally needs MINING_SNAPSHOT_RELAY_SHARED_SECRET + MINING_SNAPSHOT_PATH web-host-side, see §2058 block). (3) Carried: pytest as required check on superbot-idle main (OA-003) — six-field block: control/outbox.md entry 2026-07-13T14:56Z (VENUE: hub).
+notes: ORDER 006 done-when caveat, recorded honestly: its "ack in your inbox thread" clause is machine-unsatisfiable under this repo's own substrate-gate (inbox appends ORDER blocks only; enforcer findings quoted verbatim in control/outbox.md entry 2026-07-13T23:44Z) — the ack lives on this orders: line instead, precedent PR #87; flagged to the manager via the outbox. ORDER 007 marked done on this reading: production-grade mission + full-content-wave SIM-REQUEST rule are recorded as standing seat policy (here + in planning/baton), no correctness gate/verdict/golden-parity floor was relaxed tonight, and no SIM-REQUEST was filed from this repo tonight (none was due — mineverse sim work is verdict-gated waits; the seat's one concrete full-content-wave instance rode the games lane, fishing-full-roster-economy). If the manager reads done-when as requiring a mineverse-filed SIM-REQUEST, treat 007 as still claimed — the policy adoption stands either way. Tree verified this slice: bootstrap check --strict exit 0; python3 -m pytest -q → 587 passed, 1 skipped.
 
-## OWNER DIRECTIVE 2026-07-13 ~21:59Z (bigger batches / production-grade) — landed in all three inboxes
+## ORDER 006 — EAP final-night worklist, per-item close-out (all 5 shipped tonight)
 
-- games ORDER 008 — PR menno420/superbot-games#92, merged 2026-07-13T22:09:21Z, squash 21937f3 (games main since advanced to e2f6699 via claim-release #93).
-- idle ORDER 006 — PR menno420/superbot-idle#101, merged 2026-07-13T22:05:45Z, squash 58061e8 (idle main since advanced to 952aa9e via #102 claim prune + #103 EAP ORDER 007).
-- mineverse ORDER 007 — this PR (branch claude/owner-order-batch-sim), appended after ORDER 006.
-- Separately landed, distinct directive: mineverse ORDER 006 — EAP final-night worklist (fm ORDER 045 relay) via PR #84, merged 2026-07-13T22:19:15Z, squash 5856a54.
+1. FLAG-1 snapshot-ingest RECEIVE endpoint — PR #88, squash 82b7caa. `POST /api/snapshot/ingest` (`server/ingest.py` + `server/app.py`), HMAC fail-closed under the ONE canonical `server/actions.py` scheme, v1-validate before persist, atomic replace into `MINING_SNAPSHOT_PATH`; 24 tests.
+2. VERDICT 056 applied — PR #89, squash 72536b1. Stale threshold 180 s gains its measured wording across docs/views.
+3. Ingest-transport spec addendum — PR #92, squash 48e158e. `docs/mining-data-contract.md` § "Ingest transport & authentication (FLAG-1 seam)": #2058 env names, ~60 s cadence, ingest-auth decision — one written seam for both repos.
+4. Snapshot contract constant + field-parity audit — PR #91, squash a73b4ea. `snapshot_contract.py` (repo root, stdlib-only, vendorable) owns the schema-derived required-field constants; audit committed as `docs/findings/snapshot-field-parity-audit-2026-07-14.md` — headline: NO producer data debt; misses are 3 consumer-side flavor requireds (`gear.rarity`, `skills[].xp/xp_max`, `structures[].status`) plus a 7/9 gear-slot map (`tool`/`light` homeless).
+5. Readiness ingest-route leg — PR #93, squash 0fdb1c5. `scripts/readiness_check.py --probe-ingest`: one deliberately UNSIGNED POST to the FLAG-1 route; only honest answers are 401 `invalid_signature` or 503 fail-closed — an unsigned 200 is reported as a SECURITY FAILURE and reds the check; 12 tests; suite 587 passed + 1 skipped.
 
-## SHIPPED 2026-07-13 (verified live at GitHub, per-repo merged-PR record)
+## ORDER 007 — adoption record (standing seat policy)
 
-- mineverse: 30 PRs merged today — #55–#82 (squash SHAs, ascending: be916c8, 6fd8145, b2b41c3, 7f33c2b, 9746389, 9ee2707, 2d05628, bf93786, 79a4018, f9261a2, 35f147a, 3fe538e, 9809c2a, 5a14f03, 5a12fee, dc320bf, 234e8f7, f206bf1, e44a80c, a84b3d0, bcef4b2, 8088d67, f89c04e, bf9ee98, d2925e2, 1520e05, e81c9ff, f79d0ae) plus #83 (heartbeat, ae98dd0) and #84 (ORDER 006, 5856a54). mineverse main at 5856a54.
-- superbot-idle: 29 PRs merged today — #75–#103; the 18:45Z record listed #75–#99 (squash SHAs ascending: 86f631d, ac0af23, 457407c, 497db5a, 7af705c, 4af4338, c925a45, c735075, 161bc7d, d992c56, 3e22f69, b03cc96, 3a4fa5f, 05a99f5, e740810, 675c347, 96cd635, 26b7eaa, cf59d02, 4ebe037, 2ac6c5d, 70b2e8d, 3c295ef, 53edf18, 4c31a2c); since then #100 (1f4d774), #101 (58061e8), #102 (95bd3cf), #103 (952aa9e). idle main at 952aa9e.
-- superbot-games: 29 PRs merged today — #65–#93; the 18:45Z record listed #65–#91 (squash SHAs ascending: 64b3371, 60b2773, dd867c8, 1b09a03, 7c13166, da0e47e, c491bd3, ef18b4e, 6ecd579, 0e62ee3, 0ee7482, 425a3d7, 5aec110, dabba30, 57f69be, 156e2de, d6a9526, 739c571, 72a94bb, 9caf1b6, ae4beff, c629577, 67de572, 0ffd3cc, ab442e7, 52eb8b2, ce70d9e); since then #92 (21937f3), #93 (e2f6699). games main at e2f6699.
-- Narrative context per repo: each repo's docs/current-state.md at its HEAD (mineverse 5856a54, idle 952aa9e, games e2f6699).
+- SIM-REQUESTs are filed as full content waves, not few-item slices (no SIM-REQUEST was filed from this repo tonight; the rule's live instance is the games-lane fishing-full-roster batch — see NEXT-2 baton).
+- Standing mission: all three games to production-grade.
+- Precedence: correctness and structural integrity outrank speed — no gate, verdict, or golden-parity floor relaxed tonight (suite grew 551→587 across the worklist).
 
-## KIT STATE (facts, cited)
+## OWNER-ACTION — sender-side HMAC adoption (superbot #2058 draft flip)
 
-- Seat kit v1.15.0 on all three repos, verified in-tree:
-  - mineverse: `bootstrap.py` line 93 `KIT_VERSION = "1.15.0"` @ 5856a54 (upgraded via PR #80, squash 1520e05).
-  - superbot-idle: `bootstrap.py` line 93 `KIT_VERSION = "1.15.0"` @ 4c31a2c (upgraded via idle PR #91, squash 96cd635). idle's own heartbeat kit line self-reports v1.7.1 — tree wins per protocol (self-report lag class).
-  - superbot-games: `bootstrap.py` line 93 `KIT_VERSION = "1.15.0"` @ ce70d9e.
-- mineverse lane-owed post-upgrade docs deltas shipped in #82 (squash f79d0ae).
-
-## ORDER SERVICE (sibling repos, cited at their HEADs)
-
-- games ORDER 007 done — games control/status.md @ ce70d9e orders line: `acked=001,002,003,004,005,006,007 done=001,002,003,005,006,007` with `007 = ORDER 007 section` (served via games PRs #82–#85, squashes 739c571/72a94bb/9caf1b6/ae4beff). games ORDER 008 (owner bigger-batches) landed via #92 — status: new.
-- idle ORDER 005 done — idle control/status.md @ 4c31a2c orders line: `acked=000-005 done=000-005 (… 005 done-when met atomically … graduation PR #93 …)` (idle #93 squash cf59d02). idle ORDER 006 (owner bigger-batches, #101) + ORDER 007 (EAP worklist, #103) landed — status: new.
-- mineverse ORDERs 001–005: done (unchanged; see orders line above). ORDERs 006 + 007: new, unclaimed.
+⚑ OWNER-ACTION
+WHAT: flip superbot PR #2058 (the bot-side snapshot pusher) out of draft and have the bot lane adopt sender-side HMAC signing so its POSTs authenticate against this repo's live `/api/snapshot/ingest` endpoint.
+WHERE: github.com/menno420/superbot → PR #2058 ("Ready for review" button + bot-lane follow-through); host env vars land in the bot host's environment plus the web host per the seam doc `docs/mining-data-contract.md` § Sender (superbot PR #2058).
+HOW: sender signs with the repo's ONE canonical scheme (`X-Mineverse-Signature`/`X-Mineverse-Timestamp`, HMAC-SHA256 over `"POST\n/api/snapshot/ingest\n<TIMESTAMP>\n<sha256_hex(BODY)>"`), keyed with `MINING_SNAPSHOT_RELAY_SHARED_SECRET`; env names: `MINING_SNAPSHOT_RELAY_URL` + `MINING_SNAPSHOT_RELAY_GUILD_ID` (bot side), `MINING_SNAPSHOT_RELAY_SHARED_SECRET` + `MINING_SNAPSHOT_PATH` (web host). Values stay owner-side, never in any repo.
+RISK: ↩️ reversible — unset the env vars / re-draft the PR to undo; the receive side stays fail-closed (503) whenever the secret or path is unset.
+WHY-IT-MATTERS: the FLAG-1 READ relay's receive half is live and tested; live miner data cannot flow until the sender signs and pushes.
+UNBLOCKS: live bot→web snapshot flow (FLAG 1), replacing the committed fixture; the staleness badge (VERDICT 056) starts measuring a real feed.
+VERIFIED-NEEDED: #2058 is another repo's owner/bot-lane draft and its body names no transport auth (recorded in `docs/mining-data-contract.md` @48e158e); agent sessions hold no write seat on menno420/superbot and no host-env access (docs/CAPABILITIES.md) — receive-side work is complete in this repo (PRs #88/#93), only the sender half remains.
 
 ## OPEN PRS
 
-- Zero open PRs on mineverse (open-PR list API-verified empty at 2026-07-13T22:19Z, after #84 merged and before this branch's PR was opened). The 18:45Z heartbeat's zero-open-PRs line had gone stale in the interim (#84 was open 22:14–22:19Z).
+- PR #90 — another session's fleet-cleanup audit, open at base 82b7caa, parked for the auto-merge sweep per its own body. Neutral pointer only; not this lane's work, not touched by this slice.
+
+## SIBLING LANES
+
+- games/idle night runners dispatched by coordinator — see their PR trails.
 
 ## ROUTINES (neutral facts)
 
-- Failsafe cron "SuperBot World failsafe wake" trig_01QctdbvhdcvuSFsCPxdseae (`15 1-23/2 * * *`), bound to the coordinator session; pacemaker chain coordinator-managed, idles when the backlog is dry.
+- Failsafe cron trig_01QctdbvhdcvuSFsCPxdseae bound to the coordinator session; pacemaker chain coordinator-managed.
 
-## OPEN OWNER ASKS (pointers only)
+## NEXT-2 BATON (carried)
 
-- idle pytest-required (OA-003): six-field block in this repo's control/outbox.md @ 2026-07-13T14:56Z; also carried in idle control/status.md + outbox @ 4c31a2c.
-- mineverse write-pair secrets (MINING_WRITE_ENDPOINT + MINING_WRITE_SHARED_SECRET): control/outbox.md @ 2026-07-12T21:05Z. Standing ORDER 003 ordering rule unchanged: security merges before anything secrets-adjacent; the OAuth six-env-var provisioning ask stays subordinate per that rule.
-- games D2 ratification / packaging / standalone-CLI persistence decisions: games control/outbox.md @ ce70d9e (D1/D2 decision-note + OWNER-QUEUE persistence entry; games main has since advanced to e2f6699 — entries are append-only, pointer remains valid).
-
-## NEXT-2 BATON
-
-1. Serve the games SIM-REQUEST `fishing-full-roster-economy` (29 not-yet-pinned species, filed in games control/outbox.md via PR #92 squash 21937f3) when the sim verdict returns — first full-content-wave batch under ORDER 007's bigger-batches rule.
-2. Verdict-gated waits as before — fishing cook-leg economy SIM-REQUEST (folded by reference into the full-roster batch; originally filed via games #89 squash ab442e7) + PRESTIGE tuning ruling.
+1. Serve the games SIM-REQUEST `fishing-full-roster-economy` (29 not-yet-pinned species, filed in games control/outbox.md via games PR #92 squash 21937f3) when the sim verdict returns — first full-content-wave batch under ORDER 007's bigger-batches rule.
+2. Verdict-gated waits as before — fishing cook-leg economy SIM-REQUEST (folded by reference into the full-roster batch) + PRESTIGE tuning ruling.
