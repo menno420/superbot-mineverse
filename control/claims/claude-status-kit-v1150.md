@@ -1,0 +1,1 @@
+- `claude/status-kit-v1150` · **scope** — heartbeat update: control/status.md overwrite (kit line v1.8.0 → v1.15.0 post-#80) + control/outbox.md append (kit-lab relay) · control/status.md + control/outbox.md · 2026-07-13
