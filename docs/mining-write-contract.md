@@ -224,6 +224,10 @@ committed anywhere.
    `reason_code` under 200, or any other off-table pairing draws the
    same 502. A lying 200 is worse than a clean failure; conformant,
    coherent envelopes, contract rejections included, relay untouched.
+   Of the executor's response HEADERS the web server relays only the
+   contract-relevant allowlist — today exactly `Retry-After` on a 429,
+   when present (never invented, and its absence never blocks the
+   relay); all other executor headers stop at the web server.
 
 There is no code path by which browser input can influence `suid` or
 `guild_id`.

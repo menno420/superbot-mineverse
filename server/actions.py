@@ -139,17 +139,49 @@ def verify(
 
 # --- the relay call ----------------------------------------------------------
 
+# Executor response headers the web relay forwards to the browser, per HTTP
+# status — an ALLOWLIST, deliberately not a blanket passthrough (executor
+# headers can carry executor-internal details; only what the contract
+# promises clients crosses the relay). Today the contract names exactly one:
+# docs/mining-write-contract.md § "Rate limits" / the status-mapping table's
+# 429 row promise a ``Retry-After`` header (integer seconds) on every
+# ``rate_limited`` rejection. Extend this mapping — never the relay loop —
+# if the contract ever promises another header.
+RELAYED_RESPONSE_HEADERS: dict[int, tuple[str, ...]] = {
+    429: ("Retry-After",),
+}
+
+
+def _relayed_headers(status: int, headers) -> dict[str, str]:
+    """The allowlisted subset of an executor response's headers.
+
+    ``headers`` is the ``email.message.Message`` mapping urllib exposes on
+    both ``HTTPResponse`` and ``HTTPError`` (case-insensitive ``get``). A
+    header the contract promises but the executor omitted is simply absent —
+    presence enforcement (if any) is the caller's policy, not transport's.
+    """
+    relayed: dict[str, str] = {}
+    for name in RELAYED_RESPONSE_HEADERS.get(status, ()):
+        value = headers.get(name)
+        if value is not None:
+            relayed[name] = value
+    return relayed
+
 
 def propose(
     config: WriteConfig, proposal: dict, *, now: float | None = None
-) -> tuple[int, bytes]:
+) -> tuple[int, bytes, dict[str, str]]:
     """Sign ``proposal`` and POST it to the configured executor.
 
-    Returns ``(http_status, response_body_bytes)`` — the executor's answer
-    verbatim, including contract rejections (4xx/5xx bodies conform to
-    ``schemas/mining_action_response.v1.schema.json``). Network-level
-    failures (endpoint unreachable, timeout) raise ``OSError``/``URLError``
-    for the caller to translate into an honest 502.
+    Returns ``(http_status, response_body_bytes, relayed_headers)`` — the
+    executor's answer verbatim, including contract rejections (4xx/5xx
+    bodies conform to ``schemas/mining_action_response.v1.schema.json``).
+    ``relayed_headers`` is the contract-relevant allowlisted subset of the
+    executor's response headers (``RELAYED_RESPONSE_HEADERS`` — today
+    exactly ``Retry-After`` on a 429, when present); all other executor
+    headers stop here. Network-level failures (endpoint unreachable,
+    timeout) raise ``OSError``/``URLError`` for the caller to translate
+    into an honest 502.
     """
     if not config.configured:
         raise ValueError("writes are not configured")
@@ -170,8 +202,10 @@ def propose(
     )
     try:
         with urllib.request.urlopen(request, timeout=config.timeout) as res:
-            return res.status, res.read()
+            return res.status, res.read(), _relayed_headers(
+                res.status, res.headers
+            )
     except urllib.error.HTTPError as err:
         # Contract rejections arrive as HTTP errors — their bodies are
         # first-class response envelopes, not transport failures.
-        return err.code, err.read()
+        return err.code, err.read(), _relayed_headers(err.code, err.headers)

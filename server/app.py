@@ -192,7 +192,10 @@ class MineverseHandler(SimpleHTTPRequestHandler):
         coherence check (server/response_validation.py): a non-conformant
         envelope on any status, or a conformant one under an HTTP status
         the contract's mapping table does not pair with its reason_code,
-        answers an honest 502 instead of being relayed.
+        answers an honest 502 instead of being relayed. Of the executor's
+        response HEADERS only the contract-relevant allowlist is forwarded
+        (``actions.RELAYED_RESPONSE_HEADERS`` — today ``Retry-After`` on a
+        429, when present); everything else stops at the relay.
         """
         write_config = self.write_config
         if not write_config.configured:
@@ -226,7 +229,9 @@ class MineverseHandler(SimpleHTTPRequestHandler):
             "params": request["params"],
         }
         try:
-            status, body = actions.propose(write_config, proposal)
+            status, body, relayed_headers = actions.propose(
+                write_config, proposal
+            )
         except (OSError, ValueError):
             self._send_json(502, {"error": "action relay failed"})
             return
@@ -254,6 +259,15 @@ class MineverseHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        # Contract-relevant executor headers only (the allowlist propose()
+        # already applied — actions.RELAYED_RESPONSE_HEADERS, today exactly
+        # Retry-After on a 429): the backoff hint the contract promises
+        # clients survives the relay; executor-internal headers never do.
+        # A 429 the executor sent WITHOUT the header still relays — header
+        # presence is the executor's contract obligation, not a relay
+        # refusal condition (the coherence layer above judges status↔body).
+        for name, value in relayed_headers.items():
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(body)
 
