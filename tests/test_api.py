@@ -2,7 +2,6 @@
 
 import json
 import sys
-import threading
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -12,27 +11,10 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from server.app import SNAPSHOT_PATH, WEB_ROOT, make_server  # noqa: E402
+from server.app import SNAPSHOT_PATH, WEB_ROOT  # noqa: E402
 
-
-@pytest.fixture()
-def serve():
-    """Start the real server on an ephemeral port; yield a base URL."""
-    servers = []
-
-    def _start(**kwargs):
-        server = make_server(port=0, **kwargs)
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
-        servers.append((server, thread))
-        host, port = server.server_address[:2]
-        return f"http://{host}:{port}"
-
-    yield _start
-    for server, thread in servers:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)
+# The kwargs-taking ``serve`` fixture lives in tests/conftest.py
+# (wrapping tests/_server_helpers.serve_factory).
 
 
 def fetch(url):

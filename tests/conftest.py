@@ -13,9 +13,13 @@ server count, zero behavior change. Module-specific fixtures
 (``not_found_page`` in test_web_fun.py, ``seasonal_js_block`` in
 test_web_seasonal.py) stay in their modules.
 
-The API/auth/robustness suites build servers with per-test kwargs via
-their own ``serve()`` context managers — different shape, deliberately
-not unified here.
+The API/auth suites build servers with per-test kwargs instead; their
+shared ``serve`` fixture below wraps the importable
+``tests/_server_helpers.serve_factory`` context manager (recorded 💡
+from .sessions/2026-07-13-test-infra-dedupe.md). One divergent variant
+stays module-local: test_server_robustness.py's ``serve`` returns a raw
+``(host, port)`` tuple, not a URL, and deliberately overrides the
+fixture defined here.
 """
 
 import sys
@@ -29,6 +33,19 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from server.app import make_server  # noqa: E402
+from tests._server_helpers import serve_factory  # noqa: E402
+
+
+@pytest.fixture()
+def serve():
+    """Kwargs-taking ``start(**make_server kwargs) -> base URL`` factory.
+
+    Every server started through the factory is shut down after the
+    test. Per-test scope, exactly like the five per-module copies this
+    replaces.
+    """
+    with serve_factory() as start:
+        yield start
 
 
 @pytest.fixture(scope="module")

@@ -24,7 +24,12 @@ from server.app import WEB_ROOT, make_server  # noqa: E402
 
 @pytest.fixture()
 def serve():
-    """Start the real server on an ephemeral port; yield (host, port)."""
+    """Start the real server on an ephemeral port; yield (host, port).
+
+    Deliberately module-local, overriding the conftest ``serve``: the
+    raw http.client round-trips here need the ``(host, port)`` tuple,
+    not the base-URL string the shared factory returns.
+    """
     servers = []
 
     def _start(**kwargs):

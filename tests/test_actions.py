@@ -35,7 +35,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from server import actions, auth  # noqa: E402
-from server.app import make_server  # noqa: E402
 from tests.shim.shim_bot import (  # noqa: E402
     ACTION_PATH,
     PLACEHOLDER_ACTION_ID,
@@ -144,24 +143,8 @@ def shim():
     thread.join(timeout=5)
 
 
-@pytest.fixture()
-def serve():
-    """The real web server on an ephemeral port; yields a base URL factory."""
-    servers = []
-
-    def _start(**kwargs):
-        server = make_server(port=0, **kwargs)
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
-        servers.append((server, thread))
-        host, port = server.server_address[:2]
-        return f"http://{host}:{port}"
-
-    yield _start
-    for server, thread in servers:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)
+# The kwargs-taking ``serve`` fixture lives in tests/conftest.py
+# (wrapping tests/_server_helpers.serve_factory).
 
 
 def post(url, body: bytes, headers=None):
