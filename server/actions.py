@@ -54,11 +54,25 @@ CONTRACT_VERSION = "1"
 
 
 class WriteConfig:
-    """Write-endpoint configuration snapshot. ``None`` values = degraded."""
+    """Write-endpoint configuration snapshot. ``None`` values = degraded.
 
-    def __init__(self, endpoint: str | None, secret: str | None) -> None:
+    ``timeout`` is the executor HTTP cap in seconds — the contract default
+    (``HTTP_TIMEOUT_SECONDS``) unless injected explicitly. It is an
+    ARGUMENT-ONLY seam (tests inject a short cap so the timeout→502 path
+    runs fast); deliberately NOT an env var, so the host configuration
+    surface stays exactly the documented endpoint/secret pair.
+    """
+
+    def __init__(
+        self,
+        endpoint: str | None,
+        secret: str | None,
+        *,
+        timeout: float = HTTP_TIMEOUT_SECONDS,
+    ) -> None:
         self.endpoint = endpoint
         self.secret = secret
+        self.timeout = timeout
 
     @classmethod
     def from_env(cls, environ=os.environ) -> "WriteConfig":
@@ -155,7 +169,7 @@ def propose(
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_SECONDS) as res:
+        with urllib.request.urlopen(request, timeout=config.timeout) as res:
             return res.status, res.read()
     except urllib.error.HTTPError as err:
         # Contract rejections arrive as HTTP errors — their bodies are

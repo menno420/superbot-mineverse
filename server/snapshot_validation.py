@@ -1,4 +1,4 @@
-"""Stdlib-only runtime validation of a mining snapshot against READ contract v1.
+"""Stdlib-only runtime validation of contract payloads against their v1 schemas.
 
 WHY THIS EXISTS (and why it is not jsonschema): the web backend is stdlib-only
 by contract (docs/architecture.md; ``jsonschema`` is a DEV/test dependency only
@@ -6,15 +6,21 @@ by contract (docs/architecture.md; ``jsonschema`` is a DEV/test dependency only
 jsonschema at runtime. But the committed sample is not the only snapshot the
 server will ever load: the future live bot→web relay pushes snapshots the CI
 gate never saw. This module refuses a malformed relay payload AT INGESTION with
-an honest 503 instead of serving corrupt data as 200.
+an honest 503 instead of serving corrupt data as 200. The same interpreter also
+backs ``server/response_validation.py`` (the runtime check of the executor's
+WRITE-contract response envelope): :func:`validate_value` is the generic
+entrypoint, :func:`validate_snapshot` the snapshot-specific one.
 
 HOW: a compact, schema-DERIVED interpreter. It reads the very same committed
-``schemas/mining_snapshot.v1.schema.json`` and enforces the JSON Schema keywords
-that contract actually uses — ``type``, ``const``, ``enum``, ``required``,
-``properties``, ``additionalProperties``, ``items``, ``$ref``/``$defs``,
-``minimum``, ``maximum``, ``pattern``, ``propertyNames`` and the size/length
-bounds ``maxItems``/``minItems`` (arrays), ``maxLength``/``minLength``
-(strings), ``maxProperties``/``minProperties`` (objects) — so it cannot drift
+schema file (``schemas/mining_snapshot.v1.schema.json`` here;
+``schemas/mining_action_response.v1.schema.json`` via response_validation) and
+enforces the JSON Schema keywords those contracts actually use — ``type``,
+``const``, ``enum``, ``required``, ``properties``, ``additionalProperties``,
+``items``, ``$ref``/``$defs``, ``minimum``, ``maximum``, ``pattern``,
+``propertyNames``, the size/length bounds ``maxItems``/``minItems`` (arrays),
+``maxLength``/``minLength`` (strings), ``maxProperties``/``minProperties``
+(objects), and the applicators ``allOf``, ``if``/``then``/``else`` and ``not``
+(the response schema's accept/reject cross-field rules) — so it cannot drift
 from the schema file. It is intentionally a SUBSET of full Draft 2020-12 (it
 does not, e.g., check ``format: date-time``); the authoritative conformance gate
 remains the real jsonschema validator in tests/test_schema_gate.py. Required
@@ -69,6 +75,11 @@ _HANDLED_KEYWORDS = frozenset(
         "maxProperties",
         "minProperties",
         "$ref",
+        "allOf",
+        "if",
+        "then",
+        "else",
+        "not",
     }
 )
 
@@ -111,7 +122,21 @@ _JSON_TYPES: dict[str, type | tuple[type, ...]] = {
 
 
 class SnapshotInvalid(ValueError):
-    """A snapshot failed the v1 structural check (carries a locating message)."""
+    """A value failed its v1 structural check (carries a locating message).
+
+    Named for its original (snapshot) use; it is the interpreter's generic
+    violation type — ``response_validation`` raises it for envelopes too.
+    """
+
+
+class _UnhandledKeyword(SnapshotInvalid):
+    """Drift-guard failure: the schema uses a keyword this interpreter lacks.
+
+    A distinct subclass so :func:`_passes` (the ``if``/``not`` applicators'
+    boolean probe) can re-raise it instead of swallowing it as an ordinary
+    "does not match" — the fail-loud drift guard must hold even inside
+    conditional subschemas.
+    """
 
 
 def load_schema() -> dict:
@@ -156,10 +181,22 @@ def _check(root: dict, schema: dict, value: object, path: str) -> None:
             keyword,
             path,
         )
-        raise SnapshotInvalid(
+        raise _UnhandledKeyword(
             f"{path}: unimplemented schema keyword {keyword!r} "
             f"(runtime validator would drift from the schema)"
         )
+
+    # Applicators (the response schema's accept/reject cross-field rules).
+    for index, subschema in enumerate(schema.get("allOf", [])):
+        _check(root, subschema, value, f"{path} (allOf[{index}])")
+    if "not" in schema and _passes(root, schema["not"], value, path):
+        raise SnapshotInvalid(f"{path}: matches a schema it must not match")
+    if "if" in schema:
+        if _passes(root, schema["if"], value, path):
+            if "then" in schema:
+                _check(root, schema["then"], value, f"{path} (then)")
+        elif "else" in schema:
+            _check(root, schema["else"], value, f"{path} (else)")
 
     declared = schema.get("type")
     if declared is not None:
@@ -241,6 +278,32 @@ def _check(root: dict, schema: dict, value: object, path: str) -> None:
                 _check(root, items, element, f"{path}[{index}]")
 
 
+def _passes(root: dict, schema: dict, value: object, path: str) -> bool:
+    """Boolean probe for the ``if``/``not`` applicators: does ``value`` match?
+
+    Ordinary violations mean "no"; a drift-guard failure inside the probed
+    subschema is NOT a "no" — it re-raises, keeping fail-loud intact.
+    """
+    try:
+        _check(root, schema, value, path)
+    except _UnhandledKeyword:
+        raise
+    except SnapshotInvalid:
+        return False
+    return True
+
+
+def validate_value(value: object, schema: dict) -> object:
+    """Generic entrypoint: validate any ``value`` against ``schema``.
+
+    Same interpreter, same fail-loud drift guard — used by
+    ``server/response_validation.py`` for the WRITE-contract response
+    envelope. Raises :class:`SnapshotInvalid` on the first violation.
+    """
+    _check(schema, schema, value, "<root>")
+    return value
+
+
 def validate_snapshot(snapshot: object, *, schema: dict | None = None) -> object:
     """Validate ``snapshot`` against the v1 READ contract; return it if valid.
 
@@ -248,5 +311,4 @@ def validate_snapshot(snapshot: object, *, schema: dict | None = None) -> object
     message on the first violation.
     """
     root = schema if schema is not None else load_schema()
-    _check(root, root, snapshot, "<root>")
-    return snapshot
+    return validate_value(snapshot, root)

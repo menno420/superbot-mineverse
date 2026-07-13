@@ -25,6 +25,7 @@ import threading
 import time
 import urllib.parse
 import uuid
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
@@ -677,6 +678,183 @@ def test_unreachable_executor_is_honest_502(serve):
     )
     assert status == 502
     assert payload == {"error": "action relay failed"}
+
+
+# --- write-path hardening: executor timeout, garbage answers, snapshot 503 ---
+
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+@pytest.fixture()
+def fake_executor():
+    """Factory for a loopback 'executor' answering every POST with a canned
+    (status, body) — optionally after a delay (the timeout test). Never used
+    in conformance mode: these tests exercise the WEB SERVER's failure
+    handling, not the executor contract."""
+    servers = []
+
+    def _start(status=200, body=b"{}", delay=0.0):
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                length = int(self.headers.get("Content-Length") or 0)
+                self.rfile.read(length)
+                if delay:
+                    time.sleep(delay)
+                try:
+                    self.send_response(status)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                except OSError:
+                    pass  # the web server already hung up (timeout test)
+
+            def log_message(self, format, *args):  # noqa: A002
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        servers.append((server, thread))
+        host, port = server.server_address[:2]
+        return f"http://{host}:{port}{ACTION_PATH}"
+
+    yield _start
+    for server, thread in servers:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_timeout_defaults_to_the_contract_cap():
+    """The injectable timeout seam must not move the 10 s default."""
+    assert actions.HTTP_TIMEOUT_SECONDS == 10
+    assert actions.WriteConfig(None, None).timeout == 10
+    assert actions.WriteConfig.from_env({}).timeout == 10
+
+
+def test_executor_timeout_is_honest_502(serve, fake_executor):
+    """A hanging executor draws the timeout → 502, never a hung browser.
+
+    The suite stays fast because the cap is INJECTED short (0.2 s) through
+    ``WriteConfig(timeout=...)`` — the slow executor answers after 1 s,
+    far past it."""
+    endpoint = fake_executor(delay=1.0)
+    auth_config = make_auth_config()
+    config = actions.WriteConfig(endpoint=endpoint, secret=TEST_SECRET, timeout=0.2)
+    base = serve(auth_config=auth_config, write_config=config)
+    started = time.monotonic()
+    status, payload = post(
+        base + "/api/action",
+        browser_body("mine", {}),
+        headers=session_headers(auth_config, DEEPDELVER),
+    )
+    assert status == 502
+    assert payload == {"error": "action relay failed"}
+    assert time.monotonic() - started < 5  # the injected cap ruled, not 10 s
+
+
+GARBAGE_EXECUTOR_ANSWERS = {
+    "non-JSON 200": (200, b"<html>oops</html>"),
+    "empty 200": (200, b""),
+    "JSON but not an envelope 200": (200, b'{"ok": true}'),
+    "accepted without result 200": (
+        200,
+        json.dumps(
+            {
+                "contract_version": "1",
+                "action_id": "00000000-0000-4000-8000-000000000123",
+                "status": "accepted",
+                "reason_code": "ok",
+                "message": "trust me",
+                "replayed": False,
+            }
+        ).encode(),
+    ),
+    "non-envelope 409": (409, b'{"error": "conflict"}'),
+    "non-JSON 500": (500, b"Internal Server Error"),
+}
+
+
+@pytest.mark.parametrize("label", GARBAGE_EXECUTOR_ANSWERS)
+def test_nonconformant_executor_answer_is_never_relayed(
+    serve, fake_executor, label
+):
+    """Whatever the executor's HTTP status, a body that is not a conformant
+    v1 response envelope answers a distinct honest 502 — a lying 200 is worse
+    than a clean failure."""
+    exec_status, body = GARBAGE_EXECUTOR_ANSWERS[label]
+    endpoint = fake_executor(status=exec_status, body=body)
+    auth_config = make_auth_config()
+    config = actions.WriteConfig(endpoint=endpoint, secret=TEST_SECRET)
+    base = serve(auth_config=auth_config, write_config=config)
+    status, payload = post(
+        base + "/api/action",
+        browser_body("mine", {}),
+        headers=session_headers(auth_config, DEEPDELVER),
+    )
+    assert status == 502, label
+    assert payload == {"error": "invalid executor response"}, label
+
+
+def test_conformant_rejection_from_any_executor_relays_verbatim(
+    serve, fake_executor
+):
+    """The complement of the 502 rule: a CONFORMANT envelope relays verbatim
+    even from this canned executor — status and body untouched."""
+    envelope = {
+        "contract_version": "1",
+        "action_id": "00000000-0000-4000-8000-000000000321",
+        "status": "rejected",
+        "reason_code": "replayed_action",
+        "message": "action_id was already used with a different body",
+        "replayed": False,
+    }
+    assert_response_conforms(envelope)
+    endpoint = fake_executor(status=409, body=json.dumps(envelope).encode())
+    auth_config = make_auth_config()
+    config = actions.WriteConfig(endpoint=endpoint, secret=TEST_SECRET)
+    base = serve(auth_config=auth_config, write_config=config)
+    status, payload = post(
+        base + "/api/action",
+        browser_body("mine", {}),
+        headers=session_headers(auth_config, DEEPDELVER),
+    )
+    assert status == 409
+    assert payload == envelope
+
+
+def test_action_route_refuses_bad_snapshots_pre_relay(shim, serve, tmp_path):
+    """POST /api/action with a missing/corrupt/schema-invalid snapshot is the
+    existing honest 503 BEFORE anything is signed or relayed — the executor
+    never hears about it (same fixtures as tests/test_snapshot_validation.py,
+    same pattern as the /api/me fourth-load-path test in tests/test_auth.py)."""
+    state, shim_base = shim
+    auth_config = make_auth_config()
+    write_config = actions.WriteConfig(
+        endpoint=shim_base + ACTION_PATH, secret=TEST_SECRET
+    )
+    cases = {
+        "missing file": tmp_path / "never-written.json",
+        "corrupt JSON": FIXTURES / "live_snapshot_corrupt.json",
+        "schema violation": FIXTURES / "live_snapshot_schema_violation.json",
+    }
+    for label, snapshot_path in cases.items():
+        base = serve(
+            auth_config=auth_config,
+            write_config=write_config,
+            snapshot_path=snapshot_path,
+        )
+        status, payload = post(
+            base + "/api/action",
+            browser_body("mine", {}),
+            headers=session_headers(auth_config, DEEPDELVER),
+        )
+        assert status == 503, label
+        assert payload == {"error": "snapshot unavailable"}, label
+    if state is not None:  # in-memory evidence — in-process shim only
+        assert state.audit_log == []  # nothing was ever relayed
 
 
 def test_post_routes_stay_honest(serve):
