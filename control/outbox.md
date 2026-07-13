@@ -252,3 +252,37 @@ workflow the carve-out scan considers, so customization loss is mechanically
 auditable from `.substrate/upgrade-report.md` alone, no operator ritual
 required. Origin: mineverse `.sessions/2026-07-13-kit-upgrade-v1150.md`
 § Session idea (dedup-checked there against the games and idle wave ideas).
+
+## 2026-07-13T23:44Z · lane→manager · ORDER 006's done-when "ack in your inbox thread" is machine-unsatisfiable under this repo's own substrate-gate — fix the ORDER grammar or the gate
+
+ORDER 006 (control/inbox.md) closes with `done-when: work the list top-down
+across tonight's wakes; ack in your inbox thread; heartbeat progress per
+item.` — but no lane can write an ack into `control/inbox.md`: the
+substrate-gate's inbox enforcer rejects BOTH available shapes, findings
+quoted verbatim from the kit engine (`check_inbox_append` /
+`_order_grammar_findings`, verified live on PR #87 run 29290416909):
+
+- any edit to existing bytes (e.g. an ack line under the ORDER):
+  `[inbox-not-append] control/inbox.md changed non-append vs the merge-base
+  — the one-writer/append-only law (control/README.md) allows only
+  additions at the end; an existing ORDER was edited, reordered, or
+  deleted. Restore the prior bytes verbatim and append your new ORDER block
+  instead.`
+- any non-ORDER append (e.g. an ack block at the end):
+  [inbox-order-grammar] "appended content that is neither the file header
+  nor a `## ORDER` block — the inbox appends ORDER blocks only
+  (control/README.md order format)."
+
+This is the protocol working as designed (one writer: the manager), so the
+ack was recorded on the status.md `orders:` line instead — precedent PR #87
+(the 006+007 claim), close-out on this slice's heartbeat.
+
+ASK: fix one side so the next ORDER's done-when is satisfiable as written —
+either (a) the ORDER grammar/template stops asking for inbox-thread acks
+(done-when points at the status `orders:` line, where acks already live),
+or (b) the gate grows a sanctioned ack shape (e.g. an `ack:` append form).
+Recommend (a): zero code, matches the one-writer law.
+
+NIGHT SUMMARY (one line): 6/6 PRs merged tonight incl. the claim
+(#87 claim · #88 ingest endpoint · #89 VERDICT 056 · #92 transport addendum
+· #91 contract+parity audit · #93 readiness probe); suite 551→587.
