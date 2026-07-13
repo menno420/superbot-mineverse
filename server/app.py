@@ -27,13 +27,26 @@ no secrets in the repo):
   ``MINING_WRITE_ENDPOINT`` (TEST GUILD ONLY). Degraded by default: with
   ``MINING_WRITE_ENDPOINT`` / ``MINING_WRITE_SHARED_SECRET`` absent it
   answers an honest ``503 {"error": "writes not configured"}``.
+- ``POST /api/snapshot/ingest`` — the FLAG-1 receive side of the bot→web
+  READ relay (server/ingest.py): the bot-side pusher (superbot #2058,
+  ``MINING_SNAPSHOT_RELAY_URL``, ~60 s cadence) POSTs the v1 snapshot
+  here, HMAC-signed with ``MINING_SNAPSHOT_RELAY_SHARED_SECRET`` under
+  the canonical ``server/actions.py`` scheme; verified → v1-validated →
+  atomically persisted into the ``MINING_SNAPSHOT_PATH`` file the read
+  routes re-read fresh per request. Degraded by default and FAIL CLOSED:
+  with the secret or the path absent it answers an honest
+  ``503 {"error": "snapshot ingest not configured"}`` — never unsigned
+  data, never a write over the committed sample.
 - Everything else — the static frontend under ``web/``.
 
 The layering contract (docs/architecture.md): data/ -> server/ -> web/;
 the frontend talks to this process only via the JSON API, and this process
-never writes anything itself (signing a cookie or a proposal is not a
+never writes GAME STATE itself (signing a cookie or a proposal is not a
 write path — the server holds no mutable state, no database, and no bot
 credentials; mutations happen only bot-side, behind the write contract).
+The one file this process ever touches is the host-provisioned
+``MINING_SNAPSHOT_PATH`` relay document the ingest seam replaces whole —
+relay transport state, never repo data and never game state.
 """
 
 from __future__ import annotations
@@ -49,10 +62,18 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 try:
-    from server import actions, auth, response_validation, snapshot_validation, views
+    from server import (
+        actions,
+        auth,
+        ingest,
+        response_validation,
+        snapshot_validation,
+        views,
+    )
 except ImportError:  # direct script execution: python3 server/app.py
     import actions  # type: ignore[no-redef]
     import auth  # type: ignore[no-redef]
+    import ingest  # type: ignore[no-redef]
     import response_validation  # type: ignore[no-redef]
     import snapshot_validation  # type: ignore[no-redef]
     import views  # type: ignore[no-redef]
@@ -68,8 +89,10 @@ WEB_ROOT = REPO_ROOT / "web"
 # sample. Degraded by default — unset (or empty) means the sample, exactly as
 # before. The file is re-read fresh and v1-validated on EVERY request, so a
 # relay writer that goes missing or emits garbage draws the existing honest
-# 503, never a stale or corrupt 200.
-ENV_SNAPSHOT_PATH = "MINING_SNAPSHOT_PATH"
+# 503, never a stale or corrupt 200. (Canonical constant lives in
+# server/ingest.py — the ingest seam persists into the same file this
+# read seam serves; the alias keeps existing importers working.)
+ENV_SNAPSHOT_PATH = ingest.ENV_SNAPSHOT_PATH
 
 
 def snapshot_path_from_env(environ=os.environ) -> Path:
@@ -87,6 +110,7 @@ API_SNAPSHOT = "/api/snapshot"
 API_VIEWS = "/api/views"
 API_ME = "/api/me"
 API_ACTION = "/api/action"
+API_SNAPSHOT_INGEST = "/api/snapshot/ingest"
 MAX_ACTION_BODY_BYTES = 64 * 1024
 AUTH_LOGIN = "/auth/login"
 AUTH_CALLBACK = "/auth/callback"
@@ -94,6 +118,8 @@ AUTH_LOGOUT = "/auth/logout"
 
 # GET-only API routes — any other verb on these answers 405 + Allow.
 GET_ONLY_API_ROUTES = frozenset({API_SNAPSHOT, API_VIEWS, API_ME})
+# POST-only API routes — any other verb on these answers 405 + Allow: POST.
+POST_ONLY_API_ROUTES = frozenset({API_ACTION, API_SNAPSHOT_INGEST})
 
 
 class MineverseHandler(SimpleHTTPRequestHandler):
@@ -103,6 +129,7 @@ class MineverseHandler(SimpleHTTPRequestHandler):
     snapshot_path: Path = SNAPSHOT_PATH
     auth_config: auth.AuthConfig | None = None
     write_config: actions.WriteConfig | None = None
+    ingest_config: ingest.IngestConfig | None = None
 
     def __init__(
         self,
@@ -110,6 +137,7 @@ class MineverseHandler(SimpleHTTPRequestHandler):
         snapshot_path: Path | None = None,
         auth_config: auth.AuthConfig | None = None,
         write_config: actions.WriteConfig | None = None,
+        ingest_config: ingest.IngestConfig | None = None,
         **kwargs,
     ):
         if snapshot_path is not None:
@@ -122,6 +150,10 @@ class MineverseHandler(SimpleHTTPRequestHandler):
             self.write_config = write_config
         if self.write_config is None:
             self.write_config = actions.WriteConfig.from_env()
+        if ingest_config is not None:
+            self.ingest_config = ingest_config
+        if self.ingest_config is None:
+            self.ingest_config = ingest.IngestConfig.from_env()
         super().__init__(*args, **kwargs)
 
     def do_GET(self):  # noqa: N802 (http.server API name)
@@ -138,7 +170,7 @@ class MineverseHandler(SimpleHTTPRequestHandler):
             self._serve_callback(query)
         elif route == AUTH_LOGOUT:
             self._serve_logout()
-        elif route == API_ACTION:
+        elif route in POST_ONLY_API_ROUTES:
             # Known route, wrong verb: 405 + Allow, not a lying 404.
             self._send_json(405, {"error": "method not allowed"},
                             headers={"Allow": "POST"})
@@ -151,6 +183,8 @@ class MineverseHandler(SimpleHTTPRequestHandler):
         route, _, _ = self.path.partition("?")
         if route == API_ACTION:
             self._serve_action()
+        elif route == API_SNAPSHOT_INGEST:
+            self._serve_snapshot_ingest()
         else:
             self._reject_unsupported_method()
 
@@ -163,12 +197,13 @@ class MineverseHandler(SimpleHTTPRequestHandler):
     def _reject_unsupported_method(self) -> None:
         """405 with an honest Allow header — 404 only for unknown routes.
 
-        Everything the server exposes besides ``POST /api/action`` is
-        read-only: GET (plus the HEAD that ``SimpleHTTPRequestHandler``
-        derives from it for static files) is the only verb.
+        Everything the server exposes besides ``POST /api/action`` and
+        ``POST /api/snapshot/ingest`` is read-only: GET (plus the HEAD that
+        ``SimpleHTTPRequestHandler`` derives from it for static files) is
+        the only verb.
         """
         route, _, _ = self.path.partition("?")
-        if route == API_ACTION:  # POST is handled before this is reached
+        if route in POST_ONLY_API_ROUTES:  # POST is handled before this
             self._send_json(405, {"error": "method not allowed"},
                             headers={"Allow": "POST"})
             return
@@ -299,6 +334,95 @@ class MineverseHandler(SimpleHTTPRequestHandler):
         if not isinstance(request["params"], dict):
             return None
         return request
+
+    # --- snapshot ingest (FLAG 1 receive side — degraded by default) ------
+
+    def _serve_snapshot_ingest(self) -> None:
+        """Receive one HMAC-signed v1 snapshot from the bot-side relay.
+
+        The receive half of the bot→web READ relay (server/ingest.py holds
+        the seam doctrine): superbot's pusher (#2058) POSTs the snapshot
+        JSON here every ~60 s. Order of checks:
+
+        1. FAIL CLOSED unconfigured: without BOTH
+           ``MINING_SNAPSHOT_RELAY_SHARED_SECRET`` and
+           ``MINING_SNAPSHOT_PATH`` this answers an honest 503 and never
+           reads a byte of the body — there is no unsigned mode, no
+           built-in secret, and no writing over the committed sample.
+        2. Body bounds BEFORE the read (bad/absent length 400, oversized
+           413) so an unauthenticated client cannot stream unbounded data.
+        3. Transport auth over the RAW bytes (``actions.verify`` — the one
+           canonical scheme, constant-time, signature before the ±300 s
+           timestamp window): failure is a 401 with the contract reason
+           and NOTHING of the body is ever parsed or persisted.
+        4. Only then content shape: non-JSON content type 415, malformed
+           JSON 400, v1-contract violation 400 (logged) — same validator
+           the read side re-checks per request, so nothing non-conformant
+           is ever persisted even transiently.
+        5. Atomic whole-document replace (``ingest.persist_snapshot``);
+           the read routes pick the new document up on their next
+           per-request fresh read. Filesystem failure is an honest 500.
+
+        Ordering is last-write-wins (single 60 s sender, no retry —
+        contract § Delivery expectations); a replay inside the skew window
+        rewrites identical bytes, so acceptance is idempotent by content.
+        """
+        config = self.ingest_config
+        if not config.configured:
+            LOGGER.warning(
+                "snapshot ingest refused: %s and/or %s unset (fail closed)",
+                ingest.ENV_INGEST_SECRET,
+                ingest.ENV_SNAPSHOT_PATH,
+            )
+            self._send_json(503, {"error": "snapshot ingest not configured"})
+            return
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            self._send_json(400, {"error": "invalid content length"})
+            return
+        if length <= 0:
+            self._send_json(400, {"error": "invalid content length"})
+            return
+        if length > ingest.MAX_SNAPSHOT_BODY_BYTES:
+            self._send_json(413, {"error": "snapshot too large"})
+            return
+        try:
+            body = self.rfile.read(length)
+        except OSError:
+            return  # client vanished mid-body; nothing to answer
+        problem = actions.verify(
+            config.secret,
+            "POST",
+            API_SNAPSHOT_INGEST,
+            self.headers.get(actions.HEADER_TIMESTAMP) or "",
+            body,
+            self.headers.get(actions.HEADER_SIGNATURE) or "",
+        )
+        if problem is not None:
+            self._send_json(401, {"error": problem})
+            return
+        content_type = (
+            (self.headers.get("Content-Type") or "").partition(";")[0].strip().lower()
+        )
+        if content_type != "application/json":
+            self._send_json(415, {"error": "content type must be application/json"})
+            return
+        try:
+            snapshot = json.loads(body)
+        except ValueError:
+            self._send_json(400, {"error": "snapshot is not valid JSON"})
+            return
+        if not self._snapshot_is_valid(snapshot):
+            self._send_json(400, {"error": "snapshot failed v1 validation"})
+            return
+        try:
+            ingest.persist_snapshot(config.path, body)
+        except OSError as exc:
+            LOGGER.warning("snapshot persist failed: %s", exc)
+            self._send_json(500, {"error": "snapshot persist failed"})
+            return
+        self._send_json(200, {"status": "accepted"})
 
     def _serve_views(self) -> None:
         """Derived read projection of the snapshot (server/views.py).
@@ -657,6 +781,7 @@ def make_server(
     web_root: Path = WEB_ROOT,
     auth_config: auth.AuthConfig | None = None,
     write_config: actions.WriteConfig | None = None,
+    ingest_config: ingest.IngestConfig | None = None,
 ) -> ThreadingHTTPServer:
     """Build (but don't start) the server — port 0 picks a free port.
 
@@ -666,8 +791,12 @@ def make_server(
     (the four ``DISCORD_OAUTH_*`` / ``OAUTH_REDIRECT_URI`` /
     ``WEB_SESSION_SIGNING_KEY`` host env vars); ``write_config`` defaults to
     :meth:`actions.WriteConfig.from_env` (``MINING_WRITE_ENDPOINT`` /
-    ``MINING_WRITE_SHARED_SECRET``). Pass any explicitly in tests — an
-    explicit argument always beats the environment.
+    ``MINING_WRITE_SHARED_SECRET``); ``ingest_config`` defaults to
+    :meth:`ingest.IngestConfig.from_env`
+    (``MINING_SNAPSHOT_RELAY_SHARED_SECRET`` + ``MINING_SNAPSHOT_PATH`` —
+    the FLAG-1 receive seam, fail-closed when either is unset). Pass any
+    explicitly in tests — an explicit argument always beats the
+    environment.
     """
     handler = partial(
         MineverseHandler,
@@ -679,6 +808,9 @@ def make_server(
         write_config=write_config
         if write_config is not None
         else actions.WriteConfig.from_env(),
+        ingest_config=ingest_config
+        if ingest_config is not None
+        else ingest.IngestConfig.from_env(),
     )
     return ThreadingHTTPServer((host, port), handler)
 
@@ -705,9 +837,15 @@ def main() -> None:
         if os.environ.get(ENV_SNAPSHOT_PATH)
         else "committed sample"
     )
+    ingest_mode = (
+        f"configured (POST {API_SNAPSHOT_INGEST})"
+        if ingest.IngestConfig.from_env().configured
+        else "NOT configured (relay push refused — fail closed)"
+    )
     print(
         f"mineverse on http://{host}:{bound_port} — discord sign-in: {mode}"
         f" — writes: {write_mode} — snapshot: {snapshot_mode}"
+        f" — ingest: {ingest_mode}"
     )
     try:
         server.serve_forever()
