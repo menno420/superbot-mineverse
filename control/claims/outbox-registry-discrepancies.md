@@ -1,1 +1,0 @@
-- `claude/outbox-registry-discrepancies` · **outbox append — registry discrepancies** — lane→manager note in control/outbox.md reporting re-verified registry-brief discrepancies (games enabler live, idle gate born-red fail-open, idle pytest CI) · control/outbox.md + this claim · 2026-07-13
