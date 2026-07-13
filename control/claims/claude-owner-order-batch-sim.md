@@ -1,0 +1,1 @@
+- `claude/owner-order-batch-sim` · **control-only: inbox ORDER append + status.md heartbeat refresh** — land the owner bigger-batches/production-grade directive as ORDER 007 + wholesale heartbeat · control/inbox.md + control/status.md + this claim · 2026-07-13 (2026-07-13T22:21:38Z)
