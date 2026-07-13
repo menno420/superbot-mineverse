@@ -1,1 +1,0 @@
-- `claude/shim-rate-limit-path` · **shim rate-limit path** — opt-in deterministic 429 `rate_limited` + `Retry-After` in the reference executor shim · tests/shim/shim_bot.py, tests/test_actions.py, docs/mining-write-contract.md · 2026-07-13

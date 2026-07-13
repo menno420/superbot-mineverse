@@ -24,6 +24,14 @@ contract against an IN-MEMORY copy of the committed sample snapshot:
 - Idempotent replay: same ``action_id`` + same body inside the run →
   the ORIGINAL response with ``replayed: true``, never a re-execution;
   same ``action_id`` + different body → ``replayed_action`` (409).
+- OPT-IN deterministic rate limiting (contract § Rate limits): pass
+  ``rate_limit=(max_requests, window_seconds)`` — or run standalone with
+  ``SHIM_RATE_LIMIT=10/10``, the contract's burst default — to enforce a
+  per-``(suid, guild_id)`` sliding-window budget. Over budget → 429
+  ``rate_limited`` plus a ``Retry-After`` header (integer seconds), never
+  stored for idempotency. DEFAULT OFF: without the knob no request is ever
+  rate-limited, byte-identical to the pre-knob shim, so the hermetic suite
+  and the conformance sweep's default behavior stay deterministic.
 
 Run it locally for development (never in production — it is a toy economy
 over fixture data):
@@ -47,10 +55,12 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
 import os
 import re
 import sys
 import time
+from collections import deque
 from datetime import datetime, timezone
 from functools import partial
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -83,6 +93,15 @@ class EconomyRejection(Exception):
     """The toy economy said no (mirrors the bot's domain rejections)."""
 
 
+class _RateLimited(Exception):
+    """Over the per-``(suid, guild_id)`` budget — carries the backoff hint."""
+
+    def __init__(self, proposal: dict, retry_after: int) -> None:
+        super().__init__(f"retry after {retry_after}s")
+        self.proposal = proposal
+        self.retry_after = retry_after
+
+
 class ShimState:
     """The whole executor: state + auth + idempotency + audit, in memory."""
 
@@ -93,6 +112,7 @@ class ShimState:
         *,
         allowed_guilds: set[str] | None = None,
         now=time.time,
+        rate_limit: tuple[int, float] | None = None,
     ) -> None:
         self.snapshot = copy.deepcopy(snapshot)
         self.secret = secret
@@ -103,7 +123,12 @@ class ShimState:
             else {self.snapshot["guild_id"]}
         )
         self.now = now
+        # OPT-IN limiter (contract § Rate limits): (max_requests,
+        # window_seconds) per (suid, guild_id); None (the default) = OFF.
+        self.rate_limit = rate_limit
         self.audit_log: list[dict] = []
+        # (suid, guild_id) -> recent request times inside the window
+        self._request_times: dict[tuple[str, str], deque] = {}
         # (guild_id, action_id) -> {digest, http_status, response}
         self._idempotency: dict[tuple[str, str], dict] = {}
         self._validator = Draft202012Validator(
@@ -118,8 +143,32 @@ class ShimState:
 
     def handle(
         self, method: str, path: str, headers, body: bytes
+    ) -> tuple[int, dict, dict]:
+        """One proposal in, one (http_status, envelope, extra_headers) out.
+
+        ``extra_headers`` is ``{}`` on every path except the opt-in 429,
+        which carries the contract's ``Retry-After`` (integer seconds).
+        """
+        try:
+            status, response = self._dispatch(method, path, headers, body)
+            return status, response, {}
+        except _RateLimited as limit:
+            # Contract § Rate limits: 429 rate_limited + Retry-After, and
+            # the proposal is NOT stored for idempotency (a retry of the
+            # same action_id after the window is a fresh evaluation).
+            # Post-auth and attributable, so it IS audited like every
+            # other rejection.
+            status, response = self._response(
+                429, limit.proposal["action_id"], "rate_limited",
+                "over the per-actor budget; "
+                f"retry after {limit.retry_after}s")
+            self._audit(limit.proposal, "rejected:rate_limited")
+            return status, response, {"Retry-After": str(limit.retry_after)}
+
+    def _dispatch(
+        self, method: str, path: str, headers, body: bytes
     ) -> tuple[int, dict]:
-        """One proposal in, one (http_status, response_envelope) out."""
+        """Auth → parse → schema-classify → the schema-valid pipeline."""
         auth_failure = actions.verify(
             self.secret,
             method,
@@ -165,6 +214,7 @@ class ShimState:
     # --- the schema-valid path ---------------------------------------------
 
     def _handle_valid(self, proposal: dict, body: bytes) -> tuple[int, dict]:
+        self._consume_budget(proposal)  # may raise _RateLimited
         key = (proposal["guild_id"], proposal["action_id"])
         digest = hashlib.sha256(body).hexdigest()
         stored = self._idempotency.get(key)
@@ -287,6 +337,34 @@ class ShimState:
 
     # --- plumbing ------------------------------------------------------------
 
+    def _consume_budget(self, proposal: dict) -> None:
+        """Sliding-window rate limiter (contract § Rate limits) — OPT-IN.
+
+        ``rate_limit`` unset (the default) → no budget exists and nothing
+        is recorded. Armed, the budget counts every authenticated,
+        schema-valid proposal per ``(suid, guild_id)`` — replays included;
+        the limiter shields everything behind it. It sits AFTER auth (an
+        unattributable request can neither consume nor probe a budget)
+        and BEFORE the idempotency store (rate-limited proposals are
+        never stored). ``Retry-After`` is the integer seconds until the
+        oldest in-window request ages out — deterministic under the
+        injectable ``now`` clock.
+        """
+        if self.rate_limit is None:
+            return
+        max_requests, window = self.rate_limit
+        now = self.now()
+        times = self._request_times.setdefault(
+            (proposal["suid"], proposal["guild_id"]), deque()
+        )
+        while times and now - times[0] >= window:
+            times.popleft()
+        if len(times) >= max_requests:
+            raise _RateLimited(
+                proposal, max(1, math.ceil(times[0] + window - now))
+            )
+        times.append(now)
+
     def _find_miner(self, suid: str, guild_id: str) -> dict | None:
         for miner in self.snapshot.get("miners") or []:
             if miner["suid"] == suid and miner["guild_id"] == guild_id:
@@ -380,18 +458,24 @@ class ShimHandler(BaseHTTPRequestHandler):
         except ValueError:
             length = 0
         body = self.rfile.read(length) if length > 0 else b""
-        status, response = self.state.handle("POST", route, self.headers, body)
-        self._send_json(status, response)
+        status, response, extra = self.state.handle(
+            "POST", route, self.headers, body
+        )
+        self._send_json(status, response, extra_headers=extra)
 
     def do_GET(self):  # noqa: N802 — nothing to read here
         self._send_json(404, {"error": "unknown route"})
 
-    def _send_json(self, status: int, payload: dict) -> None:
+    def _send_json(
+        self, status: int, payload: dict, *, extra_headers: dict | None = None
+    ) -> None:
         body = json.dumps(payload).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        for name, value in (extra_headers or {}).items():
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(body)
 
@@ -407,27 +491,57 @@ def make_shim_server(
     snapshot_path: Path = SNAPSHOT_PATH,
     allowed_guilds: set[str] | None = None,
     now=time.time,
+    rate_limit: tuple[int, float] | None = None,
 ) -> tuple[ThreadingHTTPServer, ShimState]:
-    """Build (but don't start) the shim — port 0 picks a free port."""
+    """Build (but don't start) the shim — port 0 picks a free port.
+
+    ``rate_limit=(max_requests, window_seconds)`` arms the opt-in
+    per-``(suid, guild_id)`` limiter; ``None`` (the default) keeps it OFF.
+    """
     state = ShimState(
         json.loads(snapshot_path.read_text()),
         secret,
         allowed_guilds=allowed_guilds,
         now=now,
+        rate_limit=rate_limit,
     )
     handler = partial(ShimHandler, state=state)
     return ThreadingHTTPServer((host, port), handler), state
 
 
+def parse_rate_limit(raw: str | None) -> tuple[int, float] | None:
+    """``SHIM_RATE_LIMIT=10/10`` → ``(10, 10.0)`` — max_requests per
+    window_seconds (the contract's burst default). Unset/empty → OFF."""
+    if not raw:
+        return None
+    max_str, sep, window_str = raw.partition("/")
+    if not sep:
+        raise ValueError(
+            "SHIM_RATE_LIMIT must look like '10/10'"
+            " (max_requests/window_seconds)"
+        )
+    return int(max_str), float(window_str)
+
+
 def main() -> None:
     secret = os.environ.get(actions.ENV_SECRET) or "shim-dev-secret-not-a-secret"
     port = int(os.environ.get("SHIM_PORT", "8100"))
-    server, state = make_shim_server(port=port, secret=secret)
+    rate_limit = parse_rate_limit(os.environ.get("SHIM_RATE_LIMIT"))
+    server, state = make_shim_server(
+        port=port, secret=secret, rate_limit=rate_limit
+    )
     host, bound_port = server.server_address[:2]
+    limit_note = (
+        f"{state.rate_limit[0]} requests / {state.rate_limit[1]:g} s"
+        " per (suid, guild)"
+        if state.rate_limit
+        else "off (opt in: SHIM_RATE_LIMIT=10/10)"
+    )
     print(
         "mineverse BOT SHIM (TEST ECONOMY — dev/test only, never production)\n"
         f"  endpoint: http://{host}:{bound_port}{ACTION_PATH}\n"
         f"  allowed guilds: {sorted(state.allowed_guilds)}\n"
+        f"  rate limit: {limit_note}\n"
         f"  secret: ${actions.ENV_SECRET}"
         f"{' (using the dev default)' if actions.ENV_SECRET not in os.environ else ''}"
     )

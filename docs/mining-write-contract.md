@@ -329,7 +329,10 @@ guess.
   `tests/shim/shim_bot.py` (run: `python3 -m tests.shim.shim_bot`)
   implements this contract against an in-memory copy of the committed
   sample snapshot (signature check, schema check, allowlist,
-  deterministic transitions, in-memory audit log, idempotent replay) so
+  deterministic transitions, in-memory audit log, idempotent replay, and
+  § Rate limits as an opt-in deterministic mode — `SHIM_RATE_LIMIT=10/10`
+  or `rate_limit=(max, window_s)`, off by default so the hermetic suite
+  stays deterministic) so
   the contract is executable before the real bot-side endpoint exists.
   `tests/test_actions.py` exercises it end to end — including through the
   real web server's `POST /api/action` relay. The shim is NEVER wired
