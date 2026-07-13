@@ -20,7 +20,11 @@ snapshot it was last given. In stage 1 the "relay" is a committed fixture
 contract below is what the real bot-side producer will eventually fulfil,
 unchanged.
 
-Strictly read-only: no auth, no database, no secrets anywhere in this repo.
+Strictly read-only for consumers: no database and no secrets anywhere in
+this repo. The one write surface this contract owns is the relay's own
+delivery seam — the bot's HMAC-authenticated snapshot push, recorded in
+§ Ingest transport & authentication below — which replaces the relay
+document and nothing else.
 
 ## The snapshot envelope
 
@@ -96,14 +100,105 @@ game content, so the schema constrains only their value types.
   periodically — target every **60 s** — plus on-demand refreshes when the
   owner or a workflow requests one. The web app never pulls from the bot;
   it only reads the relay's latest document.
-- **Staleness**: consumers compare `generated_at` to now. Beyond a staleness
-  threshold (default suggestion: 3 missed cycles ≈ 180 s), the frontend
-  shows a stale indicator next to the snapshot metadata instead of
-  presenting old numbers as live. Stage 1 serves a committed fixture, so its
+- **Staleness**: consumers compare `generated_at` to now. Beyond the
+  staleness threshold — **180 s** (false-stale ≤ 1/200 of healthy loads —
+  measured ≈ 1/2070 — mean outage detection ≤ 240 s — measured ≈ 145 s —
+  at the pinned model) — the frontend shows a stale indicator next to the
+  snapshot metadata instead of presenting old numbers as live. Measured
+  basis: sim-lab **VERDICT 056** (finalized APPROVE, sim-lab
+  `control/outbox.md` L999–L1008 @ `32ff5c3`; exact decision tables in
+  sim-lab `sims/verdict-056-snapshot-stale-threshold/results.json` +
+  `REPORT.md`). The verdict's own boundaries ride the citation: the
+  disturbance widths are invented-but-pinned (push jitter ±5/+15 s, miss
+  rate 1/25, client clock offset ±30 s — no live push timeline exists in
+  the fleet yet, so a one-day push-timestamp log once FLAG 1 goes live is
+  the pre-priced calibration step); the APPROVE leans on i.i.d. misses
+  (its own burst leg prices correlated deploy-window outages at
+  FS(180) ≈ 0.0161, above the band — a bursty producer needs a
+  producer-side health signal or a wider threshold); and it holds for
+  60 s-cadence worlds only — a re-cadenced contract re-runs the grid with
+  one fixture edit. Stage 1 serves a committed fixture, so its
   `generated_at` is honest about being a fixture — permanently "stale" is
   the correct stage-1 reading.
 - **Atomicity**: a snapshot is replaced whole, never patched; a reader never
   observes a half-written document.
+
+## Ingest transport & authentication (FLAG-1 seam)
+
+How a snapshot document physically travels from the bot to this web app
+once FLAG 1 is live — recorded here so both repos share ONE written seam.
+Receiver facts below are implemented in this repo (`server/app.py`
+`_serve_snapshot_ingest` + `server/ingest.py`; coverage in
+`tests/test_snapshot_ingest.py`); sender facts come from superbot
+PR #2058 (a draft at the time of writing — flipping it, and sender-side
+signing, are owner/bot-lane work). Stage 1's committed-fixture mode is
+unchanged: this section describes the live path that replaces it.
+
+### Sender (superbot PR #2058)
+
+- **Env**: `MINING_SNAPSHOT_RELAY_URL` — the **full URL** of the
+  receiving endpoint (it names `/api/snapshot/ingest` itself) — and
+  `MINING_SNAPSHOT_RELAY_GUILD_ID` — the guild whose miners are
+  projected.
+- **Push behavior**: POSTs the v1 envelope as `application/json` every
+  ~60 s (the cadence above) plus on-demand `push_now()` refreshes;
+  10 s timeout; failures are logged bot-side and **absorbed — no
+  retry**. The relay is best-effort by design: the staleness indicator
+  (above) is the consumer-side detector for a sender outage.
+- **Auth gap, closed receiver-side**: #2058's body names **no
+  transport auth**, so the receive side set the scheme fail-closed
+  rather than accept unsigned data (decision trail:
+  `.sessions/2026-07-14-flag1-snapshot-ingest.md`).
+
+### Receiver — `POST /api/snapshot/ingest`
+
+Authenticated with the repo's ONE canonical Mineverse signing scheme
+(`server/actions.py` `sign`/`verify`, the same scheme the FLAG-2 write
+path uses):
+
+- **Headers**: `X-Mineverse-Signature` (lowercase hex HMAC-SHA256) +
+  `X-Mineverse-Timestamp` (unix epoch seconds, decimal string).
+- **String to sign**:
+  `"POST\n/api/snapshot/ingest\n<TIMESTAMP>\n<sha256_hex(BODY)>"`,
+  keyed with the shared secret; the compare is constant-time, and the
+  signature is checked **before** the ±300 s timestamp-skew window (a
+  valid signature outside the window is `stale_timestamp`; everything
+  else is `invalid_signature`).
+- **Secret**: `MINING_SNAPSHOT_RELAY_SHARED_SECRET` — web-**host**
+  environment only, never this repo. The sender signs with the same
+  secret (bot-side host env; part of the #2058 flip).
+- **Persist target**: `MINING_SNAPSHOT_PATH` (web-host env) — the same
+  live-feed file the read routes already re-read fresh and re-validate
+  on every request, so an accepted push is served on the very next
+  read. Writes are atomic whole-document replaces (same-directory temp
+  file + fsync + `os.replace` — the Atomicity clause above,
+  mechanized).
+- **Fail-closed**: with either env var unset the endpoint answers `503`
+  and never accepts data — no unsigned mode, no built-in secret, and
+  never a write over the committed stage-1 sample.
+
+### Response status contract
+
+| Status | Meaning |
+|---|---|
+| `200` | accepted (`{"status": "accepted"}`) — snapshot persisted whole |
+| `401` | transport-auth failure — `invalid_signature` or `stale_timestamp`; nothing parsed or persisted |
+| `400` | bad/absent `Content-Length`, malformed JSON, or v1-contract violation |
+| `413` | body over 1 MiB (bounded **before** the body is read) |
+| `415` | `Content-Type` is not `application/json` |
+| `405` | wrong verb on the route (with `Allow: POST`) |
+| `503` | ingest not configured — the fail-closed degraded mode |
+| `500` | persist failed (filesystem error after a valid, verified body) |
+
+### Ordering
+
+Last-write-wins, replaced whole: the relay holds "the latest document"
+from a single ~60 s-cadence sender with no retry, so there is no
+cross-request ordering to arbitrate and **v1 carries no sequence key**.
+Replaying a captured signed request inside the ±300 s skew window
+rewrites identical bytes — acceptance is idempotent by content.
+Staleness detection stays `generated_at`-based (above), never
+transport-based.
 
 ## Enforcement
 
