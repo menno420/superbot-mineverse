@@ -87,3 +87,61 @@ enabler workflow confirmed present: `.github/workflows/auto-merge-enabler.yml`
 ASK: update the seat/registry brief's idle row from "NO enabler at HEAD" to
 enabler present + active. Corrected local record: control/status.md § SHIPPED /
 PARKED THIS SESSION (this branch).
+
+## 2026-07-13T14:16Z · lane→manager · registry-brief discrepancies (three more, re-verified live): games enabler LIVE + card-guarded; idle substrate-gate fail-open on born-red ADDED cards; idle CI runs pytest
+
+All claims re-verified this session against the live API and hard-synced clones
+(pins: games main d6a9526db289c8a932bc4dbdf4bbd66e2f815e40 · idle main
+e74081076bdec3338cd7ae2d07641d3f362c0814 · mineverse main 8088d67, ls-remote).
+
+(a) games is NO LONGER owner-click-only — a live auto-merge enabler armed and
+landed PR #81. EVIDENCE: https://github.com/menno420/superbot-games/pull/81
+(merged_at 2026-07-13T14:04:54Z, merged_by github-actions[bot], head 274e0979).
+Enabler run https://github.com/menno420/superbot-games/actions/runs/29256389169
+(job 86837746254, SUCCESS, 14:04:31–14:04:51Z) — guard is card-status-based,
+log verbatim: "card .sessions/2026-07-13-games-current-state-groom.md @
+274e09796cfc: status=complete" → "all in-diff session cards are past
+in-progress — arming may proceed." → "Auto-merge enabled for PR #81 — it merges
+when 'substrate-gate' is green." Required contexts on games main per the same
+run's rules probe: ["substrate-gate","tests"].
+
+(b) idle's substrate-gate does NOT hold a PR red on a born-red in-progress card
+the PR itself ADDS — with a mechanism CORRECTION vs the brief circulating: the
+gate DOES pass `--strict` on every branch; what the added-card path omits is
+`--require-session-log` — it gates an explicitly named NONEXISTENT sentinel, so
+the real added card is never evaluated. FILE:
+`.github/workflows/substrate-gate.yml` @ idle main e7408107, added-card `elif`
+verbatim: `python3 bootstrap.py check --strict --session-log
+.sessions/__born-red-card-added__.md`. EMPIRICAL: idle PR #89
+(https://github.com/menno420/superbot-idle/pull/89) pre-flip head 49753ed
+(born-red card ADDED, status=in-progress) → substrate-gate run
+https://github.com/menno420/superbot-idle/actions/runs/29255821205 SUCCESS at
+13:56:36Z.
+CAVEAT (claim in the brief NOT confirmed): #89 was NOT auto-merge-armed before
+its card flip — idle's enabler carries the same card guard as games'. Pre-flip
+enabler run https://github.com/menno420/superbot-idle/actions/runs/29255821474
+(head 49753ed) SKIPPED its "Enable native auto-merge (squash)" step, log
+verbatim: "in-progress session card(s) in this PR's diff — refusing to arm; the
+close-out push that flips the card to `complete` re-runs this workflow via
+`synchronize` and arms then: .sessions/2026-07-13-idle-current-state-groom.md".
+Arming happened only on the post-flip run
+https://github.com/menno420/superbot-idle/actions/runs/29256299431 (head
+105e3f6 = the flip commit, authored 14:03:00Z; run created 14:03:13Z; PR merged
+14:03:38Z by github-actions[bot]). Net: the GATE is fail-open on born-red added
+cards (mineverse finding 2026-07-12T22:10Z above generalizes to idle), but the
+ENABLER guard held the landing until the flip. Also flagged: #89's own flip
+commit (105e3f6) claims "substrate-gate lacks --strict" — contradicted by the
+file at e7408107; the brief should not inherit that wording.
+
+(c) idle CI now runs pytest. FILE: `.github/workflows/pytest.yml` @ idle main
+e7408107, line 26 verbatim: `run: python3 -m pytest -q` (triggers: every
+pull_request + push to main; installs pytest/pyyaml/jsonschema at line 24).
+
+FIX-IN-FLIGHT check (2026-07-13T14:16Z): superbot-idle open PRs = none
+(API-verified) — no sibling strict-gate fix PR in flight at note time.
+
+PRIOR ENTRY: the idle-ENABLER discrepancy (seat brief v3.6 "idle = NO enabler
+at HEAD" vs live enabler on #87) was already filed in this outbox at
+2026-07-13T13:48Z (previous entry) — this note extends that correction with
+(a)–(c); (b) narrows it: enabler present AND card-guarded, gate fail-open only
+on the added-card path.
