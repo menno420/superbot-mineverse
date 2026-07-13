@@ -102,10 +102,14 @@ credential is missing:
 
 ## Append log — newest first
 
-Format: `- YYYY-MM-DD · capability|wall · finding · evidence · workaround`.
+Format: `- YYYY-MM-DD · capability|wall · <venue> · finding · evidence · workaround`
+(venue ∈ `owner-live` · `autonomous-project` · `routine-fired` · `subagent` ·
+`any`; older five-field lines without a venue token stay valid — read them
+as venue `any`.)
 
-(Hand-filled by sessions, per the discovery rule. Seed walls/capabilities
-above came from the fleet's lived 2026-07 findings; local ones go here.)
+(Hand-filled by sessions, per the discovery rule. Seed rows above are
+kit-owned — they refresh at upgrade between the fence markers; local
+findings go here, below the fence.)
 
 - 2026-07-11 · wall · the orchestrator/coordinator seat lacks GitHub MCP
   tools AND Bash; worker seats have both · coordinator sessions this day
