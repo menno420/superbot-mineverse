@@ -85,6 +85,11 @@ why: owner morning review.
 done-when: report in both files; Fleet Manager compiles the roll-up.
 
 ## ORDER 006 · 2026-07-13T22:13Z · status: new
+priority: P1
+from: fleet manager — EAP final-night worklist relay (fm ORDER 045, Phase 3 fan-out)
+do: work this seat's EAP final-night worklist below (owner directive + worklist quoted verbatim), top-down across tonight's wakes.
+why: owner directive 2026-07-13 — last day of the EAP; every seat gets its full night list.
+
 **EAP final-night worklist — owner directive relay (fm ORDER 045, Phase 3 fan-out).**
 
 Owner directive, quoted VERBATIM as recorded in fm ORDER 045: "I want you to find out the current state of all repos and
