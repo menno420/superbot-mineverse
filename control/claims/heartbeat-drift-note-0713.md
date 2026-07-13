@@ -1,0 +1,1 @@
+- `claude/heartbeat-drift-note-0713` · **control/status.md heartbeat + control/outbox.md drift note** — seat heartbeat overwrite (2026-07-13) + registry-brief CI drift note (schema-gate vs pytest) · control/status.md, control/outbox.md · 2026-07-13
