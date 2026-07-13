@@ -49,10 +49,11 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 try:
-    from server import actions, auth, snapshot_validation, views
+    from server import actions, auth, response_validation, snapshot_validation, views
 except ImportError:  # direct script execution: python3 server/app.py
     import actions  # type: ignore[no-redef]
     import auth  # type: ignore[no-redef]
+    import response_validation  # type: ignore[no-redef]
     import snapshot_validation  # type: ignore[no-redef]
     import views  # type: ignore[no-redef]
 
@@ -186,7 +187,10 @@ class MineverseHandler(SimpleHTTPRequestHandler):
         ``{action_id, action, params}``; this server derives ``suid`` from
         the VERIFIED session cookie (never from the browser), attaches the
         snapshot's ``guild_id``, signs with the shared secret the browser
-        never sees, and relays the executor's response envelope verbatim.
+        never sees, and relays the executor's response envelope verbatim —
+        after a runtime conformance check (server/response_validation.py):
+        a non-conformant envelope on any status answers an honest 502
+        instead of being relayed.
         """
         write_config = self.write_config
         if not write_config.configured:
@@ -227,6 +231,22 @@ class MineverseHandler(SimpleHTTPRequestHandler):
             status, body = actions.propose(write_config, proposal)
         except (OSError, ValueError):
             self._send_json(502, {"error": "action relay failed"})
+            return
+        # Runtime sanity check of the executor's answer BEFORE it reaches the
+        # browser: whatever the HTTP status (200 included), a body that is not
+        # a conformant v1 response envelope is never relayed — a lying 200 is
+        # worse than a clean failure. Conformant envelopes (contract
+        # rejections included) relay verbatim, exactly as before. The distinct
+        # error body separates "executor unreachable" ("action relay failed")
+        # from "executor answered garbage" for the frontend and the logs.
+        problem = response_validation.envelope_error(body)
+        if problem is not None:
+            LOGGER.warning(
+                "executor response (HTTP %s) failed v1 envelope validation: %s",
+                status,
+                problem,
+            )
+            self._send_json(502, {"error": "invalid executor response"})
             return
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")

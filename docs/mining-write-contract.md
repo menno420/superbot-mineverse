@@ -209,10 +209,43 @@ committed anywhere.
 2. sets `suid` := the cookie's verified Discord user id, and `guild_id`
    := the current snapshot's envelope `guild_id`;
 3. assembles the full proposal, signs it, POSTs it to
-   `MINING_WRITE_ENDPOINT`, and relays the response envelope verbatim.
+   `MINING_WRITE_ENDPOINT`, and relays the response envelope verbatim —
+   after a runtime conformance check against
+   `schemas/mining_action_response.v1.schema.json`
+   (`server/response_validation.py`): an executor answer that is not a
+   valid v1 envelope — any HTTP status, non-JSON included — is never
+   relayed; the web server answers
+   `502 {"error": "invalid executor response"}` instead (distinct from
+   the `"action relay failed"` 502 for an unreachable or timed-out
+   executor). A lying 200 is worse than a clean failure; conformant
+   envelopes, contract rejections included, relay untouched.
 
 There is no code path by which browser input can influence `suid` or
 `guild_id`.
+
+### Replay protection — where it lives (recorded posture)
+
+Replay protection under this contract is deliberately split, and none of
+it lives in a mineverse-side store:
+
+- **On the wire:** the signed `X-Mineverse-Timestamp` (±300 s skew
+  window, above). A captured request is replayable against the executor
+  for at most the window — beyond it, `stale_timestamp`; tampering with
+  the timestamp breaks the signature, which covers it.
+- **Inside the window:** `action_id` idempotency, enforced
+  **executor-side** (§ Idempotency): a byte-identical replay returns the
+  stored original response with `replayed: true` and never re-executes;
+  key reuse with a different body is `replayed_action` (409).
+- **Mineverse holds no replay state by design:** the web server is
+  contractually stateless (docs/architecture.md — "the server holds no
+  mutable state"); it keeps no nonce cache and no idempotency store. The
+  browser mints `action_id` (`crypto.randomUUID()`); the web server only
+  derives identity, signs, and relays.
+
+This split is a decision, not an omission: a web-side nonce or
+idempotency cache would add mutable state to a server whose contract is
+to hold none, and would duplicate — never replace — the executor-side
+store the contract already requires.
 
 ## Degraded mode (the default — CI and fresh clones)
 
