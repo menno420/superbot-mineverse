@@ -217,8 +217,13 @@ committed anywhere.
    relayed; the web server answers
    `502 {"error": "invalid executor response"}` instead (distinct from
    the `"action relay failed"` 502 for an unreachable or timed-out
-   executor). A lying 200 is worse than a clean failure; conformant
-   envelopes, contract rejections included, relay untouched.
+   executor). On top of conformance sits a **status coherence check**:
+   the executor's HTTP status must be the one the mapping table above
+   pairs with the envelope's `reason_code` (replays repeat the original
+   status, so the same rows apply) — `ok` under a 4xx/5xx, a rejection
+   `reason_code` under 200, or any other off-table pairing draws the
+   same 502. A lying 200 is worse than a clean failure; conformant,
+   coherent envelopes, contract rejections included, relay untouched.
 
 There is no code path by which browser input can influence `suid` or
 `guild_id`.

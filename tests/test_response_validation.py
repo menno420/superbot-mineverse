@@ -127,9 +127,90 @@ def test_non_json_body_is_refused_with_a_plain_message():
     )
 
 
+# --- HTTP-status ↔ reason_code coherence (a layer ON TOP of conformance) ----
+# PR #60's flagged follow-up: the contract's "HTTP status mapping" table pairs
+# every reason_code with exactly one status; envelope_error(http_status=...)
+# enforces it. NOT part of the jsonschema agreement sweep above — jsonschema
+# judges the body alone and knows nothing of HTTP statuses.
+
+
+def coherent_envelope(reason_code: str) -> dict:
+    return accepted() if reason_code == "ok" else rejected(reason_code=reason_code)
+
+
+def test_status_table_matches_the_schema_taxonomy():
+    """EXPECTED_HTTP_STATUS transcribes the contract's mapping table; its keys
+    must be exactly the schema's closed reason_code enum, so an additive
+    taxonomy change can never silently skip the coherence check."""
+    assert set(response_validation.EXPECTED_HTTP_STATUS) == set(
+        RESPONSE_SCHEMA["properties"]["reason_code"]["enum"]
+    )
+
+
+def test_every_reason_code_coheres_only_with_its_table_status():
+    """Exhaustive sweep: each of the 13 reason_codes passes under exactly its
+    contract status and is refused under every other status in the table."""
+    statuses = sorted(set(response_validation.EXPECTED_HTTP_STATUS.values()))
+    for reason, expected in response_validation.EXPECTED_HTTP_STATUS.items():
+        body = json.dumps(coherent_envelope(reason)).encode()
+        for status in statuses:
+            problem = response_validation.envelope_error(body, http_status=status)
+            if status == expected:
+                assert problem is None, f"{reason} under {status}: {problem}"
+            else:
+                assert problem is not None and "incoherent" in problem, (
+                    f"{reason} under {status} was not refused"
+                )
+
+
+def test_replay_repeats_the_original_status_rule():
+    """'An idempotent replay repeats the original response's HTTP status' —
+    so `replayed: true` obeys the same table row as the original, for stored
+    accepts AND stored rejections."""
+    for status, envelope in (
+        (200, accepted(replayed=True)),
+        (422, rejected(replayed=True)),
+    ):
+        body = json.dumps(envelope).encode()
+        assert (
+            response_validation.envelope_error(body, http_status=status) is None
+        )
+
+
+def test_omitting_http_status_keeps_the_schema_only_verdict():
+    """The coherence layer is opt-in per call: without http_status the
+    verdict is conformance-only (the incoherent pair below passes)."""
+    body = json.dumps(rejected()).encode()  # economy_rejection ⇔ 422
+    assert response_validation.envelope_error(body) is None
+    assert response_validation.envelope_error(body, http_status=200) is not None
+
+
+def test_conformance_verdict_wins_over_coherence():
+    """A body that fails the schema reports the schema violation (and draws
+    the 502) whatever the status — coherence never runs on a non-envelope."""
+    problem = response_validation.envelope_error(
+        json.dumps(rejected(reason_code="ok")).encode(), http_status=200
+    )
+    assert problem is not None and "incoherent" not in problem
+
+
+def test_table_drift_from_the_schema_fails_loud():
+    """If the taxonomy ever grows a code the table lacks (caught in CI by the
+    equality pin above, but belt-and-braces at runtime), the verdict is a
+    refusal — never a silently skipped check. Exercised through the schema
+    injection seam since the committed schema cannot reach this branch."""
+    problem = response_validation.envelope_error(
+        json.dumps({"reason_code": "mystery"}).encode(),
+        http_status=200,
+        schema={"type": "object"},
+    )
+    assert problem is not None and "no contract HTTP status mapping" in problem
+
+
 def test_shim_responses_conform_at_runtime():
     """The dev shim's envelopes — the contract's executable reference — must
-    pass the runtime check too (the app now refuses non-conformant answers)."""
+    pass the runtime check too (the app now refuses non-conformant answers),
+    INCLUDING status↔reason_code coherence with the status the shim chose."""
     from tests.shim.shim_bot import make_shim_server
 
     server, state = make_shim_server(port=0, secret="s3")
@@ -138,9 +219,12 @@ def test_shim_responses_conform_at_runtime():
         "pre-auth reject": b"{}",
         "malformed": b"{not json",
     }.items():
-        _, envelope = state.handle("POST", "/relay/mining/action", {}, body)
+        status, envelope = state.handle("POST", "/relay/mining/action", {}, body)
         assert (
-            response_validation.envelope_error(json.dumps(envelope).encode()) is None
+            response_validation.envelope_error(
+                json.dumps(envelope).encode(), http_status=status
+            )
+            is None
         ), name
 
 
