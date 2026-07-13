@@ -7,6 +7,7 @@ last-shipped: #63 — tests+server: shared served-bytes fixtures + views uses ca
 blockers: none
 orders: acked=001,002,003,004 done=001,002,003,004
 ⚑ needs-owner: MINING_WRITE_ENDPOINT + MINING_WRITE_SHARED_SECRET pair (conformance is then one command: `python3 scripts/conformance_run.py`, docs/conformance-runbook.md) — full OWNER-ACTION block (WHAT/WHERE/HOW/WHY-IT-MATTERS/UNBLOCKS/VERIFIED-NEEDED/RISK): control/outbox.md entry 2026-07-12T21:05Z. Owner-decision queue: § QUEUED below.
+practice (2026-07-13T05:27:28Z): ORDER 038 adopted (fm inbox, standing, 2026-07-13): VERDICT 016 authenticity gate applied to every cross-agent reviewer reply before acting (cited line ranges must be ≤ EOF at the reviewed head; failed reply = fabricated, discarded with citation) — Q-0120 still governs replies that pass.
 notes: ORDER 004 done-when met — tally posted here, per-game state table below, minigame section spec at docs/design/minigame-section-spec-2026-07-13.md (landed #58, outbox pointer #59). Verification labels: mineverse PR states API-verified at this stamp; games/idle/next merge states verified against each repo's main history at HEAD; suite counts, goldens, and run details are lane-reported (sources cited).
 
 ## ORDER 004 NIGHT-RUN TALLY (2026-07-13, ~00:40–04:05Z)
