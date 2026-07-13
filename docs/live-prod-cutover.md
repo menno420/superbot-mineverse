@@ -66,7 +66,11 @@ unchecked box anywhere on this list means stage d does not start.
   (docs/mining-write-contract.md § "Degraded mode").
   *Evidence:* `python3 scripts/readiness_check.py` on the web host exits 0
   and reports all six SET. The script prints SET/UNSET only — never a
-  value (§6).
+  value (§6). (Related but NOT one of the six: `MINING_SNAPSHOT_PATH` —
+  the READ-relay consume seam. It is optional at every stage — unset, the
+  server serves the committed sample — so it is not a write-flag
+  prerequisite and the readiness check does not require it; a live read
+  feed additionally wants it pointed at the bot relay's snapshot file.)
 - [ ] **The OAuth redirect URI is registered in the Discord developer
   app** and byte-equals the host's `OAUTH_REDIRECT_URI` (an `https://`
   value also turns on the session cookie's `Secure` flag — docs/auth.md).
@@ -205,6 +209,7 @@ things, never deploying things.
 
 | Lever | Action | Effect | Who |
 |---|---|---|---|
+| Kill the live snapshot feed | Unset `MINING_SNAPSHOT_PATH` on the web host, restart | The read routes go back to serving the committed sample (`data/sample_snapshot.json`) — demo data, honestly static. While the var stays SET, a missing/invalid feed file already answers `503 {"error": "snapshot unavailable"}` per request (no last-good cache, no silent fallback), so this lever is for *choosing* the sample over an outage page. | Owner (host env) |
 | Kill writes | Unset `MINING_WRITE_ENDPOINT` (or `MINING_WRITE_SHARED_SECRET`) on the web host, restart | `WriteConfig.configured` goes false (`server/actions.py`): `POST /api/action` answers `503 {"error": "writes not configured"}`, `/api/me` reports `writes_configured: false`, the UI disables every action button with the honest "Writes not configured — read-only mode" tooltip. Reads untouched. | Owner (host env) |
 | Kill sign-in too | Also unset the four OAuth vars (docs/auth.md), restart | Read-only PUBLIC site: `/api/me` → `signed_in: false, auth_configured: false`, `/auth/login` → 503. The snapshot views keep working for everyone. | Owner (host env) |
 | Kill one guild / all guilds | Shrink the bot-side allowlist (remove the prod guild id(s)) | Executor rejects that guild's proposals with `guild_not_allowed` (403) — the web UI shows the rejection honestly; no web-side change needed. The surgical lever: one guild can be rolled back while others stay live. | Owner (bot host) |

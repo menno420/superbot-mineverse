@@ -3,10 +3,16 @@
 Serves, from the standard library alone (no framework, no database,
 no secrets in the repo):
 
-- ``GET /api/snapshot`` — the committed sample snapshot
-  (``data/sample_snapshot.json``) as ``application/json``.  A missing or
-  unreadable snapshot returns an honest ``503 {"error": "snapshot
-  unavailable"}`` instead of a blank 200.
+- ``GET /api/snapshot`` — the snapshot as ``application/json``: the
+  committed sample (``data/sample_snapshot.json``) by default, or a
+  live-fed file when the host sets ``MINING_SNAPSHOT_PATH`` (the
+  consume-side seam of the bot READ relay — degraded by default, exactly
+  like the OAuth/write vars: unset means the sample, byte-identical
+  behavior).  A missing, unreadable, or v1-nonconformant snapshot returns
+  an honest ``503 {"error": "snapshot unavailable"}`` instead of a blank
+  200 — the same answer whichever file is being served, re-read fresh on
+  every request (no caching of a live-fed file, no last-good fallback:
+  the server holds no mutable state).
 - ``GET /api/views`` — the same snapshot shaped for the frontend's
   deepened read views (``server/views.py``: gear/vault/pack panels,
   depth ladder, leaderboards, inventory browser).  Same honest 503 when
@@ -55,6 +61,26 @@ LOGGER = logging.getLogger("mineverse")
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SNAPSHOT_PATH = REPO_ROOT / "data" / "sample_snapshot.json"
 WEB_ROOT = REPO_ROOT / "web"
+
+# Consume-side seam of the bot READ relay (FLAG 1): when this host env var is
+# set, the server serves the snapshot from that path instead of the committed
+# sample. Degraded by default — unset (or empty) means the sample, exactly as
+# before. The file is re-read fresh and v1-validated on EVERY request, so a
+# relay writer that goes missing or emits garbage draws the existing honest
+# 503, never a stale or corrupt 200.
+ENV_SNAPSHOT_PATH = "MINING_SNAPSHOT_PATH"
+
+
+def snapshot_path_from_env(environ=os.environ) -> Path:
+    """The snapshot path the host asks for, or the committed sample.
+
+    Empty string counts as UNSET (mirrors ``actions.WriteConfig.from_env``'s
+    ``or None`` convention). The path is NOT existence-checked here: a
+    set-but-missing file must surface as the per-request honest 503, not as
+    a silent boot-time fallback to sample data.
+    """
+    configured = environ.get(ENV_SNAPSHOT_PATH) or None
+    return Path(configured) if configured else SNAPSHOT_PATH
 
 API_SNAPSHOT = "/api/snapshot"
 API_VIEWS = "/api/views"
@@ -580,23 +606,28 @@ def make_server(
     host: str = "127.0.0.1",
     port: int = 0,
     *,
-    snapshot_path: Path = SNAPSHOT_PATH,
+    snapshot_path: Path | None = None,
     web_root: Path = WEB_ROOT,
     auth_config: auth.AuthConfig | None = None,
     write_config: actions.WriteConfig | None = None,
 ) -> ThreadingHTTPServer:
     """Build (but don't start) the server — port 0 picks a free port.
 
-    ``auth_config`` defaults to :meth:`auth.AuthConfig.from_env` (the four
-    ``DISCORD_OAUTH_*`` / ``OAUTH_REDIRECT_URI`` / ``WEB_SESSION_SIGNING_KEY``
-    host env vars); ``write_config`` defaults to
+    ``snapshot_path`` defaults to :func:`snapshot_path_from_env` — the
+    ``MINING_SNAPSHOT_PATH`` host env var when set, else the committed
+    sample; ``auth_config`` defaults to :meth:`auth.AuthConfig.from_env`
+    (the four ``DISCORD_OAUTH_*`` / ``OAUTH_REDIRECT_URI`` /
+    ``WEB_SESSION_SIGNING_KEY`` host env vars); ``write_config`` defaults to
     :meth:`actions.WriteConfig.from_env` (``MINING_WRITE_ENDPOINT`` /
-    ``MINING_WRITE_SHARED_SECRET``). Pass either explicitly in tests.
+    ``MINING_WRITE_SHARED_SECRET``). Pass any explicitly in tests — an
+    explicit argument always beats the environment.
     """
     handler = partial(
         MineverseHandler,
         directory=str(web_root),
-        snapshot_path=snapshot_path,
+        snapshot_path=snapshot_path
+        if snapshot_path is not None
+        else snapshot_path_from_env(),
         auth_config=auth_config if auth_config is not None else auth.AuthConfig.from_env(),
         write_config=write_config
         if write_config is not None
@@ -622,9 +653,14 @@ def main() -> None:
         if actions.WriteConfig.from_env().configured
         else "NOT configured (read-only mode)"
     )
+    snapshot_mode = (
+        f"live-fed ({ENV_SNAPSHOT_PATH})"
+        if os.environ.get(ENV_SNAPSHOT_PATH)
+        else "committed sample"
+    )
     print(
         f"mineverse on http://{host}:{bound_port} — discord sign-in: {mode}"
-        f" — writes: {write_mode}"
+        f" — writes: {write_mode} — snapshot: {snapshot_mode}"
     )
     try:
         server.serve_forever()

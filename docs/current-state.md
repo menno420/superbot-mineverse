@@ -39,9 +39,11 @@ known-good and needs no re-audit without a reported regression:
 anonymous, and the full test suite passes. Sign-in needs
 `DISCORD_OAUTH_CLIENT_ID`, `DISCORD_OAUTH_CLIENT_SECRET`,
 `OAUTH_REDIRECT_URI`, `WEB_SESSION_SIGNING_KEY`; test-guild write mode
-additionally needs `MINING_WRITE_ENDPOINT`, `MINING_WRITE_SHARED_SECRET`
-(names only here — values are owner-provisioned host secrets, never in
-this repo).
+additionally needs `MINING_WRITE_ENDPOINT`, `MINING_WRITE_SHARED_SECRET`;
+a live-fed snapshot (the FLAG-1 bot READ relay's consume side) needs
+`MINING_SNAPSHOT_PATH` — unset, the server serves the committed sample
+exactly as before (names only here — values are owner-provisioned host
+configuration, never in this repo).
 
 **CI:** both `substrate-gate` AND `pytest` (the schema-gate workflow's job)
 are required status checks on main — pytest was recently added to the
@@ -77,6 +79,7 @@ rule: push the full stack including the flip BEFORE opening the PR.
 
 ## Recently shipped (newest first)
 
+- 2026-07-13 — snapshot ingestion seam (FLAG 1 consume side): `MINING_SNAPSHOT_PATH` env var — set, the server serves a live-fed snapshot file (re-read fresh + v1-validated per request, honest 503 when missing/invalid, NO last-good cache); unset, byte-identical committed-sample behavior; resolution in `make_server`'s default (`snapshot_path_from_env`), committed fixtures under `tests/fixtures/`; suite 451 passed + 1 skip.
 - 2026-07-12 — seasonal decorations (backlog item 6): date-keyed cosmetic layer over the cave theme — pure `seasonForDate`/`seasonalDecorSpec`/`seasonalDecorSVG` seams (date injected at boot; four year-wrapping windows + fixed founding-day/new-year dates), aria-hidden header pixel ornament + tint-only `--glow` season classes, zero new animation; pinned via the `js_call` harness + `tests/test_web_seasonal.py`; suite 437 passed + 1 skip.
 - 2026-07-12 — flip-race root-caused: `docs/findings/substrate-gate-born-red-fail-open-2026-07-12.md` (kit gate is advisory for PR-ADDED session cards by design, so #48/#49 auto-merged pre-flip); fix routed upstream to substrate-kit via `control/outbox.md`; interim rule stands — push the full stack incl. the flip before opening the PR.
 - 2026-07-12 — ambient cave audio (backlog item 5): synthesized WebAudio cave wind + drips, muted by default (AudioContext born only in the toggle click), honest aria-pressed toggle, non-persistent; pure spec/rhythm/label seams pinned via the `js_call` harness + served-bytes pins in `tests/test_web_audio.py`; suite 415 passed + 1 skip.

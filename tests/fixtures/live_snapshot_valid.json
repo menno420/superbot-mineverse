@@ -1,0 +1,45 @@
+{
+  "schema_version": "1",
+  "generated_at": "2026-07-13T02:30:00Z",
+  "guild_id": "555000111222333444",
+  "max_depth": 3,
+  "biomes": ["Surface", "Cavern", "the Deep", "the Magma core"],
+  "miners": [
+    {
+      "suid": "200000000000000001",
+      "guild_id": "555000111222333444",
+      "display_name": "RelayRunner",
+      "depth": 2,
+      "record_depth": 3,
+      "position": {"x": 7, "y": -1},
+      "energy": {"current": 48, "updated_at": 1783814400},
+      "coins": 9925,
+      "xp": {"game": "mining", "game_total": 4110, "shared_total": 5220, "level": 11},
+      "equipment": {"tool": "gold pickaxe", "light": "lantern", "charm": "lucky charm"},
+      "gear_wear": {"gold pickaxe": 40, "lantern": 12},
+      "mining_inventory": {"stone": 20, "iron": 33, "gold": 8, "torch": 5, "ration": 1},
+      "vault": {"gold": 61, "silver": 17},
+      "vault_level": 2,
+      "skills": {"mining": 3, "luck": 1},
+      "structures": {"forge": 2, "campfire": 1}
+    },
+    {
+      "suid": "200000000000000002",
+      "guild_id": "555000111222333444",
+      "display_name": "FeedFinder",
+      "depth": 0,
+      "record_depth": 1,
+      "position": {"x": -2, "y": 0},
+      "energy": {"current": 60, "updated_at": 1783814400},
+      "coins": 730,
+      "xp": {"game": "mining", "game_total": 510, "shared_total": 640, "level": 3},
+      "equipment": {"tool": "pickaxe", "light": "torch"},
+      "gear_wear": {"pickaxe": 6},
+      "mining_inventory": {"stone": 49, "bronze": 7, "wood": 11, "torch": 2},
+      "vault": {},
+      "vault_level": 0,
+      "skills": {"mining": 1},
+      "structures": {}
+    }
+  ]
+}
