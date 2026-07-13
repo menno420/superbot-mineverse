@@ -28,3 +28,50 @@ provenance: filed by the fleet manager — relocation of startup-prompt v3.1 W1 
 do: Land the login-CSRF security PR #42 (branch security/oauth-csrf-snapshot-validation) via the non-author review-merge path — ONE attempt; a denial parks it READY+green with a ⚑ owner ask at queue TOP. Standing ORDERING rule: this security fix merges BEFORE anything secrets-adjacent — the six-OAuth-env-var provisioning ask stays SUBORDINATE until #42 is in main. Then disposition security-report PR #31 (codex; merge or close with a one-line reason), and re-render .claude/CLAUDE.md via the kit so it matches the tree.
 why: verified at HEAD 2026-07-12: PR #42 OPEN, mergeable_state clean at head 2557f1a; PR #31 OPEN (mergeable_state blocked); the CSRF fix is not in main (76be821).
 done-when: #42 in main with the merge-commit diff showing the payload landed; #31 terminal; CLAUDE.md matches the tree.
+
+## ORDER 004 · 2026-07-13T00:43:11Z · status: new
+Landed verbatim by the coordinator from a live owner turn in the coordinator session, 2026-07-12/13 night (scope: whole SuperBot World seat — games, idle, mineverse)
+priority: P0
+do: execute the owner's night-run directive below (landed verbatim — rules 1–6 + the seat plan 1–5) all night.
+why: live owner turn — top-precedence over all standing orders for the 2026-07-12/13 night run.
+done-when: morning tally (~06:00Z: SHIPPED / OPEN-PRs / QUEUED / STALLED-with-error) posted in heartbeat + outbox, plus the per-game state table and the minigame section spec posted.
+
+DIRECT ORDER — SUPERBOT WORLD (owner, 2026-07-13, night run). Land this verbatim in your
+inbox (top-precedence owner turn), then execute all night.
+
+RULES FOR TONIGHT (Q-0271/Q-0273/Q-0274 — these override any instinct to wait):
+1. I am away until morning; that is the system's normal state. Silence = consent = done.
+   Never hold or re-confirm finished work.
+2. OPEN PRs STAY OPEN — new rule for tonight: land on green where auto-merge arms; where it
+   doesn't, leave the PR OPEN and take the next slice. No merge-chasing, no parking-and-
+   waiting, no counting open PRs as blockers — I sweep them when I'm back. If a next slice
+   depends on an open PR, branch from its head and note the base in the PR body.
+3. FIND YOUR WORK, in order: your inbox ORDER carrying my goals verbatim (the manager's
+   030–036 set) → superbot docs/owner/fleet-grounding.md §4 (my mission + ordered goals for
+   you) → your backlog at HEAD → your generative rung. An empty queue means GENERATE, never
+   idle.
+4. NO STALLS UNDER ANY CIRCUMSTANCES: probe before declaring a wall (attempt once, verbatim
+   error; quote fresh documented walls instead of re-probing); genuinely-owner-only item →
+   six-field owner-queue entry (VENUE:hub if merge/destructive-shaped) → CONTINUE same turn;
+   balance/design uncertainty → SIM-REQUEST via outbox → CONTINUE.
+5. WAKE HYGIENE: exactly one outstanding tick; verify your failsafe ALIVE each wake;
+   heartbeat re-stamped LAST each turn; a nothing-to-do wake is a silent no-op.
+6. QUALITY FLOOR: CI-green work, honest nulls, evidence over claims; new lessons become
+   durable homes (docs/skills), not chat.
+MORNING: by ~06:00Z post your tally (SHIPPED / OPEN-PRs / QUEUED / STALLED-with-error) in
+your heartbeat + outbox.
+
+YOUR SEAT TONIGHT (finalize the games AS GAMES):
+1. MINING first: review it end-to-end (actually play the flows), then finalize — standalone
+   game AND integrated in the exploration/world hub — extending/improving wherever possible
+   (progression feel, missing loops, rough edges; balance numbers sim-pinned via
+   SIM-REQUEST).
+2. FISHING next, same treatment. 3. IDLE next, same treatment (+ the PLUG-001 adapter as
+   its integration piece).
+4. MINIGAME/CASINO SPEC TONIGHT: inventory every card/minigame across the repos → the
+   section spec (groups, enable-all-or-pick, dynamic panels) + per-game readiness → post to
+   your outbox for SuperBot 2.0 (they build the panels).
+5. MINEVERSE: keep the backlog waves rolling; build the consume side of the bot-lane FLAGs
+   against your own specs; prep the conformance run for the moment the write pair exists.
+MORNING DELIVERABLE: per-game state table (reviewed ✅ / standalone ✅ / hub-integrated ✅ /
+improvements list) + the minigame section spec posted.
