@@ -83,3 +83,43 @@ executor: superbot-mineverse seat (next wake)
 do: post a THOROUGH night report, window 2026-07-12T22:30Z→now, to control/status.md AND your outbox (manager-addressed): SHIPPED (merges/PRs, numbers+SHAs) · OPEN PRs + check states · ORDERS served + outstanding · SIM-REQUESTs/asks pending · STALLS/denials verbatim · wake-chain health (failsafe + pacemaker ids/fires) · next-3.
 why: owner morning review.
 done-when: report in both files; Fleet Manager compiles the roll-up.
+
+## ORDER 006 · 2026-07-13T22:13Z · status: new
+priority: P1
+from: fleet manager — EAP final-night worklist relay (fm ORDER 045, Phase 3 fan-out)
+do: work this seat's EAP final-night worklist below (owner directive + worklist quoted verbatim), top-down across tonight's wakes.
+why: owner directive 2026-07-13 — last day of the EAP; every seat gets its full night list.
+
+**EAP final-night worklist — owner directive relay (fm ORDER 045, Phase 3 fan-out).**
+
+Owner directive, quoted VERBATIM as recorded in fm ORDER 045: "I want you to find out the current state of all repos and
+dispatch instructions for all projects so they know what to do, find out if there still
+need to be improvements made in existing features or else if the idea lab made any good
+plans etc. the goal is to make sure each project has a full list to work on tonight since
+it's the last day of the EAP."
+
+Citations: fm ORDER 045, control/inbox.md @ ca1ce28 · docs/eap-final-night-worklists-2026-07-13.md @ ca1ce28 (doc last modified by commit e963183; landed via fm PR #178, merged 2026-07-13T22:07:14Z).
+
+**Your seat's full night worklist, copied faithfully from the doc:**
+
+## superbot-mineverse — swept @ `ae98dd0`
+
+Honest thin list — 0 open PRs, all 5 ORDERs done; most of the remainder is
+owner/bot-blocked.
+
+1. Build the FLAG-1 snapshot-ingest RECEIVE endpoint — superbot #2058 POSTs snapshots to `MINING_SNAPSHOT_RELAY_URL` every 60s but `server/app.py@ae98dd0` `do_POST` handles only `/api/action`; the receiving endpoint exists nowhere. HMAC-verified POST → v1-validate → persist (superbot PR #2058 body) `[lane]` (ORDER 004 item 5)
+2. Apply VERDICT 056 — snapshot stale-indicator T=180s APPROVED, feasible, FLAG-1 badge input (sim-lab `control/outbox.md` L999 @`32ff5c3`) `[verdict]`
+3. Ingest-transport spec addendum to `docs/mining-data-contract.md@ae98dd0` — record #2058's env-var names, cadence, ingest-auth decision so both repos share one written seam `[lane]`
+4. Build-direct pair: snapshot field parity audit + snapshot contract shared constant (idea-engine `ideas/superbot-mineverse/snapshot-field-parity-audit-2026-07-11.md`, `snapshot-contract-shared-constant-2026-07-11.md` @`2e5d73f`) `[build-direct]`
+5. Extend `scripts/readiness_check.py` (+ `docs/live-prod-cutover.md`) with the ingest-route leg once item 1 lands (`scripts/readiness_check.py@ae98dd0`) `[standing]`
+
+**Blocked (do not schedule):** real-endpoint conformance run + audit e2e (owner's six env vars incl. `MINING_WRITE_ENDPOINT`/`MINING_WRITE_SHARED_SECRET`) · superbot #2058/#2061 draft flips (owner).
+
+Why-tonight tags (from the worklists doc): `[lane]` unfinished lane work · `[standing]` standing/unconsumed
+ORDER · `[verdict]` sim verdict served/approved awaiting build · `[build-direct]`
+idea-engine plan marked buildable without a sim verdict · `[improve]`
+feature-improvement · `[drift]` docs/heartbeat drift fix · `[deadline]` window
+closes 07-14 · `[relay]` fm routing/relay debt.
+
+provenance: relayed by the Fleet Manager seat per owner directive, coordinator dispatch 2026-07-13
+done-when: work the list top-down across tonight's wakes; ack in your inbox thread; heartbeat progress per item.
