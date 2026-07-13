@@ -109,10 +109,19 @@ game content, so the schema constrains only their value types.
 
 - `tests/test_schema_gate.py` validates `data/sample_snapshot.json` against
   the v1 schema with `jsonschema.Draft202012Validator` on every test run.
-- **The schema is the single source of truth for required fields**:
-  `tests/test_snapshot.py` derives its `REQUIRED_MINER_FIELDS` from the
-  schema's per-miner `required` list instead of keeping a hand-copied
-  constant, so the test and the schema cannot drift.
+- **The schema is the single source of truth for required fields**: the
+  importable `snapshot_contract.py` (repo root) derives
+  `REQUIRED_MINER_FIELDS` / `REQUIRED_ENVELOPE_FIELDS` from the schema at
+  import time instead of keeping a hand-copied constant, and
+  `tests/test_snapshot.py` imports and re-derives them as the drift
+  guard. The FLAG-1 bot-side exporter can vendor-pin the same file (plus
+  the schema) so a field rename goes red in either repo's CI, not at
+  relay cadence.
+- **Cross-consumer parity**: how this contract covers games-web's
+  character-sheet contract (seam option A) is measured, not guessed —
+  `docs/findings/snapshot-field-parity-audit-2026-07-14.md` (headline:
+  no producer data debt; the misses are consumer-side flavor requireds
+  plus the gear-slot vocabulary).
 - CI: `.github/workflows/schema-gate.yml` runs the full pytest suite (and
   with it the schema gate) on every PR and push to main. Dev-only pins live
   in `requirements-dev.txt` — the runtime backend stays stdlib-only.
