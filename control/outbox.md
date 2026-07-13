@@ -145,3 +145,55 @@ at HEAD" vs live enabler on #87) was already filed in this outbox at
 2026-07-13T13:48Z (previous entry) — this note extends that correction with
 (a)–(c); (b) narrows it: enabler present AND card-guarded, gate fail-open only
 on the added-card path.
+
+## 2026-07-13T14:56Z · lane→manager · ⚑ OWNER-ACTION — make `pytest` a required check on superbot-idle main (GREEN≠TESTED) + idle kit v1.15.0 upgrade report
+
+⚑ OWNER-ACTION · VENUE: hub
+WHAT: add the `pytest` check as a required status context on menno420/superbot-idle's
+main branch protection/ruleset, alongside the two currently required
+(`substrate-gate`, `theme-gate`).
+WHERE: GitHub → superbot-idle → Settings → Branches (or Settings → Rules → Rulesets)
+→ the `main` protection rule → "Require status checks to pass before merging".
+HOW: click path — in that rule's status-check search box type `pytest`, select it,
+Save changes. Or paste-ready CLI (classic branch protection):
+`gh api -X PATCH repos/menno420/superbot-idle/branches/main/protection/required_status_checks -f "contexts[]=substrate-gate" -f "contexts[]=theme-gate" -f "contexts[]=pytest"`
+(if main is governed by a ruleset instead, add `pytest` to the ruleset's required
+status checks in the UI — same three contexts, click only).
+WHY-IT-MATTERS: GREEN≠TESTED on idle — the pytest suite runs in CI on every PR and
+push (superbot-idle `.github/workflows/pytest.yml` @ e740810, line 26 verbatim:
+`run: python3 -m pytest -q`; re-verified byte-identical at current main 96cd635) but
+its check is NOT required (idle enabler run 29255821474 rules probe, log verbatim:
+`required contexts (2): ["substrate-gate","theme-gate"]`), so a PR can merge with the
+test suite red or still running — nothing server-side blocks it.
+UNBLOCKS: server-side GREEN=TESTED for every idle merge; retires the manual "run
+pytest before merge" doctrine line and the enabler's not-required warning text (idle
+PR #91's truth-fix commit e703fd3 had to document pytest as not-required).
+VERIFY: the next idle PR lists `pytest` among its required checks; the enabler log's
+rules probe reports 3 required contexts.
+VERIFIED-NEEDED: branch-protection/ruleset settings are owner-console-only — agent
+sessions hold no admin scope on fleet repos (same wall class as the ruleset-edit
+alternative already parked in this outbox 2026-07-12T22:10Z, IF-KIT-DECLINES (i):
+"needs a ruleset edit (owner/console-adjacent)"). Live probe of the current state:
+enabler run 29255821474 read the protection rules and reported only the 2 contexts
+quoted above.
+RISK: ✅ reversible — a settings toggle; remove the `pytest` context the same way if
+it ever needs to come out.
+**Recommend: Y — add it.** Reply Y/N.
+
+KIT-UPGRADE OUTCOME REPORT (idle, same slice — facts, cited):
+- idle kit upgraded v1.7.1 → v1.15.0 via superbot-idle PR #91, squash-merged as
+  96cd635 by the repo enabler (merged_by github-actions[bot] 2026-07-13T14:48:42Z,
+  API-verified; 96cd635 = idle main HEAD by ls-remote at 14:55Z). The new
+  `--added-card` born-red HOLD fired live: designed-red substrate-gate run
+  29259353167 on pre-flip head e703fd3; green post-flip run 29259492736. pytest at
+  merge: 1260 passed, 1 skipped.
+- Fleet note: v1.7.1-class gates elsewhere still carry the broken ADDED-card path
+  (advisory absent-sentinel only — this outbox 2026-07-12T22:10Z): idle #89 head
+  49753ed went gate-green pre-flip (run 29255821205).
+- Kit bug worth routing to kit-lab via the manager: kit v1.15.0's upgrade detects a
+  host-added enabler customization as a carve-out, banks it, then regenerates over
+  it anyway — both live adopters hand-reverted to their host enablers (games @
+  d6a9526; idle #91 restored the #77/#90 enabler byte-equal). Proposal:
+  keep-host-on-structural-carve-out.
+- Idle lane-owed follow-up: idle control/status.md `kit:` line still says v1.7.1 —
+  bump to v1.15.0 on that lane's next heartbeat overwrite.
