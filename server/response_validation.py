@@ -19,14 +19,18 @@ web server answers ``502 {"error": "invalid executor response"}`` instead.
 Conformant envelopes — including contract rejections — relay verbatim,
 exactly as before.
 
-Like snapshot validation, the schema file is re-read per validation call:
-the server holds no mutable state (docs/architecture.md), and the write path
-is low-volume by contract (per-actor rate limits), so honesty beats a cache.
+Like snapshot validation, the parsed schema is cached (``lru_cache`` on
+``load_schema``): the schema is a COMMITTED file, immutable under a running
+server, so parsing it once is honest — the statelessness contract
+(docs/architecture.md) is about the DATA being validated (the executor's
+response, the live-fed snapshot), which is never cached.
+``load_schema.cache_clear()`` is the explicit reload seam.
 """
 
 from __future__ import annotations
 
 import json
+from functools import lru_cache
 from pathlib import Path
 
 try:
@@ -41,8 +45,15 @@ SCHEMA_PATH = (
 )
 
 
+@lru_cache(maxsize=None)
 def load_schema() -> dict:
-    """Read + parse the committed v1 WRITE-contract response schema."""
+    """Read + parse the committed v1 WRITE-contract response schema (parsed once).
+
+    Cached for the same reason as ``snapshot_validation.load_schema``: a
+    committed schema file cannot change under a running server, and the
+    cache never touches the validated payloads themselves.
+    ``load_schema.cache_clear()`` is the explicit reload seam.
+    """
     return json.loads(SCHEMA_PATH.read_text())
 
 

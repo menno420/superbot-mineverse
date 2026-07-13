@@ -192,3 +192,28 @@ def test_response_schema_is_fully_interpretable():
     """Every keyword the committed response schema uses is implemented — the
     drift guard never fires on a conformant envelope (belt for the sweep)."""
     snapshot_validation.validate_value(accepted(), RESPONSE_SCHEMA)
+
+
+# --- committed-schema cache: parsed once, explicit clear seam ----------------
+
+
+def test_load_schema_is_cached_with_an_explicit_clear_seam(tmp_path):
+    # Same shape as snapshot_validation's cache pin: the COMMITTED response
+    # schema is parsed once (lru_cache); the executor's response BODY is of
+    # course still judged fresh per call — only the ruler is cached.
+    original_path = response_validation.SCHEMA_PATH
+    response_validation.load_schema.cache_clear()
+    try:
+        first = response_validation.load_schema()
+        assert response_validation.load_schema() is first  # cached, not re-parsed
+        edited = tmp_path / "edited.schema.json"
+        edited.write_text('{"type": "object"}')
+        response_validation.SCHEMA_PATH = edited
+        # An edit is invisible until the explicit seam is used …
+        assert response_validation.load_schema() is first
+        # … and cache_clear() genuinely picks the new file up.
+        response_validation.load_schema.cache_clear()
+        assert response_validation.load_schema() == {"type": "object"}
+    finally:
+        response_validation.SCHEMA_PATH = original_path
+        response_validation.load_schema.cache_clear()
