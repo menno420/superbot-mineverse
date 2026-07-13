@@ -14,7 +14,6 @@ import importlib.util
 import io
 import json
 import sys
-import threading
 from pathlib import Path
 
 import pytest
@@ -22,6 +21,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
+from tests._server_helpers import run_server  # noqa: E402
 from tests.shim.shim_bot import ACTION_PATH, make_shim_server  # noqa: E402
 
 _SPEC = importlib.util.spec_from_file_location(
@@ -109,13 +109,9 @@ def test_no_env_value_is_ever_printed():
 def shim():
     """A running shim on an ephemeral port; yields its base URL."""
     server, state = make_shim_server(port=0, secret="probe-secret-not-a-secret")
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    host, port = server.server_address[:2]
-    yield f"http://{host}:{port}"
-    server.shutdown()
-    server.server_close()
-    thread.join(timeout=5)
+    with run_server(server):
+        host, port = server.server_address[:2]
+        yield f"http://{host}:{port}"
 
 
 def test_probe_accepts_the_contract_401_from_the_shim(shim):
@@ -148,17 +144,11 @@ def test_probe_rejects_a_non_contract_200():
             pass
 
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Happy200)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    try:
+    with run_server(server):
         host, port = server.server_address[:2]
         ok, detail = readiness.probe_endpoint(f"http://{host}:{port}/anything")
         assert not ok
         assert "expected HTTP 401" in detail
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)
 
 
 def test_probe_rejects_a_401_missing_contract_fields():
@@ -175,17 +165,11 @@ def test_probe_rejects_a_401_missing_contract_fields():
             pass
 
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Bare401)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    try:
+    with run_server(server):
         host, port = server.server_address[:2]
         ok, detail = readiness.probe_endpoint(f"http://{host}:{port}/anything")
         assert not ok
         assert "missing contract fields" in detail
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)
 
 
 # --- probe wiring inside the report (no network — injected prober) -----------
