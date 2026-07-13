@@ -26,9 +26,26 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from server import snapshot_validation  # noqa: E402
-from server.app import SNAPSHOT_PATH, WEB_ROOT, make_server  # noqa: E402
+from server.app import (  # noqa: E402
+    ENV_SNAPSHOT_PATH,
+    SNAPSHOT_PATH,
+    WEB_ROOT,
+    make_server,
+    snapshot_path_from_env,
+)
 
 SAMPLE = json.loads(SNAPSHOT_PATH.read_text())
+
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
+VALID_LIVE_FIXTURE = FIXTURES / "live_snapshot_valid.json"
+WRONG_VERSION_FIXTURE = FIXTURES / "live_snapshot_wrong_version.json"
+SCHEMA_VIOLATION_FIXTURE = FIXTURES / "live_snapshot_schema_violation.json"
+CORRUPT_FIXTURE = FIXTURES / "live_snapshot_corrupt.json"
+
+# The valid live fixture is deliberately DISTINCT from the committed sample so
+# a test can tell which file actually got served.
+LIVE_GUILD_ID = "555000111222333444"
+assert LIVE_GUILD_ID != SAMPLE["guild_id"]
 
 
 # --- unit: the stdlib validator ---------------------------------------------
@@ -265,3 +282,127 @@ def test_maxitems_violation_is_503_at_http_layer(serve, tmp_path):
         fetch(base + "/api/snapshot")
     assert excinfo.value.code == 503
     assert json.loads(excinfo.value.read())["error"] == "snapshot unavailable"
+
+
+# --- committed fixtures stay honest about what they claim to be --------------
+
+
+def test_valid_live_fixture_conforms_to_v1():
+    # Bot-shaped, distinct from the sample, and genuinely valid — both under
+    # the runtime interpreter and (parity) the real jsonschema CI validator.
+    snapshot = json.loads(VALID_LIVE_FIXTURE.read_text())
+    assert snapshot["guild_id"] == LIVE_GUILD_ID
+    assert snapshot != SAMPLE
+    assert snapshot_validation.validate_snapshot(snapshot) is not None
+    jsonschema = pytest.importorskip("jsonschema")
+    jsonschema.Draft202012Validator(snapshot_validation.load_schema()).validate(
+        snapshot
+    )
+
+
+@pytest.mark.parametrize(
+    "fixture", [WRONG_VERSION_FIXTURE, SCHEMA_VIOLATION_FIXTURE]
+)
+def test_invalid_fixtures_are_valid_json_but_fail_v1(fixture):
+    snapshot = json.loads(fixture.read_text())  # parses fine — the contract bites
+    with pytest.raises(snapshot_validation.SnapshotInvalid):
+        snapshot_validation.validate_snapshot(snapshot)
+
+
+def test_corrupt_fixture_is_not_even_json():
+    with pytest.raises(ValueError):
+        json.loads(CORRUPT_FIXTURE.read_text())
+
+
+# --- env ingestion seam: MINING_SNAPSHOT_PATH (FLAG 1 consume side) ----------
+#
+# serve() without an explicit snapshot_path exercises make_server's default —
+# the exact resolution main() relies on — so these are the main-path semantics.
+
+
+def test_snapshot_path_from_env_defaults_to_the_committed_sample():
+    assert snapshot_path_from_env({}) == SNAPSHOT_PATH
+    # Empty string counts as UNSET, mirroring WriteConfig.from_env's `or None`.
+    assert snapshot_path_from_env({ENV_SNAPSHOT_PATH: ""}) == SNAPSHOT_PATH
+
+
+def test_snapshot_path_from_env_honours_the_var():
+    assert snapshot_path_from_env(
+        {ENV_SNAPSHOT_PATH: "/srv/relay/snapshot.json"}
+    ) == Path("/srv/relay/snapshot.json")
+
+
+def test_env_unset_serves_the_committed_sample(serve, monkeypatch):
+    monkeypatch.delenv(ENV_SNAPSHOT_PATH, raising=False)
+    base = serve()  # no explicit snapshot_path — make_server default
+    status, body = fetch(base + "/api/snapshot")
+    assert status == 200
+    assert json.loads(body)["guild_id"] == SAMPLE["guild_id"]
+
+
+def test_env_set_to_valid_fixture_is_served_on_both_read_routes(serve, monkeypatch):
+    monkeypatch.setenv(ENV_SNAPSHOT_PATH, str(VALID_LIVE_FIXTURE))
+    base = serve()
+    status, body = fetch(base + "/api/snapshot")
+    assert status == 200
+    assert json.loads(body)["guild_id"] == LIVE_GUILD_ID  # the fixture, not the sample
+    status, body = fetch(base + "/api/views")
+    assert status == 200
+    assert json.loads(body)["guild_id"] == LIVE_GUILD_ID
+
+
+def test_env_set_to_missing_file_is_an_honest_503(serve, monkeypatch, tmp_path):
+    # A live feed that never arrived must NOT silently fall back to sample data.
+    monkeypatch.setenv(ENV_SNAPSHOT_PATH, str(tmp_path / "never-written.json"))
+    base = serve()
+    with pytest.raises(urllib.error.HTTPError) as excinfo:
+        fetch(base + "/api/snapshot")
+    assert excinfo.value.code == 503
+    assert json.loads(excinfo.value.read())["error"] == "snapshot unavailable"
+
+
+@pytest.mark.parametrize(
+    "fixture",
+    [CORRUPT_FIXTURE, WRONG_VERSION_FIXTURE, SCHEMA_VIOLATION_FIXTURE],
+    ids=["corrupt-json", "wrong-version", "schema-violation"],
+)
+def test_env_set_to_invalid_fixture_is_an_honest_503(serve, monkeypatch, fixture):
+    monkeypatch.setenv(ENV_SNAPSHOT_PATH, str(fixture))
+    base = serve()
+    for route in ("/api/snapshot", "/api/views"):
+        with pytest.raises(urllib.error.HTTPError) as excinfo:
+            fetch(base + route)
+        assert excinfo.value.code == 503, route
+        assert json.loads(excinfo.value.read())["error"] == "snapshot unavailable"
+
+
+def test_explicit_snapshot_path_argument_beats_the_env(serve, monkeypatch, tmp_path):
+    # Tests (and any embedder) that pass snapshot_path explicitly must stay
+    # immune to the host environment.
+    monkeypatch.setenv(ENV_SNAPSHOT_PATH, str(VALID_LIVE_FIXTURE))
+    explicit = write_snapshot(tmp_path, SAMPLE)
+    base = serve(snapshot_path=explicit, web_root=WEB_ROOT)
+    status, body = fetch(base + "/api/snapshot")
+    assert status == 200
+    assert json.loads(body)["guild_id"] == SAMPLE["guild_id"]
+
+
+def test_live_fed_file_is_reread_fresh_on_every_request(serve, monkeypatch, tmp_path):
+    # The relay overwrites its file between requests; each GET must see the
+    # newest bytes — and a feed that turns invalid mid-flight must flip to the
+    # honest 503, not keep serving a remembered last-good snapshot.
+    live = tmp_path / "live.json"
+    live.write_text(VALID_LIVE_FIXTURE.read_text())
+    monkeypatch.setenv(ENV_SNAPSHOT_PATH, str(live))
+    base = serve()
+    status, body = fetch(base + "/api/snapshot")
+    assert status == 200
+    assert json.loads(body)["guild_id"] == LIVE_GUILD_ID
+    live.write_text(json.dumps(SAMPLE))  # relay pushed a new snapshot
+    status, body = fetch(base + "/api/snapshot")
+    assert status == 200
+    assert json.loads(body)["guild_id"] == SAMPLE["guild_id"]
+    live.write_text("{not json")  # relay corrupted mid-write
+    with pytest.raises(urllib.error.HTTPError) as excinfo:
+        fetch(base + "/api/snapshot")
+    assert excinfo.value.code == 503  # no last-good lying
