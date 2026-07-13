@@ -1,0 +1,1 @@
+- `claude/minigame-section-spec` · **minigame/casino section spec (ORDER 004 item 4)** — inventory all card/minigames across superbot-next/games/idle/mineverse; land docs/design/minigame-section-spec-2026-07-13.md + outbox pointer · 2026-07-13
