@@ -1,0 +1,1 @@
+- `claude/conformance-runner` · **conformance-run prep (ORDER 004 item 5, third piece)** — one-command WRITE-contract conformance sweep: stdlib runner + one-page runbook + pure-part tests · scripts/conformance_run.py, docs/conformance-runbook.md, tests/test_conformance_run.py, docs/live-prod-cutover.md, .gitignore · 2026-07-13
