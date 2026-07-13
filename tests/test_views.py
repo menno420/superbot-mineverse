@@ -10,7 +10,6 @@ edit breaks these tests before any hand-copied list could drift.
 
 import json
 import sys
-import threading
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
@@ -22,7 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from server import views  # noqa: E402
-from server.app import WEB_ROOT, make_server  # noqa: E402
+from server.app import WEB_ROOT  # noqa: E402
 
 SNAPSHOT_PATH = REPO_ROOT / "data" / "sample_snapshot.json"
 SCHEMA_PATH = REPO_ROOT / "schemas" / "mining_snapshot.v1.schema.json"
@@ -535,25 +534,8 @@ def test_build_views_is_json_serializable(built):
 
 
 # --- GET /api/views over real HTTP -----------------------------------------
-
-
-@pytest.fixture()
-def serve():
-    servers = []
-
-    def _start(**kwargs):
-        server = make_server(port=0, **kwargs)
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
-        servers.append((server, thread))
-        host, port = server.server_address[:2]
-        return f"http://{host}:{port}"
-
-    yield _start
-    for server, thread in servers:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)
+# The kwargs-taking ``serve`` fixture lives in tests/conftest.py
+# (wrapping tests/_server_helpers.serve_factory).
 
 
 def fetch(url):

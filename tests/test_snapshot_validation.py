@@ -11,10 +11,8 @@ Two layers:
 """
 
 import copy
-import http.client
 import json
 import sys
-import threading
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -30,7 +28,6 @@ from server.app import (  # noqa: E402
     ENV_SNAPSHOT_PATH,
     SNAPSHOT_PATH,
     WEB_ROOT,
-    make_server,
     snapshot_path_from_env,
 )
 
@@ -204,25 +201,8 @@ def test_noop_annotation_keywords_do_not_fail_loud():
 
 
 # --- HTTP: ingestion-time 503 ------------------------------------------------
-
-
-@pytest.fixture()
-def serve():
-    servers = []
-
-    def _start(**kwargs):
-        server = make_server(port=0, **kwargs)
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
-        servers.append((server, thread))
-        host, port = server.server_address[:2]
-        return f"http://{host}:{port}"
-
-    yield _start
-    for server, thread in servers:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)
+# The kwargs-taking ``serve`` fixture lives in tests/conftest.py
+# (wrapping tests/_server_helpers.serve_factory).
 
 
 def fetch(url):
