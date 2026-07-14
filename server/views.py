@@ -375,8 +375,19 @@ BALANCED_BUILD_MAX_SPREAD = 1
 # the easter-egg badge. Sample: DeepDelver carries exactly 42 stone.
 THE_ANSWER_COUNT = 42
 
+# Homesteader: at least one of this structure built. Structure keys are
+# contractually OPEN (a countMap), so this reads one well-known key from
+# the contract prose's structure examples. Sample: DeepDelver (home 1)
+# and MagmaMaven (home 2) earn it; nobody else owns a home.
+HOMESTEADER_STRUCTURE = "home"
+
 # The full catalog, in display order. The frontend renders emoji badges
 # aria-hidden with the name as the text label.
+# Adding a badge is a FOUR-stop edit: a constant, this tuple, an
+# earned_achievements branch, and a sample earner in
+# data/sample_snapshot.json — tests/test_achievements.py's earner-union
+# gate (test_every_catalog_achievement_has_a_sample_earner) goes red
+# otherwise.
 ACHIEVEMENT_CATALOG = (
     {"id": "deep_diver", "name": "Deep Diver", "emoji": "🌋",
      "description": "record depth equals the world's max depth"},
@@ -393,6 +404,8 @@ ACHIEVEMENT_CATALOG = (
                      f"{BALANCED_BUILD_MAX_SPREAD} level of each other")},
     {"id": "the_answer", "name": "The Answer", "emoji": "🐬",
      "description": f"exactly {THE_ANSWER_COUNT} of one pack item"},
+    {"id": "homesteader", "name": "Homesteader", "emoji": "🏠",
+     "description": f"built a {HOMESTEADER_STRUCTURE} structure"},
 )
 
 
@@ -418,6 +431,8 @@ def earned_achievements(miner: dict, max_depth) -> list[str]:
     wears = _int_values(miner.get("gear_wear"))
     equipment = miner.get("equipment")
     equipment = equipment if isinstance(equipment, dict) else {}
+    structures = miner.get("structures")
+    structures = structures if isinstance(structures, dict) else {}
     earned = []
     if isinstance(miner.get("record_depth"), int) \
             and miner["record_depth"] == max_depth:
@@ -436,6 +451,9 @@ def earned_achievements(miner: dict, max_depth) -> list[str]:
         earned.append("balanced_build")
     if any(count == THE_ANSWER_COUNT for count in inventory):
         earned.append("the_answer")
+    if isinstance(structures.get(HOMESTEADER_STRUCTURE), int) \
+            and structures[HOMESTEADER_STRUCTURE] >= 1:
+        earned.append("homesteader")
     return earned
 
 
