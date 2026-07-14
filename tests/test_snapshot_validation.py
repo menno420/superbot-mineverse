@@ -356,6 +356,21 @@ def test_env_set_to_valid_fixture_is_served_on_both_read_routes(serve, monkeypat
     assert json.loads(body)["guild_id"] == LIVE_GUILD_ID
 
 
+def test_views_staleness_source_says_sample_vs_live(serve, monkeypatch):
+    # The frontend's stale-alarm-vs-demo-notice split rides on this key:
+    # committed sample → "sample", env-fed relay path → "live".
+    monkeypatch.delenv(ENV_SNAPSHOT_PATH, raising=False)
+    base = serve()
+    status, body = fetch(base + "/api/views")
+    assert status == 200
+    assert json.loads(body)["staleness"]["source"] == "sample"
+    monkeypatch.setenv(ENV_SNAPSHOT_PATH, str(VALID_LIVE_FIXTURE))
+    base = serve()
+    status, body = fetch(base + "/api/views")
+    assert status == 200
+    assert json.loads(body)["staleness"]["source"] == "live"
+
+
 def test_env_set_to_missing_file_is_an_honest_503(serve, monkeypatch, tmp_path):
     # A live feed that never arrived must NOT silently fall back to sample data.
     monkeypatch.setenv(ENV_SNAPSHOT_PATH, str(tmp_path / "never-written.json"))
