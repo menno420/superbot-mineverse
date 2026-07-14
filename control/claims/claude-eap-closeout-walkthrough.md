@@ -1,0 +1,1 @@
+- `claude/eap-closeout-walkthrough` · **ORDER 008 EAP final-day closeout walkthrough** — FINISH re-verification + docs/eap-closeout-walkthrough-2026-07-14.md (sections A–E, OWNER ACTIONS checklist) + docs-router link + heartbeat/outbox close-out summary · docs/, docs/AGENT_ORIENTATION.md, control/status.md, control/outbox.md, .sessions/, telemetry/ · 2026-07-14
