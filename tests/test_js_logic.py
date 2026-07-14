@@ -809,3 +809,34 @@ def test_seasonal_decor_spec_and_svg_reject_junk_quietly():
 def test_harness_reports_missing_function_clearly():
     with pytest.raises(RuntimeError, match="no top-level function"):
         js_call("noSuchFunctionAnywhere")
+
+
+# --- retryAfterText: the 429 backoff hint --------------------------------------
+
+
+def test_retry_after_text_formats_positive_integer_seconds():
+    # The relay forwards Retry-After verbatim (integer seconds per the
+    # write contract § Rate limits); a parseable value becomes the
+    # suffix sendAction appends to the rejection line.
+    ops = [
+        {"type": "call", "fn": "retryAfterText", "args": [value]}
+        for value in ["7", "1", "600", " 7 "]
+    ]
+    assert run_js_ops(ops) == [
+        " — retry in 7s", " — retry in 1s", " — retry in 600s",
+        " — retry in 7s",
+    ]
+
+
+def test_retry_after_text_rejects_absent_and_junk_with_empty_string():
+    # headers.get() returns null when the header is absent — the relay
+    # never invents one, so the hint must vanish, never guess. HTTP-date
+    # forms, negatives, zero, floats and junk all degrade the same way.
+    ops = [
+        {"type": "call", "fn": "retryAfterText", "args": [value]}
+        for value in [
+            None, "", "0", "-3", "7.5", "junk",
+            "Wed, 21 Oct 2026 07:28:00 GMT", "7s", "1e3", "0x07",
+        ]
+    ]
+    assert run_js_ops(ops) == [""] * 10

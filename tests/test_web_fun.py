@@ -211,6 +211,19 @@ def test_loading_banner_clears_before_render_raises_its_own(js):
         in js
 
 
+# --- 429 backoff hint (Retry-After → rejection line) ------------------------------------
+
+
+def test_send_action_reads_retry_after_on_429(js):
+    # The relay forwards Retry-After on 429 (tests/test_actions.py pins
+    # the allowlist); sendAction must actually READ it — gated on the
+    # status so no other rejection ever grows a header-derived suffix.
+    assert "function retryAfterText" in js
+    assert "res.status === 429" in js
+    assert 'retryAfterText(res.headers.get("Retry-After"))' in js
+    assert "`✗ ${data.reason_code}: ${data.message}${hint}`" in js
+
+
 # --- console greeting -----------------------------------------------------------------
 
 
