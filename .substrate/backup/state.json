@@ -7,7 +7,7 @@
     "soft_target_sessions": 50
   },
   "graduation_proposed": false,
-  "kit_version": "1.15.0",
+  "kit_version": "1.16.0",
   "last_compaction_session": 0,
   "mode": "guided",
   "mode_history": [],
@@ -15,18 +15,18 @@
   "planted_doc_hashes": {
     ".claude/CLAUDE.md": "757fe28ff15f053ea15774cf3831ada9dc98e198910a43f13c45de233ca7178f",
     ".session-journal.md": "dc0e5071cd79780336d70cdf8d14a4a329f93fe127b82f17e60716a1e9f82d1d",
-    "CONSTITUTION.md": "f0a2296e50da712e56bd4f7195f8fd7231078dc9b87b70b1265d6cd2d4f9e6de",
+    "CONSTITUTION.md": "9b324d6446a8f063f6376d832cd298ba623538f36d74018d754d720ac8b30b36",
     "control/README.md": "6dbe80e7a1cedd41e0144d3459457ff9c2dcdd7ab5be317da48404602b4c3070",
-    "control/claims/README.md": "c7809e83e61d15172187ed3213d924f89ecf561a2fb18ff318df95184417c3be",
+    "control/claims/README.md": "ba12a0e05ad591f24ee98e749699533ec46e6e6ec8f42705fc450e8e8b921e76",
     "control/inbox.md": "8fe4fe65fa5c91a50e249073535664faa7f0f8e5a2a3ac1fc232ce3567898575",
     "control/status.md": "57bf95013dd7daadef45eeb8ed1a038c68678de96a32fe6ba8c633667d6df6e7",
     "docs/AGENT_ORIENTATION.md": "8296a6c17ade354e415644877fbe63238e9ff262ef16357a356d106d703dc9ce",
     "docs/CAPABILITIES.md": "3ff607abc2607f212038ecf6d7f5aae2ebd1bc8b3e819d225eae4af91bc50ff8",
-    "docs/ROUTINES.md": "12d08fc7851a7690b695c7e5da1ad30fbff50505b84bad762820658ce94667ed",
-    "docs/SKILLS.md": "f9be63950aa46139ab9e0144f64cffcc49827a43cbf28ff82ce34ce93785753e",
+    "docs/ROUTINES.md": "46f097a522c4c7535f2b6e876706ceb4e1460c599808b0879673ae674419b14f",
+    "docs/SKILLS.md": "e0ec249d9d8e527a3d78e6a7ab5e3b0f18fe03552217d7dc735da568e121ec50",
     "docs/ai-project-workflow.md": "9e635f4b3b2957f1292b5537ef30913078b1dd52cc52bc1bfa6777648a005fc2",
     "docs/architecture.md": "4e842c354db117b28de888afe4152873de5be0a9391df40851ea1c60f53bf710",
-    "docs/collaboration-model.md": "9813a533b81339697d56465ac40f8b7a4ac702757e4b7e02df4298f24775475c",
+    "docs/collaboration-model.md": "5ec208a268b2b55544510593044a665a6ed76df1001e3b7311afd65521a24f92",
     "docs/current-state.md": "f46c6e62c0189975876ebb683182e8d85548fd1bbb94e5873d87ac66268608c7",
     "docs/decisions.md": "62a4bb65d06801649ac87c6469e53bd2aaddd24a31f442784812827a2b67740c",
     "docs/helper-policy.md": "afd203ca2d8d6a58fac69a84156fbf84f1bc4b6f08fc264ba793577cc3c5c85a",
@@ -34,9 +34,10 @@
     "docs/owner-profile.md": "18661dc5e10b5d73cc934f236aaf0f262100ab6287e84786e0949ecaed5097c3",
     "docs/ownership.md": "6a0f8fb11299f3cd9a5a49ff0b7a636ed9ad760564a5727f16b0217b2a9a841a",
     "docs/question-router.md": "92a041adae2f9c5c9045dc05f13cbd58d9f5560590f646bcc594388767872bc7",
+    "docs/reading-path.md": "4e156d8525732ca2a5cea176cf6190840f23bfb2c01237c4fb60496ae5c654ec",
     "docs/repo-navigation-map.md": "b43a2d93d6e9170f2999ba8dc04788c6b677ad61d0b5a2ea72271f5509879c75",
     "docs/runtime_contracts.md": "6493734575910825ef652502cc683fe5867c93c3c06345ec76ed2e722928d9b5",
-    "docs/seat-digest.md": "f027576a290d42a2b45b5fcbdca6e3f62f8b50e905c1466069f3627482457300",
+    "docs/seat-digest.md": "37e3ed091f3786492bfb3a877ae198e25d05ad0a8b12d8d991c274cf9536b608",
     "scripts/env-setup.sh": "cd2145129fcba288ff9399ad44146a09017d85813e282c16bcba22340b613a2c"
   },
   "project_id": "e4a11c56d846",
@@ -69,6 +70,21 @@
       "question_id": "Q-011",
       "source": "user",
       "value": "Source code wins over docs: when a doc contradicts merged code, fix the doc in the same session, note the correction in docs/current-state.md"
+    },
+    "fleet_dark_repos": {
+      "question_id": "Q-016",
+      "source": "user",
+      "value": "All fleet siblings are public and readable EXCEPT `pokemon-mod-lab` (private \u2014 raw-content fetches 404; never read it, never guess about it). Standing read authorization: superbot Q-0272."
+    },
+    "fleet_siblings": {
+      "question_id": "Q-015",
+      "source": "user",
+      "value": "Canonical roster (~19 repos): superbot `docs/fleet-reading-path.md` (repo map + reading tiers) and substrate-kit `docs/adopters.md` (per-adopter kit versions). Key rows \u2014 superbot: hub/production bot, truth: `docs/current-state.md` + `docs/fleet-reading-path.md` \u00b7 fleet-manager: manager seat, truth: `control/status.md` + inbox ORDERs \u00b7 substrate-kit: workflow kit, truth: `docs/adopters.md` + `CHANGELOG.md` \u00b7 superbot-next: rebuild target \u00b7 websites \u00b7 superbot-games \u00b7 trading-strategy \u00b7 gba-homebrew \u00b7 venture-lab \u00b7 idea-engine \u00b7 superbot-idle \u00b7 superbot-mineverse (this repo): each carries its truth in `control/status.md` (heartbeat) + `docs/current-state.md` \u00b7 pokemon-mod-lab: DARK (private, unreadable)."
+    },
+    "fleet_status_command": {
+      "question_id": "Q-014",
+      "source": "user",
+      "value": "Clone the hub repo `menno420/superbot` and run `python3.10 scripts/fleet_status.py` \u2014 per-seat heartbeat table + manager roster/owner-queue. Reading route: superbot `docs/fleet-reading-path.md` (canonical fleet map)."
     },
     "integration_mode": {
       "question_id": "Q-001",
@@ -125,6 +141,9 @@
     "architecture_layers": "filled",
     "doc_roots": "filled",
     "drift_resolution": "filled",
+    "fleet_dark_repos": "filled",
+    "fleet_siblings": "filled",
+    "fleet_status_command": "filled",
     "integration_mode": "filled",
     "mutation_seam": "filled",
     "new_area_ownership": "filled",
