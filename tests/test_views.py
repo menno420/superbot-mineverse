@@ -227,15 +227,52 @@ def test_minimap_has_a_panel_per_depth(snapshot, built):
 
 
 def test_minimap_plots_miners_at_their_band(built):
+    # The sample's depth-3 band is the demo's co-location case:
+    # DeepDelver and MagmaMaven share (4, -2) → ONE grouped point.
     by_depth = {panel["depth"]: panel for panel in built["minimap"]}
-    deep = by_depth[3]  # DeepDelver (4,-2) + MagmaMaven (-6,-6)
-    assert {p["name"] for p in deep["points"]} == {"DeepDelver", "MagmaMaven"}
-    delver = next(p for p in deep["points"] if p["name"] == "DeepDelver")
-    assert (delver["x"], delver["y"]) == (4, -2)
+    deep = by_depth[3]
+    assert deep["points"] == [
+        {"x": 4, "y": -2, "names": ["DeepDelver", "MagmaMaven"]},
+    ]
     assert deep["bounds"] == {
-        "min_x": -6, "max_x": 4, "min_y": -6, "max_y": -2,
+        "min_x": 4, "max_x": 4, "min_y": -2, "max_y": -2,
     }
     assert deep["unplotted"] == []
+    # A band without collisions still gets one single-name point each.
+    two = by_depth[2]  # SilverSeeker (-1,3) + GearGoblin (3,-4)
+    assert [p["names"] for p in two["points"]] == [
+        ["SilverSeeker"], ["GearGoblin"],
+    ]
+
+
+def test_minimap_groups_colocated_miners_into_one_point():
+    # Same (x, y) in the SAME band → one entry, names in snapshot order;
+    # a different cell stays its own point and still shapes the bounds.
+    miners = [
+        {"display_name": "A", "depth": 0, "position": {"x": 1, "y": 2}},
+        {"display_name": "B", "depth": 0, "position": {"x": 1, "y": 2}},
+        {"display_name": "C", "depth": 0, "position": {"x": 3, "y": 2}},
+    ]
+    panel = views.build_minimap(miners, 0, [])[0]
+    assert panel["points"] == [
+        {"x": 1, "y": 2, "names": ["A", "B"]},
+        {"x": 3, "y": 2, "names": ["C"]},
+    ]
+    assert panel["bounds"] == {
+        "min_x": 1, "max_x": 3, "min_y": 2, "max_y": 2,
+    }
+
+
+def test_minimap_same_cell_different_band_stays_separate():
+    # Co-location is per depth band — sharing (x, y) across bands is not
+    # a collision (the panels are separate plots).
+    miners = [
+        {"display_name": "Up", "depth": 0, "position": {"x": 1, "y": 1}},
+        {"display_name": "Down", "depth": 1, "position": {"x": 1, "y": 1}},
+    ]
+    panels = views.build_minimap(miners, 1, [])
+    assert panels[0]["points"] == [{"x": 1, "y": 1, "names": ["Up"]}]
+    assert panels[1]["points"] == [{"x": 1, "y": 1, "names": ["Down"]}]
 
 
 def test_minimap_lists_unplottable_miners_honestly():
@@ -245,7 +282,7 @@ def test_minimap_lists_unplottable_miners_honestly():
     ]
     panel = views.build_minimap(miners, 1, [])[1]
     assert panel["unplotted"] == ["Lost"]
-    assert [p["name"] for p in panel["points"]] == ["Found"]
+    assert [p["names"] for p in panel["points"]] == [["Found"]]
     assert panel["bounds"] == {
         "min_x": 5, "max_x": 5, "min_y": 5, "max_y": 5,
     }
