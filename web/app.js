@@ -27,6 +27,13 @@ function showBanner(message, isError) {
   banner.hidden = false;
 }
 
+function hideBanner() {
+  const banner = document.getElementById("status-banner");
+  banner.textContent = "";
+  banner.classList.remove("error");
+  banner.hidden = true;
+}
+
 function biomeName(depth, biomes) {
   // Plain biome name, no emoji — for surfaces that want text only
   // (e.g. the canvas share card, where emoji glyphs are unreliable).
@@ -1865,10 +1872,17 @@ async function boot() {
     String(today.getDate()).padStart(2, "0"),
   ].join("-"));
   let views = null;
+  // Until the snapshot resolves the page is header-only (every section
+  // ships hidden), so say what's happening through the same banner the
+  // error path uses.
+  showBanner("Loading snapshot…", false);
   try {
     const res = await fetch("/api/views");
     if (!res.ok) throw new Error(`API responded ${res.status}`);
     views = await res.json();
+    // Clear the loading line BEFORE render — render() raises its own
+    // banner for an empty snapshot, and that one must stay up.
+    hideBanner();
     render(views);
   } catch (err) {
     showBanner(`Snapshot unavailable — ${err.message}. Nothing to render.`, true);
