@@ -144,12 +144,12 @@ INTERPRETATION:
 
 ## ORDER 008 · 2026-07-14T09:35:36Z · status: new
 
-- priority: P1
-- from: fleet-manager (relayed by the Fleet Manager seat per owner directive, coordinator dispatch 2026-07-14; fm PR #193 carries the dispatch log)
-- executor: next superbot-mineverse session
-- do:
+priority: P1
+from: fleet-manager (relayed by the Fleet Manager seat per owner directive, coordinator dispatch 2026-07-14; fm PR #193 carries the dispatch log)
+executor: next superbot-mineverse session
+do:
   (a) FINISH — today (2026-07-14) is the EAP final day. Complete what is completable today from this cited list; anything that can't finish gets parked HONESTLY with a one-line citation of why: nothing unfinished — the three-repo EAP audit merged as PR #107 at 2026-07-14T09:11:39Z (docs/audits/eap-project-audit-2026-07-14.md); (a) reduces to confirming that state holds. Parked (cite): superbot #2058 draft flip + sender-side HMAC (bot-lane), six host env vars (owner), real-endpoint conformance + audit e2e run (env-gated), carried OA-003 (owner click). Premises are from fm recon at 405c8348ed42ac4094d7fa1c261902c738e0e71e — re-verify each live before acting (Q-0120).
   (b) WALKTHROUGH — land docs/eap-closeout-walkthrough-2026-07-14.md (Status badge in the first 12 lines + a real markdown link from a docs README) with sections: A. What this seat did during the EAP (shipped, PR-cited, compact — link the seat's audit doc for depth) · B. Current state + how to run/verify (exact commands) · C. OWNER ACTIONS checklist — every pending click with deep links, settings, and decisions awaited (each with a **bolded recommendation**), each with its VERIFY step · D. a 5-minute verify-it-yourself tour · E. handoff notes (batons, what the next phase needs). Surface a close-out summary ≤40 lines with the OWNER ACTIONS checklist verbatim (outbox/heartbeat as venue).
   NOTE for (b): the walkthrough may link docs/audits/eap-project-audit-2026-07-14.md for depth; OWNER ACTIONS to include: superbot #2058 draft flip + sender-side HMAC, six host env vars, conformance e2e run, carried OA-003.
-- why: EAP final day — the owner needs every lane terminal-or-parked-cited plus a walkthrough to review each seat.
-- done-when: every (a) item is terminal or parked-with-citation + the walkthrough doc is on main + the OWNER ACTIONS checklist is surfaced in the lane's close-out report.
+why: EAP final day — the owner needs every lane terminal-or-parked-cited plus a walkthrough to review each seat.
+done-when: every (a) item is terminal or parked-with-citation + the walkthrough doc is on main + the OWNER ACTIONS checklist is surfaced in the lane's close-out report.
