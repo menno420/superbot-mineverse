@@ -586,13 +586,20 @@ def parse_generated_at(value) -> int | None:
     return int(parsed.timestamp())
 
 
-def build_staleness(snapshot: dict) -> dict:
+def build_staleness(snapshot: dict, source: str = "sample") -> dict:
     """Staleness metadata for the header — age math stays CLIENT-side.
 
     The server only translates ``generated_at`` to epoch seconds and ships
     the contract-prose thresholds; the frontend compares against its own
     clock at render time (no live ticking).  ``generated_at_epoch`` is
     None when the timestamp is unknown, and the frontend must say so.
+
+    ``source`` names where the snapshot bytes came from — ``"sample"``
+    (the committed demo file, the default) or ``"live"`` (a
+    host-configured relay path; server/app.py decides by comparing its
+    snapshot path against the committed sample's). The frontend uses it
+    to tell "demo data is old by design" apart from "the live relay went
+    quiet" — only the latter deserves the STALE alarm.
     """
     generated_at = snapshot.get("generated_at")
     return {
@@ -600,11 +607,16 @@ def build_staleness(snapshot: dict) -> dict:
         "generated_at_epoch": parse_generated_at(generated_at),
         "cadence_seconds": SNAPSHOT_CADENCE_SECONDS,
         "stale_after_seconds": STALE_AFTER_SECONDS,
+        "source": source,
     }
 
 
-def build_views(snapshot: dict) -> dict:
-    """The whole derived read projection served by ``GET /api/views``."""
+def build_views(snapshot: dict, source: str = "sample") -> dict:
+    """The whole derived read projection served by ``GET /api/views``.
+
+    ``source`` is threaded into the staleness block untouched — see
+    :func:`build_staleness`.
+    """
     miners_raw = snapshot.get("miners")
     miners = [m for m in miners_raw if isinstance(m, dict)] \
         if isinstance(miners_raw, list) else []
@@ -621,7 +633,7 @@ def build_views(snapshot: dict) -> dict:
         "world": {"max_depth": max_depth, "biomes": biomes},
         "slots": equipment_slots(),
         "miners": [shape_miner(m) for m in miners],
-        "staleness": build_staleness(snapshot),
+        "staleness": build_staleness(snapshot, source),
         "ladder": build_ladder(miners, max_depth, biomes),
         "minimap": build_minimap(miners, max_depth, biomes),
         "leaderboards": build_leaderboards(miners),

@@ -308,6 +308,23 @@ def test_staleness_block_unknown_timestamp_is_honest():
     assert garbled["generated_at_epoch"] is None  # but age stays unknown
 
 
+def test_staleness_source_defaults_to_sample(snapshot):
+    # The committed demo file is the default data source everywhere the
+    # host doesn't say otherwise — so "sample" is the honest default.
+    assert views.build_staleness(snapshot)["source"] == "sample"
+    assert views.build_views(snapshot)["staleness"]["source"] == "sample"
+
+
+def test_staleness_source_live_is_threaded_through(snapshot):
+    assert views.build_staleness(snapshot, "live")["source"] == "live"
+    live = views.build_views(snapshot, source="live")
+    assert live["staleness"]["source"] == "live"
+    # source changes NOTHING else in the staleness block — additive key.
+    sample = views.build_views(snapshot)["staleness"]
+    trimmed = {k: v for k, v in live["staleness"].items() if k != "source"}
+    assert trimmed == {k: v for k, v in sample.items() if k != "source"}
+
+
 # --- gear panel ----------------------------------------------------------
 
 

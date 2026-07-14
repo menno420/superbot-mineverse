@@ -4,7 +4,8 @@ Same style as tests/test_web_a11y.py / test_web_visuals.py: one real
 server, substring asserts on the served files. Pins the achievements
 section, the Konami diamond rain (and its reduced-motion gate), the
 Tool Fondler toast + live region, the idle 💤 state, the miner VS view,
-the console greeting and the cave-art 404 page — plus the rule that
+the console greeting, the boot loading banner and the cave-art 404
+page — plus the rule that
 every JS-driven animation routes through the ONE prefersReducedMotion()
 gate.
 """
@@ -120,6 +121,16 @@ def test_idle_state_pins(js):
     assert 'visuallyHidden("span", " (idle)")' in js
 
 
+def test_sample_source_gets_neutral_notice_not_the_stale_alarm(js):
+    # staleness.source === "sample" (committed demo file) → a neutral
+    # notice instead of the permanent false STALE alarm, and the 💤 idle
+    # marks stay off (snapshotIsStale short-circuits false). BOTH
+    # consumers must check the source — header line + card idle check.
+    assert js.count('staleness?.source === "sample"') == 2
+    assert "committed sample data — live relay not connected" in js
+    assert 'line.classList.add("sample");' in js
+
+
 def test_staleness_fallbacks_match_views_constants(js):
     # Drift guard: the frontend's `?? N` staleness fallbacks (header
     # staleness line + snapshotIsStale card idle check) carry the SAME
@@ -178,6 +189,26 @@ def test_vs_bars_are_decorative_and_values_stay_text(js):
 def test_vs_honest_states(js):
     assert '"Pick two miners above to compare them."' in js
     assert "a miner always ties with themself" in js
+
+
+# --- boot loading state ----------------------------------------------------------------
+
+
+def test_boot_raises_a_loading_banner_before_the_snapshot_fetch(js):
+    # Until /api/views resolves the page is header-only (every section
+    # ships hidden) — boot() must say so through the status banner.
+    assert 'showBanner("Loading snapshot…", false);' in js
+    assert js.index('showBanner("Loading snapshot…", false);') \
+        < js.index('fetch("/api/views")')
+
+
+def test_loading_banner_clears_before_render_raises_its_own(js):
+    assert "function hideBanner" in js
+    # Cleared once the snapshot is in hand, BEFORE render() — whose
+    # no-miners banner must not be clobbered by the teardown.
+    assert "hideBanner();\n    render(views);" in js
+    assert 'showBanner("Snapshot loaded, but it contains no miners.", false);' \
+        in js
 
 
 # --- console greeting -----------------------------------------------------------------

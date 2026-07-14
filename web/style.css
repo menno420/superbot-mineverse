@@ -108,6 +108,7 @@ h2 { border-bottom: 1px solid var(--edge); padding-bottom: 0.3rem; }
 .staleness.fresh { color: #6cc46c; }
 .staleness.warn { color: var(--accent); }
 .staleness.stale { color: #ffb4a6; font-weight: 600; }
+.staleness.sample { color: var(--muted); font-style: italic; }
 
 /* depth race */
 .race-row {

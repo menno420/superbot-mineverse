@@ -27,6 +27,13 @@ function showBanner(message, isError) {
   banner.hidden = false;
 }
 
+function hideBanner() {
+  const banner = document.getElementById("status-banner");
+  banner.textContent = "";
+  banner.classList.remove("error");
+  banner.hidden = true;
+}
+
 function biomeName(depth, biomes) {
   // Plain biome name, no emoji — for surfaces that want text only
   // (e.g. the canvas share card, where emoji glyphs are unreliable).
@@ -728,7 +735,15 @@ function renderStaleness(staleness) {
   // docs/mining-data-contract.md § Delivery expectations).
   const line = document.getElementById("snapshot-staleness");
   line.hidden = false;
-  line.classList.remove("fresh", "warn", "stale");
+  line.classList.remove("fresh", "warn", "stale", "sample");
+  if (staleness?.source === "sample") {
+    // The committed demo file is old BY DESIGN — the STALE alarm would
+    // be a permanent false positive. Name the situation instead.
+    line.classList.add("sample");
+    line.textContent =
+      "committed sample data — live relay not connected";
+    return;
+  }
   const epoch = staleness?.generated_at_epoch;
   if (typeof epoch !== "number") {
     line.classList.add("warn");
@@ -904,6 +919,9 @@ function snapshotIsStale(staleness) {
   // the browser clock once at render time, never ticked forward. An
   // unknown timestamp reads as NOT stale — the header already announces
   // "age unknown" honestly, so the cards don't pile on a guess.
+  // Sample data is old by design (see renderStaleness) — the demo's
+  // miners are not "idle", so the 💤 marks stay off entirely.
+  if (staleness?.source === "sample") return false;
   const epoch = staleness?.generated_at_epoch;
   if (typeof epoch !== "number") return false;
   const age = Math.floor(Date.now() / 1000) - epoch;
@@ -1854,10 +1872,17 @@ async function boot() {
     String(today.getDate()).padStart(2, "0"),
   ].join("-"));
   let views = null;
+  // Until the snapshot resolves the page is header-only (every section
+  // ships hidden), so say what's happening through the same banner the
+  // error path uses.
+  showBanner("Loading snapshot…", false);
   try {
     const res = await fetch("/api/views");
     if (!res.ok) throw new Error(`API responded ${res.status}`);
     views = await res.json();
+    // Clear the loading line BEFORE render — render() raises its own
+    // banner for an empty snapshot, and that one must stay up.
+    hideBanner();
     render(views);
   } catch (err) {
     showBanner(`Snapshot unavailable — ${err.message}. Nothing to render.`, true);
