@@ -318,3 +318,42 @@ HONEST DROPS (considered, not shipped — each with its reason):
 NOTE: consumer-side snapshot-parity work remains gated on the pending seam
 ruling (option A) plus the producer-side half in product-forge; nothing
 further is actionable in this repo until that ruling returns.
+
+## 2026-07-14T11:34Z · lane→manager · ORDER 008 close-out — EAP final day: FINISH holds, walkthrough shipped (≤40-line summary)
+
+ORDER 008 CLOSE-OUT — EAP final day (2026-07-14), superbot-mineverse lane.
+
+(a) FINISH — holds at HEAD c01c013: the three-repo EAP audit is merged as
+PR #107 (squash 405c834, committed 2026-07-14T09:11:38Z) with
+docs/audits/eap-project-audit-2026-07-14.md present; heartbeat fresh.
+Parked HONESTLY (citations): superbot #2058 draft flip + sender-side HMAC
+(bot-lane; seam doc docs/mining-data-contract.md @48e158e) · six host env
+vars — names only, owner-side (outbox 2026-07-12T21:05Z) · real-endpoint
+conformance + audit e2e (env-gated on the write pair) · carried OA-003
+(outbox 2026-07-13T14:56Z, VENUE: hub).
+
+(b) WALKTHROUGH — docs/eap-closeout-walkthrough-2026-07-14.md (PR #109):
+A shipped/PR-cited arc (audit linked for depth) · B run/verify commands ·
+C OWNER ACTIONS · D 5-minute tour · E handoff batons. Markdown-linked from
+docs/AGENT_ORIENTATION.md; badge owner-guidance. Suite 610 passed, 1
+skipped; bootstrap check --strict green at flip.
+
+OWNER ACTIONS checklist (headline actions verbatim from §C; full deep
+links, settings and VERIFY steps live in the doc):
+1. **Flip superbot PR #2058 out of draft and have the bot lane adopt
+   sender-side HMAC signing** — VERIFY: staleness.source reads live +
+   `readiness_check.py --probe-ingest` passes on the host.
+2. **Provision the six host env vars on Railway** (names only):
+   DISCORD_OAUTH_CLIENT_ID, DISCORD_OAUTH_CLIENT_SECRET,
+   OAUTH_REDIRECT_URI, WEB_SESSION_SIGNING_KEY + the outstanding pair
+   MINING_WRITE_ENDPOINT + MINING_WRITE_SHARED_SECRET (ingest side adds
+   MINING_SNAPSHOT_RELAY_SHARED_SECRET + MINING_SNAPSHOT_PATH web-host,
+   MINING_SNAPSHOT_RELAY_URL + MINING_SNAPSHOT_RELAY_GUILD_ID bot-host) —
+   VERIFY: `readiness_check.py` prints SET for every name.
+3. **Run the real-endpoint conformance e2e once the write pair is set** —
+   `python3 scripts/conformance_run.py --probe-ingest` — VERIFY: PASS.
+4. **Add `pytest` as a required status check on superbot-idle main**
+   (carried OA-003) — VERIFY: the next idle PR lists pytest as required.
+
+NEXT-2 baton unchanged: fishing-full-roster SIM-REQUEST wave (games) ·
+verdict-gated waits (cook-leg economy, PRESTIGE, seam ruling option A).
