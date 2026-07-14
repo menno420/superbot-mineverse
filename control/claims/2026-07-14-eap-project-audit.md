@@ -1,0 +1,1 @@
+- `claude/eap-project-audit` · **EAP close-out audit** — seat-wide three-repo EAP project audit doc + card + heartbeat · docs/audits/, docs/AGENT_ORIENTATION.md, .sessions/, telemetry/, control/status.md · 2026-07-14
