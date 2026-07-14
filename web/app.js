@@ -1737,6 +1737,18 @@ function showActionResult(text, isError) {
   line.hidden = false;
 }
 
+function retryAfterText(headerValue) {
+  // Retry-After on a 429 is integer seconds (write contract § Rate
+  // limits) and the relay never invents one — so anything absent or
+  // non-integer means no hint, never a guess. Pure: string|null in,
+  // suffix (or "") out.
+  if (typeof headerValue !== "string" || !/^\d+$/.test(headerValue.trim())) {
+    return "";
+  }
+  const seconds = Number(headerValue.trim());
+  return seconds > 0 ? ` — retry in ${seconds}s` : "";
+}
+
 async function sendAction(action, params) {
   showActionResult(`${action}…`, false);
   try {
@@ -1750,7 +1762,13 @@ async function sendAction(action, params) {
       showActionResult(
         `✓ ${data.message}${data.replayed ? " (replayed)" : ""}`, false);
     } else if (data && data.status === "rejected") {
-      showActionResult(`✗ ${data.reason_code}: ${data.message}`, true);
+      // On 429 the relay forwards the executor's Retry-After header
+      // (integer seconds — same-origin fetch, so readable directly);
+      // when it parses, the rejection line gains the backoff hint.
+      const hint = res.status === 429
+        ? retryAfterText(res.headers.get("Retry-After"))
+        : "";
+      showActionResult(`✗ ${data.reason_code}: ${data.message}${hint}`, true);
     } else if (data && data.error) {
       showActionResult(`✗ ${data.error}`, true);
     } else {
