@@ -484,30 +484,37 @@ function hatsByName(hats) {
   return byName;
 }
 
+function pixelSVGShell(viewBox, width, height, inner, crisp = true) {
+  // THE shared shell for the hand-rolled pixel-art icons — one place
+  // owns `focusable="false"` (a fifth icon can never forget it) and the
+  // default crispEdges pixel look. `crisp = false` is for the one
+  // smooth-stroke mark (crackedIconSVG) that never shipped crispEdges;
+  // byte-for-byte equivalent to the four literals it replaced.
+  return `<svg viewBox="${viewBox}" width="${width}" height="${height}" ` +
+    (crisp ? `shape-rendering="crispEdges" ` : ``) +
+    `focusable="false">` + inner + `</svg>`;
+}
+
 function minerAvatarSVG(hat) {
   // Pixel-style miner (helmet, face, overalls) for the depth shaft.
   // Grid is 8×10: rows 0–1 are hat headroom, row 2 the base helmet row
   // (server/views.py HAT_GRID_WIDTH/HEIGHT pin the same numbers). The
   // optional server-derived cosmetic hat draws AFTER the base so its
   // pixels layer on top.
-  return `<svg viewBox="0 0 8 10" width="12" height="15" ` +
-    `shape-rendering="crispEdges" focusable="false">` +
+  return pixelSVGShell("0 0 8 10", 12, 15,
     `<rect x="2" y="2" width="4" height="1" fill="#f5a83c"/>` +
     `<rect x="2" y="3" width="4" height="2" fill="#e8c9a0"/>` +
     `<rect x="1" y="5" width="6" height="3" fill="#4a6fa5"/>` +
     `<rect x="2" y="8" width="1" height="2" fill="#3a3350"/>` +
     `<rect x="5" y="8" width="1" height="2" fill="#3a3350"/>` +
-    hatSVGRects(hat ? hat.pixels : null) +
-    `</svg>`;
+    hatSVGRects(hat ? hat.pixels : null));
 }
 
 function recordFlagSVG() {
   // Marker flag planted at a record-depth band.
-  return `<svg viewBox="0 0 8 10" width="10" height="12" ` +
-    `shape-rendering="crispEdges" focusable="false">` +
+  return pixelSVGShell("0 0 8 10", 10, 12,
     `<rect x="1" y="0" width="1" height="10" fill="#a79fc0"/>` +
-    `<polygon points="2,0 8,2 2,4" fill="#e2543e"/>` +
-    `</svg>`;
+    `<polygon points="2,0 8,2 2,4" fill="#e2543e"/>`);
 }
 
 function vaultChestSVG(level, levelMax) {
@@ -549,10 +556,12 @@ function lanternSVG(fraction) {
 
 function crackedIconSVG() {
   // Broken-gear crack mark (shown only at/over the wear display cap).
-  return `<svg viewBox="0 0 8 10" width="9" height="11" focusable="false">` +
+  // crisp=false: the crack is a smooth diagonal stroke and has never
+  // shipped crispEdges — keeping the bytes identical is the point.
+  return pixelSVGShell("0 0 8 10", 9, 11,
     `<polyline points="4,0 2.5,4 5.5,5.5 3,10" fill="none" ` +
-    `stroke="#e2543e" stroke-width="1.4"/>` +
-    `</svg>`;
+    `stroke="#e2543e" stroke-width="1.4"/>`,
+    false);
 }
 
 /* --- seasonal decorations (date-keyed cosmetic layer, backlog item 6) ----
@@ -691,8 +700,7 @@ function seasonalDecorSVG(spec) {
   if (!spec || !Array.isArray(spec.pixels)) return "";
   const rects = hatSVGRects(spec.pixels);
   if (!rects) return "";
-  return `<svg viewBox="0 0 10 10" width="15" height="15" ` +
-    `shape-rendering="crispEdges" focusable="false">` + rects + `</svg>`;
+  return pixelSVGShell("0 0 10 10", 15, 15, rects);
 }
 
 function applySeasonalDecor(isoDate) {
