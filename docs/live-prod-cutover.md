@@ -48,7 +48,10 @@ unchecked box anywhere on this list means stage d does not start.
   unset (CI, fresh clones) the suite is hermetic and the
   conformance-vs-real-endpoint smoke test skips with an honest reason —
   CI never needs a secret. One-command wrapper for this whole sweep
-  (env check + unsigned probe + pytest + PASS/FAIL verdict):
+  (env check + unsigned probe + pytest + PASS/FAIL verdict; with
+  `--probe-ingest`, also the FLAG-1 ingest-route leg — same 401/503
+  handshake as `readiness_check.py --probe-ingest`, skipped when
+  `MINING_SNAPSHOT_RELAY_URL` is unset, never failed):
   `python3 scripts/conformance_run.py` — one-page runbook:
   `docs/conformance-runbook.md`.
 - [ ] **pytest is a required (blocking) status check on main's ruleset.**
