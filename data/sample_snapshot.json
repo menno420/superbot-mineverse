@@ -83,7 +83,7 @@
       "display_name": "MagmaMaven",
       "depth": 3,
       "record_depth": 3,
-      "position": {"x": -6, "y": -6},
+      "position": {"x": 4, "y": -2},
       "energy": {"current": 2, "updated_at": 1783727000},
       "coins": 25990,
       "xp": {"game": "mining", "game_total": 5810, "shared_total": 11240, "level": 16},

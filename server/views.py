@@ -303,8 +303,10 @@ def build_inventory_matrix(miners: list) -> dict:
 def build_minimap(miners: list, max_depth: int, biomes: list) -> list[dict]:
     """Position mini-map: one panel per depth band 0..max_depth.
 
-    Each panel carries ``points`` (``{name, x, y}`` for every miner at the
-    band whose position shapes cleanly), ``unplotted`` (names at the band
+    Each panel carries ``points`` (``{x, y, names: [...]}`` — ONE entry
+    per occupied cell; miners sharing an (x, y) in the band are grouped
+    into that cell's ``names`` list, in snapshot order, so co-located
+    miners can never overlap invisibly), ``unplotted`` (names at the band
     whose position is missing or malformed — listed honestly, never
     silently dropped) and integer plot ``bounds`` (min/max of x and y over
     the band's points; None when nothing plots, so the frontend shows an
@@ -314,6 +316,7 @@ def build_minimap(miners: list, max_depth: int, biomes: list) -> list[dict]:
     for depth in range(max_depth + 1):
         biome = biomes[depth] if depth < len(biomes) else f"depth {depth}"
         points, unplotted = [], []
+        occupied = {}  # (x, y) -> the cell's points entry
         for miner in miners:
             if miner.get("depth") != depth:
                 continue
@@ -321,8 +324,14 @@ def build_minimap(miners: list, max_depth: int, biomes: list) -> list[dict]:
             position = shape_position(miner)
             if position is None:
                 unplotted.append(name)
-            else:
-                points.append({"name": name, **position})
+                continue
+            cell = (position["x"], position["y"])
+            entry = occupied.get(cell)
+            if entry is None:
+                entry = {**position, "names": []}
+                occupied[cell] = entry
+                points.append(entry)
+            entry["names"].append(name)
         if points:
             xs = [p["x"] for p in points]
             ys = [p["y"] for p in points]

@@ -1230,14 +1230,21 @@ function minimapPlot(panel) {
   const spanX = (panel.bounds.max_x - panel.bounds.min_x) + 2 * MINIMAP_PAD;
   const spanY = (panel.bounds.max_y - panel.bounds.min_y) + 2 * MINIMAP_PAD;
   for (const point of panel.points) {
+    // point.names lists EVERY miner in this cell (server-grouped) — one
+    // dot per occupied cell, so co-located miners can't overlap unseen.
+    const who = point.names.join(", ");
     const dot = el("span", "minimap-point");
     dot.style.left =
       `${(((point.x - panel.bounds.min_x) + MINIMAP_PAD) / spanX) * 100}%`;
     dot.style.top =
       `${(((point.y - panel.bounds.min_y) + MINIMAP_PAD) / spanY) * 100}%`;
-    dot.title = `${point.name} at (${point.x}, ${point.y})`;
+    dot.title = `${who} at (${point.x}, ${point.y})`;
+    if (point.names.length > 1) {
+      dot.appendChild(
+        el("span", "minimap-count", `×${point.names.length}`));
+    }
     dot.appendChild(
-      el("span", "minimap-name", `${point.name} (${point.x}, ${point.y})`));
+      el("span", "minimap-name", `${who} (${point.x}, ${point.y})`));
     plot.appendChild(dot);
   }
   return plot;
@@ -1259,8 +1266,10 @@ function renderMinimap(minimap) {
       body.appendChild(decorative(minimapPlot(panel)));
       const alt = visuallyHidden("ul");
       for (const point of points) {
+        // Every co-located name lands in the text alternative too.
         alt.appendChild(
-          el("li", null, `${point.name} at (${point.x}, ${point.y})`));
+          el("li", null,
+            `${point.names.join(", ")} at (${point.x}, ${point.y})`));
       }
       body.appendChild(alt);
     } else {
