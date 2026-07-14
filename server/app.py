@@ -313,15 +313,12 @@ class MineverseHandler(SimpleHTTPRequestHandler):
         anything else) is rejected outright so no client input can ever
         reach the identity fields of the proposal.
         """
+        body = self._read_bounded_body(MAX_ACTION_BODY_BYTES)
+        if body is None:
+            return None
         try:
-            length = int(self.headers.get("Content-Length") or 0)
+            request = json.loads(body)
         except ValueError:
-            return None
-        if not 0 < length <= MAX_ACTION_BODY_BYTES:
-            return None
-        try:
-            request = json.loads(self.rfile.read(length))
-        except (OSError, ValueError):
             return None
         if not isinstance(request, dict):
             return None
@@ -334,6 +331,45 @@ class MineverseHandler(SimpleHTTPRequestHandler):
         if not isinstance(request["params"], dict):
             return None
         return request
+
+    def _read_bounded_body(self, max_bytes: int, *, errors=None) -> bytes | None:
+        """THE one bounded POST-body reader: parse ``Content-Length``,
+        bounds-check BEFORE reading a byte, then read exactly that many.
+
+        Both POST routes (``/api/action``, ``/api/snapshot/ingest``) come
+        through here so a third route can never hand-roll a subtly
+        different copy. ``errors`` selects the error emission:
+
+        * ``None`` (quiet — the action path): any length problem returns
+          ``None`` with nothing sent, and the caller folds every failure
+          into its own single 400.
+        * ``(bad_length, too_large)`` (emitting — the ingest path): a
+          bad/absent/non-positive length answers ``400 {"error":
+          bad_length}``, an oversized one ``413 {"error": too_large}`` —
+          both BEFORE the body is drained, deliberately: a client still
+          streaming may see a broken pipe instead of the status
+          (tests/test_snapshot_ingest.py pins that trade-off).
+
+        A read failure (client vanished mid-body) returns ``None`` with
+        nothing extra sent in either mode — the quiet caller's folded 400
+        dies on the closed socket, the emitting caller answers nothing.
+        """
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            length = 0  # bogus header == absent: same rejection below
+        if length <= 0:
+            if errors is not None:
+                self._send_json(400, {"error": errors[0]})
+            return None
+        if length > max_bytes:
+            if errors is not None:
+                self._send_json(413, {"error": errors[1]})
+            return None
+        try:
+            return self.rfile.read(length)
+        except OSError:
+            return None
 
     # --- snapshot ingest (FLAG 1 receive side — degraded by default) ------
 
@@ -376,21 +412,12 @@ class MineverseHandler(SimpleHTTPRequestHandler):
             )
             self._send_json(503, {"error": "snapshot ingest not configured"})
             return
-        try:
-            length = int(self.headers.get("Content-Length") or 0)
-        except ValueError:
-            self._send_json(400, {"error": "invalid content length"})
-            return
-        if length <= 0:
-            self._send_json(400, {"error": "invalid content length"})
-            return
-        if length > ingest.MAX_SNAPSHOT_BODY_BYTES:
-            self._send_json(413, {"error": "snapshot too large"})
-            return
-        try:
-            body = self.rfile.read(length)
-        except OSError:
-            return  # client vanished mid-body; nothing to answer
+        body = self._read_bounded_body(
+            ingest.MAX_SNAPSHOT_BODY_BYTES,
+            errors=("invalid content length", "snapshot too large"),
+        )
+        if body is None:
+            return  # bounds already answered (400/413), or client vanished
         problem = actions.verify(
             config.secret,
             "POST",

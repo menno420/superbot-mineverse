@@ -45,7 +45,7 @@ def test_catalog_ids_are_ordered_and_unique():
     ids = [entry["id"] for entry in views.ACHIEVEMENT_CATALOG]
     assert ids == [
         "deep_diver", "packrat", "coin_magnate", "fully_geared",
-        "tool_breaker", "balanced_build", "the_answer",
+        "tool_breaker", "balanced_build", "the_answer", "homesteader",
     ]
     assert len(set(ids)) == len(ids)
 
@@ -65,6 +65,7 @@ def test_thresholds_are_the_documented_values():
     assert views.BALANCED_BUILD_MIN_SKILLS == 2
     assert views.BALANCED_BUILD_MAX_SPREAD == 1
     assert views.THE_ANSWER_COUNT == 42
+    assert views.HOMESTEADER_STRUCTURE == "home"
 
 
 # --- Deep Diver: record_depth == max_depth ------------------------------------
@@ -267,6 +268,39 @@ def test_the_answer_is_pack_only_not_vault():
     assert "the_answer" not in earned({"vault": {"gold": 42}})
 
 
+# --- Homesteader: at least one home structure ----------------------------------
+
+
+def test_homesteader_boundary():
+    assert "homesteader" in earned({"structures": {"home": 1}})
+    assert "homesteader" in earned({"structures": {"home": 2}})
+    assert "homesteader" not in earned({"structures": {"home": 0}})
+
+
+def test_homesteader_only_the_home_structure_counts():
+    assert "homesteader" not in earned(
+        {"structures": {"forge": 4, "campfire": 1, "dock": 1}})
+
+
+def test_homesteader_missing_or_malformed_structures():
+    assert "homesteader" not in earned({})
+    assert "homesteader" not in earned({"structures": {}})
+    assert "homesteader" not in earned({"structures": "cosy"})
+    assert "homesteader" not in earned({"structures": {"home": "yes"}})
+    assert "homesteader" not in earned({"structures": {"home": None}})
+
+
+def test_homesteader_sample_earners_are_deep_delver_and_magma_maven(snapshot):
+    # The committed sample already houses two homeowners — DeepDelver
+    # (home 1) and MagmaMaven (home 2) — so this badge landed with zero
+    # sample-data edits; everyone else stays homeless.
+    homeowners = {"DeepDelver", "MagmaMaven"}
+    for miner in snapshot["miners"]:
+        expected = miner["display_name"] in homeowners
+        assert ("homesteader" in earned(miner)) is expected, \
+            miner["display_name"]
+
+
 # --- degraded miners earn nothing, never crash -------------------------------------
 
 
@@ -290,11 +324,11 @@ def test_malformed_miner_earns_nothing():
 
 
 SAMPLE_WINNERS = {
-    "DeepDelver": ["deep_diver", "coin_magnate", "the_answer"],
+    "DeepDelver": ["deep_diver", "coin_magnate", "the_answer", "homesteader"],
     "SilverSeeker": ["packrat", "balanced_build"],
     "CavernCrawler": ["packrat"],
     "PebblePicker": [],  # honest zero-state
-    "MagmaMaven": ["deep_diver", "coin_magnate"],
+    "MagmaMaven": ["deep_diver", "coin_magnate", "homesteader"],
     "GearGoblin": ["fully_geared"],
     "RustyRelic": ["tool_breaker"],
 }
