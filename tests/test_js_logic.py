@@ -442,6 +442,21 @@ def test_share_card_lines_text_shaping():
 # ONLY new frontend logic — spec → markup, and views.hats → name join.
 
 
+def test_pixel_svg_shell_is_the_one_shared_icon_shell():
+    # THE shared shell (minerAvatarSVG / recordFlagSVG / crackedIconSVG /
+    # seasonalDecorSVG all route through it): crispEdges by default,
+    # focusable="false" unforgeable, crisp=false drops ONLY crispEdges —
+    # the exact bytes the four hand-rolled literals used to ship.
+    assert js_call("pixelSVGShell", "0 0 8 10", 12, 15, "<inner/>") == (
+        '<svg viewBox="0 0 8 10" width="12" height="15" '
+        'shape-rendering="crispEdges" focusable="false"><inner/></svg>'
+    )
+    assert js_call("pixelSVGShell", "0 0 8 10", 9, 11, "<inner/>", False) == (
+        '<svg viewBox="0 0 8 10" width="9" height="11" '
+        'focusable="false"><inner/></svg>'
+    )
+
+
 def test_hat_svg_rects_renders_valid_pixels_in_order():
     pixels = [[2, 1, 4, 1, "#f5c842"], [1, 2, 6, 1, "#f5c842"]]
     assert js_call("hatSVGRects", pixels) == (
