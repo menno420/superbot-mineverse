@@ -33,6 +33,15 @@ def test_js_applies_band_tint_classes(js):
     assert "`minimap-band ${bandTintClass(panel.depth)}`" in js
 
 
+def test_minimap_colocation_badge_is_wired(js, css):
+    # Co-located miners (server-grouped {x, y, names}) draw ONE dot with
+    # a ×N badge; every name reaches the title/label/alt-list text.
+    assert 'el("span", "minimap-count", `×${point.names.length}`)' in js
+    assert "if (point.names.length > 1)" in js
+    assert 'const who = point.names.join(", ");' in js
+    assert ".minimap-count" in css
+
+
 def test_css_ships_lantern_flicker_keyframes(css):
     assert "@keyframes lantern-flicker" in css
     assert "animation: lantern-flicker" in css
