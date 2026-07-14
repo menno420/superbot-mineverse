@@ -4,7 +4,8 @@ Same style as tests/test_web_a11y.py / test_web_visuals.py: one real
 server, substring asserts on the served files. Pins the achievements
 section, the Konami diamond rain (and its reduced-motion gate), the
 Tool Fondler toast + live region, the idle 💤 state, the miner VS view,
-the console greeting and the cave-art 404 page — plus the rule that
+the console greeting, the boot loading banner and the cave-art 404
+page — plus the rule that
 every JS-driven animation routes through the ONE prefersReducedMotion()
 gate.
 """
@@ -178,6 +179,26 @@ def test_vs_bars_are_decorative_and_values_stay_text(js):
 def test_vs_honest_states(js):
     assert '"Pick two miners above to compare them."' in js
     assert "a miner always ties with themself" in js
+
+
+# --- boot loading state ----------------------------------------------------------------
+
+
+def test_boot_raises_a_loading_banner_before_the_snapshot_fetch(js):
+    # Until /api/views resolves the page is header-only (every section
+    # ships hidden) — boot() must say so through the status banner.
+    assert 'showBanner("Loading snapshot…", false);' in js
+    assert js.index('showBanner("Loading snapshot…", false);') \
+        < js.index('fetch("/api/views")')
+
+
+def test_loading_banner_clears_before_render_raises_its_own(js):
+    assert "function hideBanner" in js
+    # Cleared once the snapshot is in hand, BEFORE render() — whose
+    # no-miners banner must not be clobbered by the teardown.
+    assert "hideBanner();\n    render(views);" in js
+    assert 'showBanner("Snapshot loaded, but it contains no miners.", false);' \
+        in js
 
 
 # --- console greeting -----------------------------------------------------------------
