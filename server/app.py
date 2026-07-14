@@ -438,11 +438,23 @@ class MineverseHandler(SimpleHTTPRequestHandler):
             return
         _, snapshot = loaded
         try:
-            document = views.build_views(snapshot)
+            document = views.build_views(snapshot, self._snapshot_source())
         except Exception:  # noqa: BLE001 — any shaping failure is data-shaped
             self._send_json(500, {"error": "snapshot malformed"})
             return
         self._serve_cacheable_json(json.dumps(document).encode("utf-8"))
+
+    def _snapshot_source(self) -> str:
+        """Where this handler's snapshot bytes come from.
+
+        ``"sample"`` iff the configured path IS the committed demo file
+        (``MINING_SNAPSHOT_PATH`` unset/empty, or an explicit
+        ``snapshot_path=SNAPSHOT_PATH``); any other path — env-fed relay
+        file or embedder-passed — is ``"live"``. Path identity only, no
+        content sniffing: a relay that happens to relay sample-shaped
+        data is still a live feed.
+        """
+        return "sample" if self.snapshot_path == SNAPSHOT_PATH else "live"
 
     def _serve_snapshot(self) -> None:
         loaded = self._load_valid_snapshot()

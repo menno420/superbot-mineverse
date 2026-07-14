@@ -120,6 +120,16 @@ def test_idle_state_pins(js):
     assert 'visuallyHidden("span", " (idle)")' in js
 
 
+def test_sample_source_gets_neutral_notice_not_the_stale_alarm(js):
+    # staleness.source === "sample" (committed demo file) → a neutral
+    # notice instead of the permanent false STALE alarm, and the 💤 idle
+    # marks stay off (snapshotIsStale short-circuits false). BOTH
+    # consumers must check the source — header line + card idle check.
+    assert js.count('staleness?.source === "sample"') == 2
+    assert "committed sample data — live relay not connected" in js
+    assert 'line.classList.add("sample");' in js
+
+
 def test_staleness_fallbacks_match_views_constants(js):
     # Drift guard: the frontend's `?? N` staleness fallbacks (header
     # staleness line + snapshotIsStale card idle check) carry the SAME
