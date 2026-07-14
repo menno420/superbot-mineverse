@@ -44,7 +44,7 @@
   ],
   "interpreter": "/usr/bin/python3.10",
   "interpreter_for_checks": null,
-  "kit_version": "1.15.0",
+  "kit_version": "1.16.0",
   "namespace": {
     "reserved": {},
     "roots": []
@@ -54,6 +54,9 @@
     "budget_words": 7000
   },
   "paths": {},
+  "preflight_scripts": [
+    "scripts/preflight.py"
+  ],
   "project_id": "e4a11c56d846",
   "readpath_docs": [
     "AGENT_ORIENTATION.md",

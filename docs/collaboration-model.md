@@ -52,7 +52,8 @@ block in chat as the fallback where the plane cannot render the repo yet.
 Anything that interrupts a session's workflow — a stale file, a checker that
 lied, a footgun — is converted into the **cheapest enforcing prevention**
 before the session ends: checker / CI / test first, then hook, then written
-rule. Enforce, don't exhort.
+rule. Enforce, don't exhort. The same reflex runs on opportunities, not only
+interruptions — the rationalization checkpoint (`rationalize` skill, Q-0273).
 
 ## Guiding questions
 
@@ -68,7 +69,7 @@ from memory alone.
 This model's program-wide form, and the rulings that bind every repo in the
 program, live canonically in the substrate-kit repo at
 `docs/program/rulings.md` (the [PL-NNN] register — e.g. PL-001
-decide-and-flag, PL-002 never-wait, PL-007 enforce-don't-exhort) and
+decide-and-flag, PL-007 enforce-don't-exhort, PL-012 the autonomy rider) and
 `docs/program/collaboration-model.md`
 (https://github.com/menno420/substrate-kit/tree/main/docs/program).
 **Cite PL-IDs — never copy ruling bodies into this repo.**
