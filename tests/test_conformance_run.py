@@ -201,3 +201,91 @@ def test_main_missing_env_output_never_leaks_values():
     code = conformance.main([], environ=env, stdout=out)
     assert code == 3
     assert "SENTINEL" not in out.getvalue()
+
+
+# --- the opt-in ingest leg (--probe-ingest) ----------------------------------
+# Same injected-prober pattern as tests/test_readiness.py: no network,
+# every case hands run_ingest_probe/main its own environ + prober.
+
+
+INGEST_URL_ENV = {
+    "MINING_SNAPSHOT_RELAY_URL": (
+        "https://SENTINEL-ingest.example/api/snapshot/ingest"
+    )
+}
+
+
+def test_ingest_leg_is_skipped_when_the_relay_url_is_unset():
+    def never_called(endpoint):
+        raise AssertionError("ingest prober must not run without a URL")
+
+    out = io.StringIO()
+    ok = conformance.run_ingest_probe(dict(FULL_ENV), out, prober=never_called)
+    output = out.getvalue()
+    assert ok  # skipped is never a failure — the READ relay is optional
+    assert "ingest probe: skipped" in output
+    assert "MINING_SNAPSHOT_RELAY_URL" in output  # names the var, not a value
+    assert "SENTINEL" not in output
+
+
+def test_ingest_leg_probes_the_relay_url_and_never_prints_it():
+    seen = []
+
+    def prober(endpoint):
+        seen.append(endpoint)
+        return True, "fail-closed"
+
+    out = io.StringIO()
+    env = dict(FULL_ENV) | dict(INGEST_URL_ENV)
+    ok = conformance.run_ingest_probe(env, out, prober=prober)
+    output = out.getvalue()
+    assert ok
+    assert seen == [INGEST_URL_ENV["MINING_SNAPSHOT_RELAY_URL"]]
+    assert "ingest probe: ok — fail-closed" in output
+    assert "SENTINEL" not in output  # the URL never enters a line
+
+
+def test_ingest_leg_failure_reports_honestly_and_names_the_twin():
+    out = io.StringIO()
+    env = dict(FULL_ENV) | dict(INGEST_URL_ENV)
+    ok = conformance.run_ingest_probe(
+        env, out, prober=lambda endpoint: (False, "boom")
+    )
+    output = out.getvalue()
+    assert not ok
+    assert "ingest probe: FAILED — boom" in output
+    assert "Aborting before the sweep" in output
+    assert "readiness_check.py --probe-ingest" in output  # the same handshake
+    assert "SENTINEL" not in output
+
+
+def test_main_ingest_probe_failure_exits_2_before_the_sweep():
+    out = io.StringIO()
+    env = dict(FULL_ENV) | dict(INGEST_URL_ENV)
+    code = conformance.main(
+        ["--skip-probe", "--probe-ingest"],
+        environ=env,
+        stdout=out,
+        ingest_prober=lambda endpoint: (False, "boom"),
+    )
+    output = out.getvalue()
+    assert code == conformance.EXIT_PROBE_FAILED == 2
+    assert "ingest probe: FAILED — boom" in output
+    assert "sweep: python3" not in output  # aborted before pytest ever ran
+    assert "SENTINEL" not in output
+
+
+def test_main_without_the_flag_never_touches_the_ingest_prober():
+    # The pre-sweep abort paths must not consult the ingest prober when
+    # --probe-ingest is absent, even with the relay URL set (the sweep
+    # itself needs a subprocess, so this pins the exit-3 path).
+    def never_called(endpoint):
+        raise AssertionError("ingest prober must not run without --probe-ingest")
+
+    out = io.StringIO()
+    env = {
+        "MINING_WRITE_ENDPOINT": FULL_ENV["MINING_WRITE_ENDPOINT"]
+    } | dict(INGEST_URL_ENV)
+    code = conformance.main([], environ=env, stdout=out, ingest_prober=never_called)
+    assert code == 3
+    assert "SENTINEL" not in out.getvalue()

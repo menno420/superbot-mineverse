@@ -20,6 +20,15 @@ executor. What this wrapper adds, in order:
    module: one UNSIGNED POST that must draw the contract's pre-auth
    401. Signature-first verification means it can never execute
    anything, is never audited, and needs no secret.
+2b. **Opt-in ingest leg** (``--probe-ingest``) — the exact
+   ``readiness_check.py --probe-ingest`` handshake, reused from the
+   same module: one UNSIGNED POST to the FLAG-1 ingest route named by
+   ``MINING_SNAPSHOT_RELAY_URL``. Honest answers are 401 (configured)
+   or 503 (fail-closed); **HTTP 200 for an unsigned push is a security
+   failure** and reds the run. With the URL unset the leg is skipped,
+   never failed — the READ relay is optional at every stage
+   (docs/live-prod-cutover.md §1), so the write sweep's semantics are
+   untouched.
 3. **The sweep**: ``python3 -m pytest tests/test_actions.py -q`` with
    the conformance env passed through, output tee'd to a timestamped
    results file under ``.conformance-runs/`` (git-ignored — results are
@@ -61,6 +70,12 @@ ENV_BASE_URL = "SHIM_CONFORMANCE_BASE_URL"
 ENV_ENDPOINT = "MINING_WRITE_ENDPOINT"
 ENV_SECRET_OVERRIDE = "SHIM_CONFORMANCE_SECRET"
 ENV_SECRET = "MINING_WRITE_SHARED_SECRET"
+
+# The FLAG-1 ingest route for the opt-in --probe-ingest leg. NOT part of
+# the required env: the READ relay is optional at every stage, so with
+# the URL unset the leg is skipped — never failed (mirrors
+# scripts/readiness_check.py, which owns the probe implementation).
+ENV_INGEST_URL = "MINING_SNAPSHOT_RELAY_URL"
 
 EXIT_PASS = 0
 EXIT_SWEEP_FAILED = 1
@@ -183,15 +198,52 @@ def results_path(results_dir, now=None) -> Path:
     return Path(results_dir) / f"conformance-{stamp}.log"
 
 
-def _load_readiness_probe():
-    """Reuse readiness_check.probe_endpoint — one probe implementation,
-    not two (scripts/ is not a package, hence importlib)."""
+def _load_readiness():
+    """Reuse the readiness_check module — ONE probe implementation per
+    seam (write + ingest), never two (scripts/ is not a package, hence
+    importlib). Returns the module so callers pick their probe."""
     spec = importlib.util.spec_from_file_location(
         "readiness_check", Path(__file__).resolve().parent / "readiness_check.py"
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module.probe_endpoint
+    return module
+
+
+def run_ingest_probe(environ, stdout, prober=None) -> bool:
+    """The opt-in FLAG-1 ingest leg (--probe-ingest). Returns False iff
+    the probe FAILED.
+
+    Mirrors ``readiness_check.py --probe-ingest`` exactly: one UNSIGNED
+    POST to the route named by ``MINING_SNAPSHOT_RELAY_URL`` must draw
+    401 (configured) or 503 (fail-closed) — an HTTP 200 is a SECURITY
+    failure. URL unset → skipped, never failed (the READ relay is
+    optional at every stage). The printed lines never contain the URL or
+    any env value; ``prober`` is injectable for network-free tests and
+    defaults to ``readiness_check.probe_ingest_endpoint``.
+    """
+    ingest_url = environ.get(ENV_INGEST_URL)
+    if not ingest_url:
+        print(
+            f"ingest probe: skipped — {ENV_INGEST_URL} is UNSET (the READ "
+            "relay is optional at every stage; the var is the bot-side "
+            "pusher's).",
+            file=stdout,
+        )
+        return True
+    if prober is None:
+        prober = _load_readiness().probe_ingest_endpoint
+    ok, detail = prober(ingest_url)
+    print(f"ingest probe: {'ok' if ok else 'FAILED'} — {detail}", file=stdout)
+    if not ok:
+        print(
+            "Aborting before the sweep: the ingest route did not answer the "
+            "unsigned probe with the contract's 401/503 (an unsigned 200 is "
+            "a SECURITY failure — see detail above). "
+            "scripts/readiness_check.py --probe-ingest is the same handshake.",
+            file=stdout,
+        )
+    return ok
 
 
 def run_sweep(base_url: str, environ, results_file: Path, stdout) -> int:
@@ -223,18 +275,30 @@ def run_sweep(base_url: str, environ, results_file: Path, stdout) -> int:
     return code
 
 
-def main(argv=None, environ=os.environ, stdout=sys.stdout) -> int:
+def main(argv=None, environ=os.environ, stdout=sys.stdout, ingest_prober=None) -> int:
     parser = argparse.ArgumentParser(
         description=(
             "Run the WRITE-contract conformance sweep (tests/test_actions.py) "
             "against the real executor in ONE command: env check, unsigned "
-            "reachability probe, pytest sweep, PASS/FAIL verdict."
+            "reachability probe, pytest sweep, PASS/FAIL verdict. With "
+            "--probe-ingest, also probe the FLAG-1 ingest route unsigned."
         )
     )
     parser.add_argument(
         "--skip-probe",
         action="store_true",
         help="skip the unsigned reachability probe and go straight to the sweep",
+    )
+    parser.add_argument(
+        "--probe-ingest",
+        action="store_true",
+        help=(
+            "also POST one UNSIGNED request to the FLAG-1 ingest route named "
+            f"by {ENV_INGEST_URL} and expect 401 (configured) or 503 "
+            "(fail-closed) — NEVER 200 (readiness_check.py --probe-ingest is "
+            "the same handshake). Skipped when the var is unset — the READ "
+            "relay is optional at every stage."
+        ),
     )
     parser.add_argument(
         "--results-dir",
@@ -259,7 +323,7 @@ def main(argv=None, environ=os.environ, stdout=sys.stdout) -> int:
     if args.skip_probe:
         print("probe: skipped (--skip-probe)", file=stdout)
     else:
-        probe_endpoint = _load_readiness_probe()
+        probe_endpoint = _load_readiness().probe_endpoint
         probe_ok, detail = probe_endpoint(base_url + ACTION_PATH)
         print(f"probe: {'ok' if probe_ok else 'FAILED'} — {detail}", file=stdout)
         if not probe_ok:
@@ -269,6 +333,9 @@ def main(argv=None, environ=os.environ, stdout=sys.stdout) -> int:
                 "(scripts/readiness_check.py --probe is the same handshake).",
                 file=stdout,
             )
+            return EXIT_PROBE_FAILED
+    if args.probe_ingest:
+        if not run_ingest_probe(environ, stdout, prober=ingest_prober):
             return EXIT_PROBE_FAILED
     print("", file=stdout)
 
