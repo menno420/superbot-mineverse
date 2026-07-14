@@ -120,6 +120,34 @@ def test_idle_state_pins(js):
     assert 'visuallyHidden("span", " (idle)")' in js
 
 
+def test_staleness_fallbacks_match_views_constants(js):
+    # Drift guard: the frontend's `?? N` staleness fallbacks (header
+    # staleness line + snapshotIsStale card idle check) carry the SAME
+    # numbers as the server constants they shadow (server/views.py
+    # STALE_AFTER_SECONDS / SNAPSHOT_CADENCE_SECONDS, the measured
+    # VERDICT-056 values). Extracted from the served bytes by regex —
+    # same pattern as shipped_konami_sequence in tests/test_js_logic.py
+    # — so retuning one side without the other reds here, wherever the
+    # literal moves inside app.js.
+    import re
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from server import views  # noqa: E402
+
+    stale_fallbacks = re.findall(r"stale_after_seconds \?\? (\d+)", js)
+    cadence_fallbacks = re.findall(r"cadence_seconds \?\? (\d+)", js)
+    # Both consumers of the stale threshold, one of the cadence — a
+    # dropped fallback (?? gone entirely) is drift too.
+    assert len(stale_fallbacks) >= 2
+    assert len(cadence_fallbacks) >= 1
+    assert {int(n) for n in stale_fallbacks} == {views.STALE_AFTER_SECONDS}
+    assert {int(n) for n in cadence_fallbacks} == {
+        views.SNAPSHOT_CADENCE_SECONDS
+    }
+
+
 # --- miner VS view ------------------------------------------------------------------
 
 
