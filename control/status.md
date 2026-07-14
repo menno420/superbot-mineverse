@@ -1,13 +1,19 @@
 # superbot-mineverse · status
-updated: 2026-07-14T03:46:08Z
-phase: HEARTBEAT — improvement-wave close-out (control-only fast-lane slice): owner directive 2026-07-14 ~01:27Z (relayed by coordinator) complete — 11/11 wave PRs merged (#95–#105); EAP night ORDER 006/007 close-out carried below. Session type: worker, coordinator dispatch.
+updated: 2026-07-14T09:03:48Z
+phase: HEARTBEAT — EAP close-out audit slice (worker session, coordinator dispatch): seat-wide three-repo EAP project audit written and landing via branch `claude/eap-project-audit` (docs/audits/eap-project-audit-2026-07-14.md + router index line + this heartbeat). No code paths touched.
 health: green
-kit: v1.15.0 · check: green
-last-shipped: #105 — web sendAction reads Retry-After on 429, rejection line gains "retry in Ns"; squash 4f4b50d = main HEAD at close; suite 610 passed + 1 skipped.
+kit: v1.15.0
+last-shipped: #90 — EAP night fleet-cleanup audit doc (another session's parked PR, enabler-landed 2026-07-14T07:20:26Z; squash cb57d02 = main HEAD at this stamp). This seat's own prior slice: #106 improvement-wave close-out heartbeat (0b388f1).
 blockers: none
 orders: acked=001,002,003,004,005,006,007 done=001,002,003,004,005,006,007
 ⚑ needs-owner: (1) sender-side HMAC adoption — owner/bot-lane work via the superbot #2058 draft flip; full OWNER-ACTION block below (§ OWNER-ACTION). (2) The six OAuth/write host env vars remain owner-only — six-field block: control/outbox.md entry 2026-07-12T21:05Z (outstanding pair: MINING_WRITE_ENDPOINT + MINING_WRITE_SHARED_SECRET; the ingest side additionally needs MINING_SNAPSHOT_RELAY_SHARED_SECRET + MINING_SNAPSHOT_PATH web-host-side, see §2058 block). (3) Carried: pytest as required check on superbot-idle main (OA-003) — six-field block: control/outbox.md entry 2026-07-13T14:56Z (VENUE: hub).
-notes: Improvement wave closed this slice; claim file control/claims/claude-improvement-wave-2026-07-14.md deleted per the claims convention (delete-at-session-close, control/claims/README.md). Completion headline + honest-drops filed lane→manager: control/outbox.md entry 2026-07-14T03:46Z. ORDER 006 done-when caveat carried unchanged (inbox ack machine-unsatisfiable under the substrate-gate — ack lives on this orders: line, precedent PR #87; enforcer findings verbatim in control/outbox.md entry 2026-07-13T23:44Z). Tree verified this slice: bootstrap check --strict exit 0; python3 -m pytest -q → 610 passed, 1 skipped.
+notes: EAP close-out audit doc lives at docs/audits/eap-project-audit-2026-07-14.md (indexed from docs/AGENT_ORIENTATION.md planted-doc set) — three-repo measured record: scale totals, tooling verdicts, walls, landing/scheduling friction, ceremony ledger, self-fixes, ranked asks, honest gaps. Landing rides the standard born-red card HOLD (claim file control/claims/2026-07-14-eap-project-audit.md, released at card flip; telemetry row in the same PR per Q-0194). Verified at audit start: zero open PRs across all three repos; all three control/claims/ dirs README-only. Tree verified this slice: pip install jsonschema==4.26.0 (requirements-dev.txt) then python3 -m pytest -q → 610 passed, 1 skipped; bootstrap check --strict green apart from the designed in-progress hold on this slice's own card.
+
+## EAP CLOSE-OUT AUDIT 2026-07-14 (this slice)
+
+- Deliverable: docs/audits/eap-project-audit-2026-07-14.md — the seat's definitive EAP audit covering superbot-games, superbot-idle, superbot-mineverse at pinned HEADs (games 1c323c1, idle a23e67c, mineverse cb57d02).
+- Headline measured facts (details + citations in the doc): 222 session cards / 525 main commits / 370 PRs opened / 369 merged / 1 closed-unmerged / 0 open across the seat; median time-to-land 4.05 / 0.4 / 1.48 min (games/idle/mineverse); auto-merge-enabler 0 failures observed in the recent windows; every substrate-gate red in the recent windows was a designed born-red hold.
+- Prior audit doc (#90, docs/audits/2026-07-13-fleet-cleanup-audit.md) is deltaed, not restated.
 
 ## IMPROVEMENT WAVE 2026-07-14 — close-out (owner directive ~01:27Z, relayed by coordinator; 11/11 PRs merged)
 
@@ -54,7 +60,7 @@ VERIFIED-NEEDED: #2058 is another repo's owner/bot-lane draft and its body names
 
 ## OPEN PRS
 
-- PR #90 — another session's fleet-cleanup audit, still open (merge ref live at this slice), parked for the auto-merge sweep per its own body. Neutral pointer only; not this lane's work, not touched by this slice.
+- None at stamp time other than this slice's own landing branch (`claude/eap-project-audit`, PR opened after this stamp — designed born-red hold until the card flip). PR #90 (the 2026-07-13 fleet-cleanup audit) merged 2026-07-14T07:20:26Z as cb57d02.
 
 ## SIBLING LANES
 
