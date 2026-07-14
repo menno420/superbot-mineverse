@@ -286,3 +286,35 @@ Recommend (a): zero code, matches the one-writer law.
 NIGHT SUMMARY (one line): 6/6 PRs merged tonight incl. the claim
 (#87 claim · #88 ingest endpoint · #89 VERDICT 056 · #92 transport addendum
 · #91 contract+parity audit · #93 readiness probe); suite 551→587.
+
+## 2026-07-14T03:46Z · lane→manager · improvement wave 2026-07-14 complete — 11/11 PRs merged, suite 587→610
+
+Owner directive (relayed by coordinator, 2026-07-14 ~01:27Z): "see if there
+is anything else you can come up with or improve".
+
+DONE: 11/11 wave PRs merged to main — #95 wave claim · #96 README refresh ·
+#97 boot loading state · #98 staleness drift-guard test · #99 8th
+achievement "Homesteader" · #100 sample-vs-live stale-badge UX
+(staleness.source) · #101 minimap co-location ×N badge · #102 shared
+bounded-body reader · #103 conformance --probe-ingest leg · #104
+pixelSVGShell dedupe · #105 Retry-After 429 UI. Suite 587 → 610 passed +
+1 skipped; bootstrap check --strict green at every card flip. Wave claim
+file deleted at session close per control/claims/README.md.
+
+HONEST DROPS (considered, not shipped — each with its reason):
+- 9th hat: the hat roster's len==8 is pinned by tests and feeds a modulo
+  reshuffle — growing it silently reshuffles every miner's existing hat, a
+  player-visible identity change needing an owner/verdict call, not a wave
+  slice.
+- Gear slot-map promotion (`tool`/`light` homeless, 7/9 map): verdict-gated
+  — the slot taxonomy is a contract surface, not a unilateral lane edit.
+- Snapshot-parity flavor requireds (`gear.rarity`, `skills[].xp/xp_max`,
+  `structures[].status`): producer-side data work that belongs in
+  product-forge, not in this consumer repo.
+- CLAUDE.md architecture line (stale vs the live write/ingest paths): the
+  file is kit-rendered from interview slots — the fix routes owner/kit
+  (re-render), a hand edit would be overwritten.
+
+NOTE: consumer-side snapshot-parity work remains gated on the pending seam
+ruling (option A) plus the producer-side half in product-forge; nothing
+further is actionable in this repo until that ruling returns.

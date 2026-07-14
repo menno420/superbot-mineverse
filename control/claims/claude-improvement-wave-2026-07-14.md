@@ -1,1 +1,0 @@
-- `claude-improvement-wave-2026-07-14` · **improvement wave** — README/tests/scripts/web UX/views content improvements per owner directive 2026-07-14 ("see if there is anything else you can come up with or improve"); branches `claude/improve-*` and sibling wave slugs · README.md, tests/, scripts/, web/, server/views.py · 2026-07-14
