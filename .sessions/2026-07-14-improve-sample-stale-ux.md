@@ -91,4 +91,4 @@ the bootstrap tail — fine while squash-merge preserves PR bodies,
 brittle if provenance ever has to be replayed from the repo alone;
 this card repeats the same economy, so the ding cuts both ways.
 
-- **📊 Model:** fable-5 · standard effort · task-class: sample-vs-live stale-badge UX — additive staleness.source key + neutral demo notice, live path unchanged (build)
+- **📊 Model:** fable-5 · medium · feature build — sample-vs-live stale-badge UX — additive staleness.source key + neutral demo notice, live path unchanged

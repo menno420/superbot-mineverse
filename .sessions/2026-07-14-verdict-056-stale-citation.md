@@ -89,4 +89,4 @@ alias — if `app.py` ever drops the re-export, the claim's evidence is a
 grep, not a red test; one line naming which existing test imports the
 alias would have made the claim checkable the way the rest of the card is.
 
-- **📊 Model:** fable-5 · standard effort · task-class: VERDICT 056 application — stale-threshold measured basis into contract doc + views constants citation (docs-only)
+- **📊 Model:** fable-5 · medium · docs-only — VERDICT 056 application — stale-threshold measured basis into contract doc + views constants citation

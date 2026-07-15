@@ -98,4 +98,4 @@ there, and the card should have named the ambiguity so a future
 calibration pass (the verdict's own one-day push-timestamp log) knows
 to pin it.
 
-- **📊 Model:** fable-5 · standard effort · task-class: ingest-transport spec addendum — FLAG-1 sender/receiver seam recorded in the READ contract doc (docs-only)
+- **📊 Model:** fable-5 · medium · docs-only — ingest-transport spec addendum — FLAG-1 sender/receiver seam recorded in the READ contract doc

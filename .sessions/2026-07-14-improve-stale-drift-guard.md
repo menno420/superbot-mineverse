@@ -88,4 +88,4 @@ consumer named beyond "a test", the same watcher-less-idea failure
 mode the readiness-ingest-leg card already called out two cards ago;
 the lane keeps diagnosing that disease without curing it.
 
-- **📊 Model:** fable-5 · standard effort · task-class: staleness-literal drift guard — JS fallback numbers pinned to server/views.py constants (test-only)
+- **📊 Model:** fable-5 · medium · test writing — staleness-literal drift guard — JS fallback numbers pinned to server/views.py constants

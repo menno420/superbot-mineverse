@@ -105,4 +105,4 @@ the seam ruling but names no owner/venue for noticing when that ruling
 lands — a gated idea with no watcher is how backlog items rot; this
 card's own idea names its consumer file and test pattern instead.
 
-- **📊 Model:** fable-5 · standard effort · task-class: readiness-check ingest-route leg — unsigned probe must draw 401/503, never 200 (build)
+- **📊 Model:** fable-5 · medium · feature build — readiness-check ingest-route leg — unsigned probe must draw 401/503, never 200
