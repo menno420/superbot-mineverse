@@ -3,7 +3,7 @@
 > **Status:** `complete`
 > **Branch:** `claude/kit-upgrade-v1.16.0` · PR #110
 
-- **📊 Model:** fable-5 · medium · task-class: mechanical refactor — kit-upgrade distribution wave, vendored substrate-kit v1.15.0 → v1.16.0 (kit-owned files only)
+- **📊 Model:** fable-5 · medium · mechanical refactor — kit-upgrade distribution wave, vendored substrate-kit v1.15.0 → v1.16.0 (kit-owned files only)
 
 **Goal:** distribution-wave upgrade of the vendored substrate-kit from
 v1.15.0 to v1.16.0 via the canonical two-command flow. Kit-owned files

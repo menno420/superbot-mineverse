@@ -95,4 +95,4 @@ that landed mid-flight was never re-checked against the moved miner —
 it happens to be structure-based, but the card records no such check;
 this review closes that gap).
 
-- **📊 Model:** fable-5 · standard effort · task-class: pixelSVGShell dedupe — four hand-rolled SVG shells behind one helper, byte-identical output (refactor)
+- **📊 Model:** fable-5 · medium · mechanical refactor — pixelSVGShell dedupe — four hand-rolled SVG shells behind one helper, byte-identical output

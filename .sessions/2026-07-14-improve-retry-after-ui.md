@@ -94,4 +94,4 @@ the reason_code already says rate_limited — following the source's
 intent over its literal string. Its flagged shim burst-limiter gap
 remains open and recorded there; not duplicated here.
 
-- **📊 Model:** fable-5 · standard effort · task-class: recorded 💡 follow-up — frontend reads Retry-After on 429, retry-in hint on the rejection line (build)
+- **📊 Model:** fable-5 · medium · feature build — recorded 💡 follow-up — frontend reads Retry-After on 429, retry-in hint on the rejection line

@@ -117,4 +117,4 @@ work found them only because the card happened to be the newest. The
 interim flip-race rule it follows (full stack incl. flip pushed before
 the PR opens) is also this session's practice.
 
-- **📊 Model:** fable-5 · standard effort · task-class: build-direct pair — snapshot_contract.py shared constant + snapshot field-parity audit (build + audit)
+- **📊 Model:** fable-5 · medium · feature build — build-direct pair — snapshot_contract.py shared constant + snapshot field-parity audit (build + audit)
