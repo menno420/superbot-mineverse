@@ -1,6 +1,6 @@
 # Session — 2026-07-15 — Truth refresh: current-state ledger + 2026-07-14 model-line advisory cleanup
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 > **Branch:** `claude/truth-refresh`
 > **Venue:** dispatched worker session (SuperBot World seat, truthful-records
 > slice; EAP extension window per ORDER 009 — no orders served here, records
