@@ -153,3 +153,10 @@ do:
   NOTE for (b): the walkthrough may link docs/audits/eap-project-audit-2026-07-14.md for depth; OWNER ACTIONS to include: superbot #2058 draft flip + sender-side HMAC, six host env vars, conformance e2e run, carried OA-003.
 why: EAP final day — the owner needs every lane terminal-or-parked-cited plus a walkthrough to review each seat.
 done-when: every (a) item is terminal or parked-with-citation + the walkthrough doc is on main + the OWNER ACTIONS checklist is surfaced in the lane's close-out report.
+
+## ORDER 009 · 2026-07-15T03:37:08Z · status: new
+priority: P2
+do: EAP EXTENDED through 2026-07-21 (Anthropic mail, Diana Liu, 2026-07-14T23:07:44Z — 'Claude Code Projects EAP: Extending to Tues 7/21'; metadata reference only). The 2026-07-14 dormancy orders are superseded pending the owner's per-project reboot review — do NOT re-arm routines yet; wait for the owner's per-seat go (the v3.6 reboot prompt IS that go). New features to test during the extension: overview panel, add_repo, Artifact tool (coming), coordinator-comms improvements (coming). fleet-manager and websites are the fleet's source-of-truth homes; see fm docs/pre-reboot-review-2026-07-15.md.
+why: the seat's dormancy record predates the extension; without this note a rebooted session would treat dormancy as current
+done-when: seat acknowledges on its first rebooted wake
+provenance: relayed by the Fleet Manager coordinator on live owner directives, 2026-07-15
