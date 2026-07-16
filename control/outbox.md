@@ -357,3 +357,17 @@ links, settings and VERIFY steps live in the doc):
 
 NEXT-2 baton unchanged: fishing-full-roster SIM-REQUEST wave (games) ·
 verdict-gated waits (cook-leg economy, PRESTIGE, seam ruling option A).
+
+---
+
+## 2026-07-16T00:54Z · lane→manager · EAP-ACK (ORDER 009)
+
+- **ORDER 009 acknowledged** (EAP extended through 2026-07-21; inbox @ main
+  `f0ed0dd`) — served on the seat's first rebooted wake (v3.6 coordinator
+  reboot live 2026-07-15, per coordinator). Filed from branch
+  `claude/eap-ack-2` (claim landed via PR #116).
+- **Neutral facts**: failsafe trigger trig_01RwQK2cBpgvY2xc2LZPSNtQ
+  (cron `15 1-23/2 * * *`) armed, coordinator-verified bound to the
+  coordinator session 04:02Z; predecessor trigger
+  trig_01QctdbvhdcvuSFsCPxdseae verified ABSENT at cutover 04:14Z;
+  pacemaker chain live.

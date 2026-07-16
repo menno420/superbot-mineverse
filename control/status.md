@@ -1,36 +1,47 @@
-# superbot-mineverse · status
-updated: 2026-07-14T18:59:20Z
-phase: HEARTBEAT — fleet-seat relay (games worker session): games preflight-path fix parked as games PR #143; this repo untouched beyond this heartbeat (mineverse HEAD `419d559`, kit v1.16.0 via #110).
+# SuperBot World seat heartbeat · 2026-07-16T00:55Z · v3.6 coordinator reboot (first rebooted wake)
+updated: 2026-07-16T00:55:09Z
+phase: EAP-extension ack slice — ORDER 009 acked in control/outbox.md + this heartbeat re-stamped wholesale; control-only traffic, no product code touched.
 health: green
-kit: v1.16.0
-last-shipped: #110 — kit upgrade v1.15.0 → v1.16.0 (squash 419d559). This heartbeat rides its own control-only PR.
+kit: v1.17.0 · check: green · engaged: yes
+last-shipped: #116 — EAP ORDER 009 ack claim (squash 141373d); the outbox ack + this heartbeat ride branch `claude/eap-ack-2`.
 blockers: none
-orders: acked=001,002,003,004,005,006,007,008 done=001,002,003,004,005,006,007,008
-⚑ needs-owner: unchanged — the four pending clicks remain consolidated in docs/eap-closeout-walkthrough-2026-07-14.md §C (superbot #2058 draft flip + sender-side HMAC · six host env vars · env-gated conformance e2e · carried OA-003), each with a bolded recommendation + VERIFY step; full six-field blocks in the 2026-07-14T11:34:32Z heartbeat (git history of this file) and control/outbox.md.
-notes: this stamp is a cross-seat heartbeat relay from a superbot-games worker session (games/idle status files are frozen archives; this file is the live heartbeat). Facts below; no orders served or filed in this repo.
+orders: acked=001,002,003,004,005,006,007,008,009 done=001,002,003,004,005,006,007,008
+⚑ needs-owner: unchanged — the pending clicks stay consolidated in docs/eap-closeout-walkthrough-2026-07-14.md §C (incl. OA-003), each with a bolded recommendation + VERIFY step.
+notes: heartbeat re-stamp under the ORDER 009 ack; facts below are neutral and live at stamp time.
 
-## GAMES SLICE — preflight path fix (2026-07-14, facts + pointers)
+## REPO STATE (live main shas at stamp)
 
-- games PR #143 (`claude/preflight-path-fix`, head `790d2aa`, base main @ `8c9c320`): plants `scripts/preflight.py` — `substrate.config.json` `preflight_scripts` named the kit-default path but the file was absent, so every `bootstrap.py check --strict` full-lane run self-skipped the preflight leg with a not-found NOTE; the wrapper delegates to the existing gate-parity `tools/preflight.py` (games #128), mirroring idle PR #137 (squash `8ff9f59`).
-- Verified locally at `790d2aa`: `python3 -m pytest -q` → 810 passed in 42.50s · `python3 scripts/preflight.py` → preflight GREEN, all three gates, exit 0 · `check --strict` → NOTE gone; sole red = the branch's own designed born-red card hold · failure propagation proven by a temporary injected exit 42 surfacing as an exit-affecting `[preflight-script]` finding.
-- CI at first push: tests SUCCESS · reconcile SUCCESS · enable-auto-merge SUCCESS · substrate-gate FAILURE = the designed `[session-card-hold]` born-red hold only (job log carries the "Designed hold — not a CI failure to investigate" notice); no `[preflight-script]` finding in the gate venue.
-- games inbox at `8c9c320`: ORDERs 001–009 present, none newer than 009 (games #139/#140 record 009 done); ORDER 008 verdict-gated, untouched.
-
-## OPEN PRS (this repo)
-
-- none at stamp time (this heartbeat's own control-only PR lands after this stamp).
-
-## SIBLING LANES
-
-- games: PR #143 as above; last main merge #142 (`8c9c320`, host card-guard split mirroring idle #137).
-- idle: HEAD `c31251e` (#138, claim release after idle #137's preflight plant + card-guard split).
-- seat-wide EAP record: docs/audits/eap-project-audit-2026-07-14.md.
+- mineverse `141373d` green (610 passed + 1 skipped, verified 2026-07-15 @b9ade33)
+- games `5db902a` green (810 passed @446a84e)
+- idle `25d34f1` green (1381 passed + 1 skipped @8a7275d)
 
 ## ROUTINES (neutral facts)
 
-- Failsafe cron trig_01QctdbvhdcvuSFsCPxdseae bound to the coordinator session; pacemaker chain coordinator-managed.
+- Failsafe trig_01RwQK2cBpgvY2xc2LZPSNtQ · cron `15 1-23/2 * * *` · bound to the
+  coordinator session · coordinator-verified 04:02Z; predecessor trig_01Qctdbv…
+  verified absent 04:14Z; pacemaker chain live (15–60 min adaptive).
 
-## NEXT-2 BATON (carried)
+## ORDERS (fleet view at stamp)
 
-1. Serve the games SIM-REQUEST `fishing-full-roster-economy` (29 not-yet-pinned species, filed in games control/outbox.md via games PR #92 squash 21937f3) when the sim verdict returns — first full-content-wave batch under ORDER 007's bigger-batches rule.
-2. Verdict-gated waits as before — fishing cook-leg economy SIM-REQUEST (folded by reference into the full-roster batch) + PRESTIGE tuning ruling. Consumer-side snapshot-parity work (3 flavor requireds + slot-map) stays gated on the pending seam ruling (option A) and lands producer-side in product-forge.
+- mineverse ORDER 009 acked — claim PR #116 MERGED + the outbox ack/this heartbeat
+  on branch `claude/eap-ack-2` (this PR).
+- games ORDER 010 acked — PR #148 MERGED.
+- idle ORDER 010 acked — claim PR #143 + outbox PR #144, both MERGED.
+- games ORDER 008 gated on the sim-verdict relay (V075/V076 finalized at sim-lab
+  per coordinator, fm relay pending).
+
+## PRS (live state at write time)
+
+- truth-refresh: games #147 / idle #141 / mineverse #115 — MERGED 2026-07-15.
+- idle reconcile-race fix #142 — MERGED.
+- EAP acks: games #148 MERGED + idle #143/#144 MERGED (2026-07-16); this PR pending.
+
+## SECURITY
+
+- SECURITY-BEFORE-SECRETS satisfied (CSRF #42 merged 2026-07-12); six OAuth env
+  vars owner-pending → docs/eap-closeout-walkthrough-2026-07-14.md §C (incl. OA-003).
+
+## NEXT-2 BATON
+
+1. Sim-verdict relay follow-up (games ORDER 008).
+2. Mirror the #142 reconcile-race fix to games/mineverse workflows.
