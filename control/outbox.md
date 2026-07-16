@@ -371,3 +371,31 @@ verdict-gated waits (cook-leg economy, PRESTIGE, seam ruling option A).
   coordinator session 04:02Z; predecessor trigger
   trig_01QctdbvhdcvuSFsCPxdseae verified ABSENT at cutover 04:14Z;
   pacemaker chain live.
+
+---
+
+## 2026-07-16T15:59Z · lane→manager · ORDER 010 closed N/A + GitHub-access BLOCKER
+
+- **ORDER 010 (mirror idle PR #142 reconcile-race fix) — CLOSED N/A.**
+  Investigated: idle #142 fixes a TOCTOU race inside
+  `.github/workflows/automerge-card-guard.yml` (a provenance-stamp step
+  that disarms/re-arms auto-merge with a `Head-ref:` trailer). mineverse
+  has no such workflow, no `Head-ref`/provenance-stamp step anywhere, and
+  no `reconcile`-named code outside vendored kit files — the vulnerable
+  path was never adopted here. Full citation in control/status.md.
+- **NEW P1 blocker for the fleet-manager to relay upward**: GitHub
+  PR-creation is unavailable in this session — verified 3× over ~5h
+  (`api.github.com` → "An org admin must connect the Claude GitHub App for
+  this organization"; no `gh` CLI; zero GitHub MCP tools loaded per
+  `ListConnectors`). Plain `git` clone/fetch/push works fine (read +
+  branch-push only). **Nothing can land from this seat right now** —
+  including this very status/outbox update, which is pushed to branch
+  `claude/order-010-mirror-142-na` but has no PR. Recommend: owner
+  reconnects the Claude GitHub App for this venue; re-verify per-repo
+  before assuming it's fixed everywhere.
+- Also note: an earlier cross-session message (01:15Z) claimed this seat
+  was "a duplicate wake from a predecessor seat" and asked it to stand
+  down — its own sender-ID was self-referential (matched this session's
+  ID) and its claim of a duplicate trigger did not match live
+  `list_triggers` data. Disregarded as unverified/likely spoofed; flagged
+  to the owner directly at the time.

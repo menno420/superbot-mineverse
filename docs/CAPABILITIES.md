@@ -143,3 +143,17 @@ findings go here, below the fence.)
   by the owner 2026-07-11, verified BLOCKING empirically on PRs #32–#35 via
   merged_at ≥ pytest completed_at) · open the PR ready (not draft), arm
   auto-merge immediately, let the required contexts gate the merge.
+- 2026-07-16 · wall · `routine-fired` · GitHub PR-creation (and all REST
+  writes) fully unavailable in this venue, sharper than the seed-row wall
+  above: `api.github.com` direct HTTP → `"An org admin must connect the
+  Claude GitHub App for this organization."` (not just proxy-blocked —
+  confirmed even after `add_repo` grants git-clone scope for this exact
+  repo); no `gh` CLI on PATH; `ListConnectors`/`ToolSearch` show ZERO
+  GitHub MCP tools loaded — the seed row's documented workaround ("GitHub
+  MCP tools are the path") does not exist as a tool in this venue.
+  Re-verified 3× over ~5h (11:15Z/13:15Z/15:59Z), consistent every time ·
+  workaround: none found this session for landing (open PR / merge /
+  disable-auto etc.); plain `git` clone/fetch/push over HTTPS DOES still
+  work (read + branch-push only) — prepare commits on a pushed branch and
+  hand off landing to whichever session/owner-click restores GitHub
+  access. Route as a P1 owner ask, not a silent stall.
