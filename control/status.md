@@ -1,29 +1,62 @@
-# SuperBot World seat heartbeat · 2026-07-16T15:32Z · failsafe-wake chain recovery
-updated: 2026-07-16T15:32:38Z
-phase: failsafe wake (Q-0265) found the pacemaker/send_later chain DEAD since the
-  00:55Z v3.6 reboot (~14.5h silent) — re-synced all three repo HEADs read-only,
-  re-read the inbox (nothing new to claim), attempted NEXT-2 item 2, then
-  re-armed the chain. Control-only traffic; no product code landed this wake.
-health: green (repo state unchanged/healthy) — the WAKE-CHAIN itself was down;
-  now recovered. See CHAIN-RECOVERY below for the evidence.
-kit: v1.17.0 (unchanged since last stamp) · check: not re-run this wake
-last-shipped: none this wake (recon + chain-recovery only, no commits from this
-  seat); last real ship remains #117 (ack ORDER 009 + heartbeat re-stamp).
-blockers: this session's auto-mode safety classifier is denying any edit or
-  even read-only verification (`git status`, a `yaml.safe_load` check) of
-  `automerge-card-guard.yml`-class CI files this wake — see NEXT-2 below.
-orders: unchanged — acked=001,002,003,004,005,006,007,008,009
-  done=001,002,003,004,005,006,007,008 (no ORDER 010+ posted to this seat's
-  inbox as of this wake; re-read in full, confirmed ORDER 009 is still the
-  last entry).
-⚑ needs-owner: prior OA items unchanged (docs/eap-closeout-walkthrough-2026-07-14.md
-  §C, incl. OA-003) + NEW: this seat can no longer autonomously land CI/auto-merge
-  workflow edits in this session (classifier: "CI Bypass") — the games mirror
-  of the #142 reconcile-race fix is drafted but stuck local-only; owner should
-  either pre-authorize that class of edit explicitly next wake or land it by hand.
+# SuperBot World seat heartbeat · 2026-07-16T15:55Z · ORDER 010 closed N/A + PR-creation still blocked
+updated: 2026-07-16T15:55:26Z
+phase: work-loop continuation wake — sync HEAD showed the Fleet Manager dispatched
+  ORDER 010 to this seat 8 min after the last heartbeat push (2026-07-16T15:38:36Z,
+  "mirror superbot-idle's #142 reconcile-race fix"). Repo-wide re-verification
+  confirms mineverse has no reconcile-race-vulnerable path at all — closing N/A
+  per the order's own escape clause. Chain re-armed again.
+health: green (repo unchanged/healthy). Wake-chain: recovered last wake, holding.
+kit: v1.17.0 (unchanged) · check: not re-run this wake (no product code touched)
+last-shipped: still #117 — this seat has NOT been able to land anything since;
+  see the PR-creation blocker below (unchanged from last wake, re-confirmed).
+blockers: (1) UNCHANGED — this session's GitHub REST API returns "GitHub access
+  is not enabled for this session. An org admin must connect the Claude GitHub
+  App" (re-tested this wake, same result) — this session can `git clone`/`git
+  push` (separate token path) but cannot open a PR, so nothing can land on any
+  main branch from here. (2) last wake's CI-file classifier friction is now
+  MOOT for this repo (ORDER 010 closed N/A without touching any workflow file)
+  but still stands for the parked games mirror.
+orders: acked=001..010 done=001..008,010 (010 closed N/A this wake, see below);
+  009 remains ack-only per its own done-when (seat-acknowledges-on-first-wake).
+⚑ needs-owner: (a) prior OA items unchanged (docs/eap-closeout-walkthrough-2026-07-14.md
+  §C, incl. OA-003); (b) UNCHANGED — this session cannot open PRs; branch
+  `claude/failsafe-chain-recovery-2026-07-16` now carries 2 commits (this
+  heartbeat + the prior one) sitting on `origin` unopened — needs a
+  human or a GH-App-connected session to open+merge it, or nothing from this
+  seat lands until the App is connected; (c) games' #142-mirror is still
+  local-only/unlanded (see prior stamp, unchanged, not re-attempted this wake).
 notes: heartbeat overwritten wholesale per the one-writer-per-file rule
-  (control/README.md); prior sections (REPO STATE / ORDERS / PRS / SECURITY)
-  superseded below with re-verified facts, not carried forward blind.
+  (control/README.md); ORDER 010 disposition below; CHAIN-RECOVERY / NEXT-2 /
+  REPO STATE sections carried forward with this wake's deltas only.
+
+## ORDER 010 — CLOSED N/A (2026-07-16T15:55Z)
+
+Order text (inbox @ origin/main `21b89a0`): mirror superbot-idle's PR #142
+reconcile-race fix into this repo, "adapted to this repo's own reconcile
+path"; if it genuinely does not apply, record why and close N/A.
+
+**Verified N/A.** superbot-idle's #142 (`884aeae`) patches one specific call
+site: the provenance-stamping branch of a `Reconcile arming with the in-diff
+session-card state` job in `.github/workflows/automerge-card-guard.yml`,
+which calls `gh("pr", "merge", "--disable-auto", ...)` with the `fatal=True`
+default and can crash on a TOCTOU race against auto-merge landing first.
+superbot-mineverse has **no such file and no such job**: `ls
+.github/workflows/` = `auto-merge-enabler.yml`, `schema-gate.yml`,
+`substrate-gate.yml` only — no `automerge-card-guard.yml`, no card-guard
+reconcile step of any kind. Repo-wide grep for the vulnerable pattern
+(`disable-auto`, `pr merge`, `reconcile`) across every `.yml`/`.py` file
+confirms: the only `disable-auto`/`pr merge` hit anywhere in the tree is
+`auto-merge-enabler.yml`'s own single, unconditional
+`gh pr merge --auto --squash "$PR"` call (no disarm branch, no provenance
+stamp, no TOCTOU window — it either arms or doesn't, once, no re-check to
+race against); every other `reconcile*` hit is `bootstrap.py`'s unrelated
+`reconcile_model_usage` (telemetry-row backfill, a different subsystem
+entirely, no `gh pr merge` calls near it). There is nothing in this repo's
+architecture for the #142 fix to adapt to — the prior session-idea note (in
+superbot-idle's own `.sessions/2026-07-15-reconcile-race-fix.md`) claiming
+mineverse "carries the same host-owned card-guard workflow pattern" does not
+hold at current HEAD and should not be treated as live guidance going forward.
+Closing per the order's own N/A clause; no code changed.
 
 ## CHAIN-RECOVERY (this wake, evidence)
 
@@ -67,7 +100,8 @@ notes: heartbeat overwritten wholesale per the one-writer-per-file rule
 
 ## REPO STATE (live main shas, re-verified this wake, read-only)
 
-- mineverse `ea5c751` (#117) — not re-tested this wake (no code touched).
+- mineverse `21b89a0` (#118, the ORDER 010 dispatch commit) — not re-tested
+  this wake (no product code touched, only control/ files).
 - games `5db902a` (#148) — not re-tested this wake (no code touched; the
   drafted-but-unlanded workflow edit above never left the local clone).
 - idle `25d34f1` (#144) — not re-tested this wake (no code touched).
