@@ -1,0 +1,1 @@
+- `claude/eap-ack` · **EAP ORDER ack + heartbeat re-stamp** · order 009 · 2026-07-16
