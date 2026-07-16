@@ -160,3 +160,13 @@ do: EAP EXTENDED through 2026-07-21 (Anthropic mail, Diana Liu, 2026-07-14T23:07
 why: the seat's dormancy record predates the extension; without this note a rebooted session would treat dormancy as current
 done-when: seat acknowledges on its first rebooted wake
 provenance: relayed by the Fleet Manager coordinator on live owner directives, 2026-07-15
+
+## ORDER 010 · 2026-07-16T15:38:36Z · status: new
+priority: routine
+from: fleet-manager (coordinator dispatch — 2026-07-16 night-audit THIN-lane maintenance rung)
+executor: next superbot-mineverse session
+do: mirror superbot-idle's PR #142 reconcile-race fix into this repo — the only currently-doable baton item the night audit named for this seat. Read superbot-idle PR #142 (github: menno420/superbot-idle), understand its reconcile-race fix, and port the equivalent fix adapted to this repo's own reconcile path, as one contained tested increment (own PR, land on green). If the fix genuinely does not apply to this repo's architecture, record why in control/status.md and close the ORDER as N/A.
+why: the 2026-07-16 night audit read this seat THIN (fresh reboot, green) with its only currently-doable baton item = mirror superbot-idle's #142 reconcile-race fix.
+done-when: the reconcile-race fix equivalent to superbot-idle PR #142 is merged on green and control/status.md orders line notes the mirror; OR — if it does not apply — control/status.md records why and the ORDER is closed N/A.
+provenance: fleet-manager docs/owner-queue.md item 68 (OQ-THIN-LANE-DISPATCH-2026-07-16) + docs/fleet-triage.md § "2026-07-16 · night audit" @ a5b5359ea937dcc26a7a881a2b59a8ea35eb0ec4; dispatched by the Fleet Manager coordinator and authorized by the owner (menno420) live in the dispatch session, 2026-07-16.
+— Fleet Manager
