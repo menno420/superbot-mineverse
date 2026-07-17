@@ -6,9 +6,20 @@
 > work always win over this file. Read it second (right after the working
 > agreement) and keep it current as the project moves.
 >
-> Truth-stamp: live-verified 2026-07-15 (UTC) at main @ `b9ade33`
-> (previous stamp: `0fdb1c5`, 2026-07-14 — every claim below re-verified
-> against the tree, merge log, and open-PR state at this HEAD).
+> Truth-stamp: reconciled 2026-07-17 (UTC) against main @ `21b89a00`
+> (previous stamp: `b9ade33`, 2026-07-15). PRs #114–#118 merged since that
+> stamp (through 2026-07-16); re-reconciled at HEAD below.
+>
+> ## ⚠️ FRESH-START — project being recreated (2026-07-17)
+>
+> The Claude Code Projects EAP goes **read-only 2026-07-21**. The owner is
+> **winding down agent autonomy and recreating this project fresh.** The
+> `control/` message bus, wake-chain routines (`docs/ROUTINES.md`), and the
+> agent auto-merge doctrine are **retired** (see the deprecation banners on
+> those files). No agent should re-arm routines, act on stale
+> `control/inbox.md` orders, or arm auto-merge. Agents open PRs ready with
+> green CI and **flag them for the owner to merge** — the owner's merge is the
+> review ([D-0002]). The forward plan lives in `docs/NEXT-TASKS.md`.
 
 ## Stability baseline
 
@@ -72,19 +83,19 @@ flip last.
 
 (Verify against live source control — this section is a dated snapshot.)
 
-- No open PRs (API-verified 0 at 2026-07-15T04:20Z) and no build in
-  flight. The founding day is wrapped and archived (2026-07-11 — see
-  `docs/retro/archive-ready-2026-07-11.md`); the EAP window itself is
-  closed out (audit + walkthrough, see "Recently shipped").
-- **ORDER 009 (`status: new` at this stamp)** — EAP EXTENDED through
-  2026-07-21; the 2026-07-14 dormancy orders are superseded pending the
-  owner's per-project reboot review (do NOT re-arm routines; the owner's
-  per-seat go is the v3.6 reboot prompt). Done-when: seat acknowledges on
-  its first rebooted wake — pending as of this stamp.
-- Known self-report lag (heartbeat DRIFT class, not an error to "fix"
-  here): `control/status.md` still reads `kit: v1.16.0` from its
-  2026-07-14 cross-seat relay stamp while the tree is at v1.17.0 (#112);
-  the heartbeat is lane-owed and gets rewritten on the next real session.
+- **No open PRs** (API-verified 0 at 2026-07-17) and no build in flight.
+  The founding day is wrapped and archived (2026-07-11 — see
+  `docs/retro/archive-ready-2026-07-11.md`); the EAP window is closed out
+  (audit + walkthrough, see "Recently shipped").
+- **ORDER 009 (EAP extension) — ACKED and merged.** The ack landed in
+  `control/outbox.md` via PR #116 (`claude/eap-ack`, merged 2026-07-16);
+  ORDER 010 (2026-07-16 reconcile-race mirror) also landed. With the
+  2026-07-17 fresh-start wind-down, the `control/inbox.md` ORDER queue is
+  **retired** — do not act on it. (Supersedes the earlier
+  "ORDER 009 status: new / pending ack" text.)
+- Kit version is **v1.17.0** across tree and heartbeat — the earlier
+  `control/status.md` `kit: v1.16.0` lag is resolved. `control/status.md`
+  is now a deprecated, retired heartbeat (do not re-stamp it).
 
 ## Externally pending (not agent-actionable here)
 
@@ -191,4 +202,7 @@ Every change ships branch -> PR -> required checks green (substrate-gate +
 pytest) -> squash merge; the owner reviews merged PRs asynchronously and
 docs/current-state.md is kept current as the project moves — per shipped
 PR when a session touches it, batch-refreshed against the merge log
-otherwise (this stamp batch-covers #94–#113).
+otherwise (reconciled through #118, merged 2026-07-16). With the
+2026-07-17 fresh-start wind-down, **merges are owner-driven on green CI**
+(the agent auto-merge doctrine is retired, [D-0002]); the rhythm above is
+otherwise unchanged.

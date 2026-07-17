@@ -17,3 +17,23 @@
   discipline let agents work correctly with little steering; adopting the
   kit starts superbot-mineverse governed instead of accreting rules ad hoc.
 - provenance: substrate-kit adoption interview
+
+## [D-0002] Fresh-start wind-down: agents do not self-merge; owner merges
+
+- status: decided
+- date: 2026-07-17
+- verdict: The agent auto-merge doctrine is retired. Agents open PRs ready
+  with green CI and flag them for the owner; the owner's merge is the
+  review. Agents do not arm auto-merge or REST-merge. If GitHub-native
+  auto-merge is kept, it is a server-side convenience the owner owns.
+- why: The Claude Code Projects EAP goes read-only 2026-07-21 and the owner
+  is winding down agent autonomy and recreating this project fresh. The
+  ~2026-07-15 permission classifier denies autonomous coordinator/worker
+  merge arming and ready-flips fleet-wide, so the "arm auto-merge → it
+  lands itself" rail stalls seats and misinforms; owner-merge-on-green is
+  the honest path.
+- provenance: OWNER-AUTHORIZED fresh-start cleanup, owner-directed via the
+  coordinator in-session 2026-07-17 (fleet EAP wind-down); applied per the
+  "owner directs the change in-session" carve-out to the propose-don't-apply
+  rule. Recorded here as the rule's provenance; CONSTITUTION.md autonomy
+  rails cite [D-0002].
