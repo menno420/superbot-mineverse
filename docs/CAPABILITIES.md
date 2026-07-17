@@ -86,10 +86,12 @@ credential is missing:
   arms routines agent-side (proven 2026-07-11); the console-only knobs
   (model class, branch-push, auto-fix PRs) remain owner-only.
   — LAST-VERIFIED: 2026-07-11
-- `subagent` · **Self-merge classifier**: sessions can be refused merging
-  owner-gated PRs while their other capabilities work — and the boundary
-  differs by venue (a child session was refused where a coordinator was
-  not). Record which venue hit which boundary. — LAST-VERIFIED: 2026-07-10
+- `subagent` · **Self-merge classifier**: sessions can be refused **arming
+  their own merge** (the permission classifier denies autonomous
+  merge-arming/REST-merge) while their other capabilities work — green
+  `claude/*` PRs land instead via the auto-merge-enabler workflow. The
+  boundary differs by venue (a child session was refused where a coordinator
+  was not). Record which venue hit which boundary. — LAST-VERIFIED: 2026-07-10
 - `any` · **GraphQL API quota**: tight — batch queries and prefer the
   REST-backed MCP tools for bulk reads. — LAST-VERIFIED: 2026-07-10
 - `routine-fired` · **Silent prompt-stalls**: a permission prompt in an
