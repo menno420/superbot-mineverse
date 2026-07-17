@@ -125,8 +125,10 @@ findings go here, below the fence.)
   remain a reliable fallback. Separately (fleet-reported, NOT retested here):
   agent auto-merge ARMING / self-merge is classifier-denied, so the
   2026-07-11 "PR auto-merge arms at creation" row below is unverified under
-  the wind-down — do NOT assume agent auto-arm works. Merges are owner-driven
-  (owner-merges-on-green; see `docs/decisions.md`).
+  the wind-down — do NOT assume agent auto-arm works. Green `claude/*` PRs
+  land automatically via the enabler workflow's GitHub-native auto-merge (the
+  workflow arms it, not the agent); the owner never reviews unmerged PRs (see
+  `docs/decisions.md`).
 
 - 2026-07-11 · wall · the orchestrator/coordinator seat lacks GitHub MCP
   tools AND Bash; worker seats have both · coordinator sessions this day

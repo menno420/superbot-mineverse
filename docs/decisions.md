@@ -18,20 +18,28 @@
   kit starts superbot-mineverse governed instead of accreting rules ad hoc.
 - provenance: substrate-kit adoption interview
 
-## [D-0002] Fresh-start wind-down: agents do not self-merge; owner merges
+## [D-0002] Fresh-start wind-down: green claude/* PRs auto-land; agents do not hand-merge
 
 - status: decided
 - date: 2026-07-17
-- verdict: The agent auto-merge doctrine is retired. Agents open PRs ready
-  with green CI and flag them for the owner; the owner's merge is the
-  review. Agents do not arm auto-merge or REST-merge. If GitHub-native
-  auto-merge is kept, it is a server-side convenience the owner owns.
+- verdict: Green `claude/*` PRs land automatically on green CI via
+  GitHub-native auto-merge — an owner-owned repo setting armed at open by
+  `.github/workflows/auto-merge-enabler.yml`, so the green head SHA merges
+  itself. Agents open PRs ready with green CI; the owner does NOT review
+  unmerged PRs (the owner reviews already-merged PRs asynchronously). The
+  workflow arms auto-merge, not the agent: agents do not hand-arm auto-merge
+  or REST-merge.
 - why: The Claude Code Projects EAP goes read-only 2026-07-21 and the owner
   is winding down agent autonomy and recreating this project fresh. The
   ~2026-07-15 permission classifier denies autonomous coordinator/worker
-  merge arming and ready-flips fleet-wide, so the "arm auto-merge → it
-  lands itself" rail stalls seats and misinforms; owner-merge-on-green is
-  the honest path.
+  merge arming and ready-flips fleet-wide — that is why agents do not
+  hand-arm or REST-merge; the enabler workflow arms GitHub-native auto-merge
+  server-side so a green PR lands without any agent (or owner) merge action.
+- corrected: Corrected 2026-07-17 per owner live order: the owner never
+  reviews unmerged PRs; green `claude/*` PRs land automatically via
+  GitHub-native auto-merge (owner-owned repo setting). Agents open ready with
+  green CI; the green head SHA lands itself. Agents still do not
+  hand-arm/REST-merge.
 - provenance: OWNER-AUTHORIZED fresh-start cleanup, owner-directed via the
   coordinator in-session 2026-07-17 (fleet EAP wind-down); applied per the
   "owner directs the change in-session" carve-out to the propose-don't-apply
