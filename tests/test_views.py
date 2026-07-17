@@ -356,10 +356,25 @@ def test_staleness_source_live_is_threaded_through(snapshot):
     assert views.build_staleness(snapshot, "live")["source"] == "live"
     live = views.build_views(snapshot, source="live")
     assert live["staleness"]["source"] == "live"
-    # source changes NOTHING else in the staleness block — additive key.
+    # source flips the flag and, for the committed sample only, ADDS a
+    # sample_generated_at vintage (surfaced in the neutral notice). The
+    # live block carries NEITHER extra — everything else stays identical.
+    assert "sample_generated_at" not in live["staleness"]
     sample = views.build_views(snapshot)["staleness"]
-    trimmed = {k: v for k, v in live["staleness"].items() if k != "source"}
-    assert trimmed == {k: v for k, v in sample.items() if k != "source"}
+    ignore = {"source", "sample_generated_at"}
+    trimmed = {k: v for k, v in live["staleness"].items() if k not in ignore}
+    assert trimmed == {k: v for k, v in sample.items() if k not in ignore}
+
+
+def test_staleness_sample_carries_committed_vintage(snapshot):
+    # The neutral "sample" notice now says HOW OLD the demo data is, so the
+    # sample staleness block surfaces the committed file's vintage. It is
+    # sample-ONLY (absent for live) and honest about a missing timestamp.
+    sample = views.build_staleness(snapshot)  # default source == "sample"
+    assert sample["source"] == "sample"
+    assert sample["sample_generated_at"] == snapshot["generated_at"]
+    assert "sample_generated_at" not in views.build_staleness(snapshot, "live")
+    assert views.build_staleness({})["sample_generated_at"] is None
 
 
 # --- gear panel ----------------------------------------------------------
