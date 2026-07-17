@@ -156,6 +156,19 @@ class MineverseHandler(SimpleHTTPRequestHandler):
             self.ingest_config = ingest.IngestConfig.from_env()
         super().__init__(*args, **kwargs)
 
+    def end_headers(self):  # noqa: N802 (http.server API name)
+        """One choke point for headers every response shares.
+
+        ``X-Content-Type-Options: nosniff`` tells browsers never to
+        MIME-sniff a response body against its declared ``Content-Type`` —
+        emitted here so it rides API JSON, static files, 304s, and error
+        pages alike, with no per-handler path able to forget it. Only
+        nosniff: X-Frame-Options / Referrer-Policy / CSP are owner policy
+        calls, deliberately not asserted here.
+        """
+        self.send_header("X-Content-Type-Options", "nosniff")
+        super().end_headers()
+
     def do_GET(self):  # noqa: N802 (http.server API name)
         route, _, query = self.path.partition("?")
         if route == API_SNAPSHOT:
@@ -178,6 +191,51 @@ class MineverseHandler(SimpleHTTPRequestHandler):
             self._send_json(404, {"error": "unknown API route"})
         else:
             super().do_GET()
+
+    def do_HEAD(self):  # noqa: N802 (http.server API name)
+        """HEAD that actually works on the read API routes.
+
+        ``SimpleHTTPRequestHandler``'s inherited ``do_HEAD`` only knows
+        static paths, so ``HEAD /api/snapshot|/api/views|/api/me`` used to
+        404 even though the 405 handler advertised ``Allow: GET, HEAD``.
+        Route ``/api/*`` through the SAME dispatch as ``do_GET`` — the two
+        body-write sites (``_send_json``, ``_serve_cacheable_json``)
+        suppress the body when ``self.command == "HEAD"`` while still
+        emitting every header (Content-Length, ETag, Content-Type +
+        charset) identically to GET, so 200/304/404/405/503 all answer
+        header-only. Non-API paths keep the inherited static HEAD.
+        """
+        route, _, _ = self.path.partition("?")
+        if route.startswith("/api/"):
+            self.do_GET()
+        else:
+            super().do_HEAD()
+
+    def do_OPTIONS(self):  # noqa: N802 (http.server API name)
+        """204 with an honest ``Allow`` per route class.
+
+        Mirrors the ``Allow``-header discipline of
+        ``_reject_unsupported_method``: read routes answer
+        ``GET, HEAD, OPTIONS``; the two POST routes ``POST, OPTIONS``; an
+        unknown ``/api/*`` route the same JSON 404 as every other verb; a
+        static path defers to the stock 501 (no CORS surface — the frontend
+        is same-origin).
+        """
+        route, _, _ = self.path.partition("?")
+        if route in GET_ONLY_API_ROUTES:
+            allow = "GET, HEAD, OPTIONS"
+        elif route in POST_ONLY_API_ROUTES:
+            allow = "POST, OPTIONS"
+        elif route.startswith("/api/"):
+            self._send_json(404, {"error": "unknown API route"})
+            return
+        else:
+            self.send_error(501, "Unsupported method (%r)" % self.command)
+            return
+        self.send_response(204)
+        self.send_header("Allow", allow)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
 
     def do_POST(self):  # noqa: N802 (http.server API name)
         route, _, _ = self.path.partition("?")
@@ -551,7 +609,8 @@ class MineverseHandler(SimpleHTTPRequestHandler):
         self.send_header("ETag", etag)
         self.send_header("Cache-Control", "no-cache")
         self.end_headers()
-        self.wfile.write(payload)
+        if self.command != "HEAD":  # HEAD: identical headers, no body
+            self.wfile.write(payload)
 
     def _if_none_match_hits(self, etag: str) -> bool:
         header = self.headers.get("If-None-Match")
@@ -758,7 +817,8 @@ class MineverseHandler(SimpleHTTPRequestHandler):
         for name, value in (headers or {}).items():
             self.send_header(name, value)
         self.end_headers()
-        self.wfile.write(payload)
+        if self.command != "HEAD":  # HEAD: identical headers, no body
+            self.wfile.write(payload)
 
     def send_error(self, code, message=None, explain=None):
         """Cave-art 404 page for unknown NON-API paths — nothing else.
