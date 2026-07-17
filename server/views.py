@@ -609,15 +609,27 @@ def build_staleness(snapshot: dict, source: str = "sample") -> dict:
     snapshot path against the committed sample's). The frontend uses it
     to tell "demo data is old by design" apart from "the live relay went
     quiet" — only the latter deserves the STALE alarm.
+
+    For the ``"sample"`` source the block ALSO carries ``sample_generated_at``
+    — the committed demo file's vintage — so the neutral notice can say HOW
+    OLD the demo data is instead of only naming the situation (web/app.js
+    ``renderStaleness``).  The key is sample-ONLY and additive: the ``"live"``
+    block is byte-identical to before, and existing age math is untouched.
     """
     generated_at = snapshot.get("generated_at")
-    return {
+    block = {
         "generated_at": generated_at if isinstance(generated_at, str) else None,
         "generated_at_epoch": parse_generated_at(generated_at),
         "cadence_seconds": SNAPSHOT_CADENCE_SECONDS,
         "stale_after_seconds": STALE_AFTER_SECONDS,
         "source": source,
     }
+    if source == "sample":
+        # The committed sample's vintage, surfaced in the neutral notice.
+        # Reuses the already-normalised str-or-None from above; live never
+        # gains this key, so the live payload stays exactly as it was.
+        block["sample_generated_at"] = block["generated_at"]
+    return block
 
 
 def build_views(snapshot: dict, source: str = "sample") -> dict:

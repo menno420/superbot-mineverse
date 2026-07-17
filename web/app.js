@@ -746,10 +746,16 @@ function renderStaleness(staleness) {
   line.classList.remove("fresh", "warn", "stale", "sample");
   if (staleness?.source === "sample") {
     // The committed demo file is old BY DESIGN — the STALE alarm would
-    // be a permanent false positive. Name the situation instead.
+    // be a permanent false positive. Name the situation, and surface the
+    // sample's vintage (sample_generated_at, date-only) so HOW OLD the
+    // demo data is stays transparent instead of hidden.
     line.classList.add("sample");
-    line.textContent =
-      "committed sample data — live relay not connected";
+    let text = "committed sample data — live relay not connected";
+    const vintage = staleness?.sample_generated_at;
+    if (typeof vintage === "string" && vintage) {
+      text += ` · generated ${vintage.slice(0, 10)}`;
+    }
+    line.textContent = text;
     return;
   }
   const epoch = staleness?.generated_at_epoch;
