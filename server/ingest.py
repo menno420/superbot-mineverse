@@ -38,15 +38,20 @@ not relay state.
 Persistence honors the contract's atomicity clause ("a snapshot is
 replaced whole, never patched; a reader never observes a half-written
 document"): same-directory temp file + fsync + ``os.replace``.
-Ordering is last-write-wins — the contract defines the relay as "the
-latest document" from a single 60 s-cadence sender with no retry, so
-there is no cross-request ordering to arbitrate; replaying a captured
-signed request inside the ±300 s skew window rewrites the identical
-bytes (idempotent by content).
+Ordering is ``generated_at``-monotonic — the contract defines the relay
+as "the latest document" from a single 60 s-cadence sender with no retry,
+and the receiver refuses a snapshot whose ``generated_at`` is strictly
+older than the currently-persisted one (409 ``stale_snapshot``, file
+byte-unchanged) so that replaying a captured signed request inside the
+±300 s skew window cannot overwrite the live read with older data;
+replaying the SAME document rewrites the identical bytes (equal
+``generated_at`` — idempotent by content).
 """
 
 from __future__ import annotations
 
+import datetime
+import json
 import os
 import tempfile
 from pathlib import Path
@@ -109,3 +114,44 @@ def persist_snapshot(path: Path, payload: bytes) -> None:
         except OSError:
             pass
         raise
+
+
+def parse_generated_at(value: object) -> datetime.datetime | None:
+    """Parse a v1 ``generated_at`` string to an aware UTC datetime, or ``None``.
+
+    ``None`` means "not a comparable instant" — a non-string, or a string
+    that is not ISO 8601 — and the freshness gate treats an unparseable
+    side as "do not block". Python 3.10's ``fromisoformat`` rejects a
+    trailing ``Z``, so it is normalized to ``+00:00`` first; a naive result
+    is pinned to UTC so two parsed instants always compare.
+    """
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=datetime.timezone.utc)
+    return parsed
+
+
+def current_generated_at(path: Path) -> datetime.datetime | None:
+    """``generated_at`` of the currently-persisted snapshot, or ``None``.
+
+    ``None`` is the "do not block a valid new push" signal for the freshness
+    gate: there is no current file (first ingest), it is unreadable, it is
+    not JSON, it is not an object, or its ``generated_at`` is absent/
+    unparseable — a corrupt or missing current snapshot must never wedge the
+    relay against a valid newer document.
+    """
+    try:
+        current = json.loads(path.read_bytes())
+    except (OSError, ValueError):
+        return None
+    if not isinstance(current, dict):
+        return None
+    return parse_generated_at(current.get("generated_at"))

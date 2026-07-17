@@ -137,6 +137,79 @@ def test_second_push_replaces_the_document_whole(ingest_server):
     assert target.read_bytes() == second_body
 
 
+# --- freshness gate: generated_at-monotonic (replay hardening) ---------------
+
+# VALID_BODY carries generated_at "2026-07-13T02:30:00Z"; these bracket it.
+NEWER_GENERATED_AT = "2026-07-13T03:00:00Z"
+OLDER_GENERATED_AT = "2026-07-13T02:00:00Z"
+EQUAL_GENERATED_AT = "2026-07-13T02:30:00Z"
+
+
+def body_with_generated_at(iso: str, **overrides) -> bytes:
+    """VALID_BODY re-stamped with generated_at ``iso`` (plus any overrides)."""
+    doc = json.loads(VALID_BODY)
+    doc["generated_at"] = iso
+    doc.update(overrides)
+    return json.dumps(doc).encode("utf-8")
+
+
+def test_newer_generated_at_replaces_the_live_snapshot(ingest_server):
+    base, target = ingest_server
+    post(base + API_SNAPSHOT_INGEST, VALID_BODY, signed_headers(VALID_BODY))
+    newer = body_with_generated_at(NEWER_GENERATED_AT)
+    status, body = post(base + API_SNAPSHOT_INGEST, newer, signed_headers(newer))
+    assert (status, body) == (200, {"status": "accepted"})
+    assert target.read_bytes() == newer
+
+
+def test_strictly_older_generated_at_is_409_and_file_byte_unchanged(ingest_server):
+    base, target = ingest_server
+    post(base + API_SNAPSHOT_INGEST, VALID_BODY, signed_headers(VALID_BODY))
+    before = target.read_bytes()
+    older = body_with_generated_at(OLDER_GENERATED_AT)
+    status, body = post(base + API_SNAPSHOT_INGEST, older, signed_headers(older))
+    assert status == 409
+    assert body == {
+        "error": "stale_snapshot",
+        "detail": "generated_at older than current",
+    }
+    assert target.read_bytes() == before  # rejected push is byte-for-byte inert
+
+
+def test_equal_generated_at_is_idempotent_accept(ingest_server):
+    # A replay of the "current instant" (equal generated_at) is accepted, not
+    # gated — the monotone frontier is strict-older, so equal advances-in-place.
+    base, target = ingest_server
+    post(base + API_SNAPSHOT_INGEST, VALID_BODY, signed_headers(VALID_BODY))
+    equal = body_with_generated_at(EQUAL_GENERATED_AT, miners=[])
+    status, body = post(base + API_SNAPSHOT_INGEST, equal, signed_headers(equal))
+    assert (status, body) == (200, {"status": "accepted"})
+    assert target.read_bytes() == equal
+
+
+def test_first_ingest_is_accepted_with_no_current_snapshot(ingest_server):
+    # No current document to gate against → the gate never blocks the first push.
+    base, target = ingest_server
+    assert not target.exists()
+    status, body = post(
+        base + API_SNAPSHOT_INGEST, VALID_BODY, signed_headers(VALID_BODY)
+    )
+    assert (status, body) == (200, {"status": "accepted"})
+    assert target.read_bytes() == VALID_BODY
+
+
+def test_corrupt_current_file_never_blocks_a_valid_newer_push(ingest_server):
+    # An unparseable current snapshot yields no comparable instant, so a valid
+    # signed push must still land (the relay never wedges on a corrupt file).
+    base, target = ingest_server
+    target.write_bytes(b"{ not json at all")
+    status, body = post(
+        base + API_SNAPSHOT_INGEST, VALID_BODY, signed_headers(VALID_BODY)
+    )
+    assert (status, body) == (200, {"status": "accepted"})
+    assert target.read_bytes() == VALID_BODY
+
+
 # --- transport auth: 401, nothing persisted ----------------------------------
 
 

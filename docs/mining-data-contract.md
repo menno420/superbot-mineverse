@@ -184,6 +184,7 @@ path uses):
 | `200` | accepted (`{"status": "accepted"}`) — snapshot persisted whole |
 | `401` | transport-auth failure — `invalid_signature` or `stale_timestamp`; nothing parsed or persisted |
 | `400` | bad/absent `Content-Length`, malformed JSON, or v1-contract violation |
+| `409` | `stale_snapshot` — incoming `generated_at` strictly older than the currently-persisted snapshot; the live file is left byte-unchanged (replay hardening) |
 | `413` | body over 1 MiB (bounded **before** the body is read) |
 | `415` | `Content-Type` is not `application/json` |
 | `405` | wrong verb on the route (with `Allow: POST`) |
@@ -192,12 +193,18 @@ path uses):
 
 ### Ordering
 
-Last-write-wins, replaced whole: the relay holds "the latest document"
-from a single ~60 s-cadence sender with no retry, so there is no
-cross-request ordering to arbitrate and **v1 carries no sequence key**.
-Replaying a captured signed request inside the ±300 s skew window
-rewrites identical bytes — acceptance is idempotent by content.
-Staleness detection stays `generated_at`-based (above), never
+`generated_at`-monotonic, replaced whole: the relay holds "the latest
+document" from a single ~60 s-cadence sender with no retry, and **v1
+carries no sequence key**, so `generated_at` itself is the ordering key.
+An incoming snapshot whose `generated_at` is strictly older than the
+currently-persisted one is refused `409 {"error": "stale_snapshot"}`
+with the live file left byte-unchanged — replay hardening, because a
+signed request captured up to ~300 s ago could otherwise be re-sent
+inside the skew window to overwrite the live read with older data. Equal
+`generated_at` is idempotent-accept (the replayed identical document
+rewrites the identical bytes); newer advances the read. A missing or
+corrupt current file never blocks a valid new push (first ingest
+included). Staleness detection stays `generated_at`-based (above), never
 transport-based.
 
 ## Enforcement
