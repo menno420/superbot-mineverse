@@ -1,6 +1,6 @@
 # Session — 2026-07-17 — Sample vintage in the neutral notice
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 > **Branch:** `claude/sample-vintage-notice`
 > **Timestamp (UTC):** Fri Jul 17 2026
 
