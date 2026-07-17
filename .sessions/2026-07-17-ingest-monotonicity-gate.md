@@ -1,6 +1,6 @@
 # Session — 2026-07-17 — Ingest freshness gate (generated_at-monotonic)
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 > **Branch:** `claude/ingest-monotonicity-gate`
 > **Timestamp (UTC):** Fri Jul 17 2026
 
