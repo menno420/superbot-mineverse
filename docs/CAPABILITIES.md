@@ -86,10 +86,12 @@ credential is missing:
   arms routines agent-side (proven 2026-07-11); the console-only knobs
   (model class, branch-push, auto-fix PRs) remain owner-only.
   — LAST-VERIFIED: 2026-07-11
-- `subagent` · **Self-merge classifier**: sessions can be refused merging
-  owner-gated PRs while their other capabilities work — and the boundary
-  differs by venue (a child session was refused where a coordinator was
-  not). Record which venue hit which boundary. — LAST-VERIFIED: 2026-07-10
+- `subagent` · **Self-merge classifier**: sessions can be refused **arming
+  their own merge** (the permission classifier denies autonomous
+  merge-arming/REST-merge) while their other capabilities work — green
+  `claude/*` PRs land instead via the auto-merge-enabler workflow. The
+  boundary differs by venue (a child session was refused where a coordinator
+  was not). Record which venue hit which boundary. — LAST-VERIFIED: 2026-07-10
 - `any` · **GraphQL API quota**: tight — batch queries and prefer the
   REST-backed MCP tools for bulk reads. — LAST-VERIFIED: 2026-07-10
 - `routine-fired` · **Silent prompt-stalls**: a permission prompt in an
@@ -125,8 +127,10 @@ findings go here, below the fence.)
   remain a reliable fallback. Separately (fleet-reported, NOT retested here):
   agent auto-merge ARMING / self-merge is classifier-denied, so the
   2026-07-11 "PR auto-merge arms at creation" row below is unverified under
-  the wind-down — do NOT assume agent auto-arm works. Merges are owner-driven
-  (owner-merges-on-green; see `docs/decisions.md`).
+  the wind-down — do NOT assume agent auto-arm works. Green `claude/*` PRs
+  land automatically via the enabler workflow's GitHub-native auto-merge (the
+  workflow arms it, not the agent); the owner never reviews unmerged PRs (see
+  `docs/decisions.md`).
 
 - 2026-07-11 · wall · the orchestrator/coordinator seat lacks GitHub MCP
   tools AND Bash; worker seats have both · coordinator sessions this day

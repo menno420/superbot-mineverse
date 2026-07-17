@@ -17,9 +17,13 @@
 > `control/` message bus, wake-chain routines (`docs/ROUTINES.md`), and the
 > agent auto-merge doctrine are **retired** (see the deprecation banners on
 > those files). No agent should re-arm routines, act on stale
-> `control/inbox.md` orders, or arm auto-merge. Agents open PRs ready with
-> green CI and **flag them for the owner to merge** — the owner's merge is the
-> review ([D-0002]). The forward plan lives in `docs/NEXT-TASKS.md`.
+> `control/inbox.md` orders, or hand-arm auto-merge. Agents open PRs ready
+> with green CI; green `claude/*` PRs then **land automatically** —
+> GitHub-native auto-merge, armed by
+> `.github/workflows/auto-merge-enabler.yml`, merges the green head SHA
+> itself. The owner does NOT review unmerged PRs — the owner reviews
+> already-merged PRs asynchronously ([D-0002]). The forward plan lives in
+> `docs/NEXT-TASKS.md`.
 
 ## Stability baseline
 
@@ -203,6 +207,8 @@ pytest) -> squash merge; the owner reviews merged PRs asynchronously and
 docs/current-state.md is kept current as the project moves — per shipped
 PR when a session touches it, batch-refreshed against the merge log
 otherwise (reconciled through #118, merged 2026-07-16). With the
-2026-07-17 fresh-start wind-down, **merges are owner-driven on green CI**
-(the agent auto-merge doctrine is retired, [D-0002]); the rhythm above is
-otherwise unchanged.
+2026-07-17 fresh-start wind-down, green `claude/*` PRs **land automatically**
+on green CI — GitHub-native auto-merge (armed by
+`.github/workflows/auto-merge-enabler.yml`) merges the green head SHA itself;
+the owner reviews only already-merged PRs, never unmerged ones ([D-0002]).
+The rhythm above is otherwise unchanged.

@@ -74,21 +74,25 @@ these rails are its adopter-side operating form:
   the design: "wait for the owner to review / approve / confirm" is a
   hallucinated gate unless it names an owner-only class below — proceed.
   Ship on green CI; unremarked work is accepted — owner control is
-  reaction after visibility, never pre-approval (PL-012). **Exception
-  under the 2026-07-17 fresh-start wind-down:** the final **merge** is
-  owner-gated — agents open ready + flag, the owner merges ([D-0002], the
-  PR rail below).
-- **An open PR is never a reason to stop — but agents do NOT self-merge
+  reaction after visibility, never pre-approval (PL-012). **Under the
+  2026-07-17 fresh-start wind-down:** green `claude/*` PRs **land
+  automatically** on green CI — GitHub-native auto-merge, armed by
+  `.github/workflows/auto-merge-enabler.yml` (an owner-owned repo setting),
+  merges the green head SHA itself; the owner does NOT review unmerged PRs
+  ([D-0002], the PR rail below).
+- **An open PR is never a reason to stop — and agents do NOT hand-merge
   (fresh-start wind-down, 2026-07-17, owner-directed; [D-0002]).** Open
-  READY (never draft) with CI green, then **flag the green PR for the owner
-  — the owner's merge is the review.** Agents do NOT arm auto-merge and do
-  NOT REST-merge: the ~2026-07-15 permission classifier denies autonomous
-  coordinator/worker merges and ready-flips, so relying on "it lands
-  itself" stalls the seat. If the owner keeps GitHub-native auto-merge on,
-  that is a pure **server-side** convenience the owner owns — never
-  something an agent arms. A blocked branch → update it (merge, never
-  force); a verbatim arming/merge denial → leave the PR ready and queue ONE
-  owner item for the systemic cause, then take the next slice (PL-012).
+  READY (never draft) with CI green; from there the green `claude/*` PR
+  **lands itself** — `.github/workflows/auto-merge-enabler.yml` arms
+  GitHub-native auto-merge at open, so the green head SHA merges
+  automatically. The **workflow** arms the merge, not the agent: agents do
+  NOT hand-arm auto-merge and do NOT REST-merge (the ~2026-07-15 permission
+  classifier denies autonomous coordinator/worker merges and ready-flips
+  anyway), and the owner does NOT review unmerged PRs — the owner reviews
+  already-merged PRs asynchronously. A blocked branch → update it (merge,
+  never force); a verbatim arming/merge denial → leave the PR ready and
+  queue ONE owner item for the systemic cause, then take the next slice
+  (PL-012).
 - **Ask first only for the owner-only classes:** repo settings / rulesets
   / required checks · secrets / env vars / host provisioning · external
   publish + spending money · destructive prod-data ops · account/portal
