@@ -2,6 +2,15 @@
 
 > **Status:** `owner-guidance`
 >
+> **⚠️ DEPRECATED — retired EAP-era autonomy scaffolding (2026-07-17).** The
+> Claude Code Projects EAP goes read-only 2026-07-21 and the owner is winding
+> down agent autonomy and recreating this project fresh. This file belongs to
+> the retired coordinator/worker apparatus (the `control/` message bus,
+> wake-chain routines, the agent auto-merge doctrine) — kept as history only,
+> not a live instruction surface. Do NOT act on the orders, heartbeats,
+> routines, or merge doctrine it describes. Live status: `docs/current-state.md`;
+> forward plan: `docs/NEXT-TASKS.md`.
+>
 > The owner's review-it-yourself walkthrough for this seat at EAP close
 > (ORDER 008, `control/inbox.md` @ `c01c013`, landed via PR #108). Written
 > 2026-07-14T11:25Z against main `c01c013`. Depth lives in the seat's merged

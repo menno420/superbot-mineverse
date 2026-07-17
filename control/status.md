@@ -7,7 +7,7 @@ last-shipped: #116 — EAP ORDER 009 ack claim (squash 141373d); the outbox ack 
 blockers: none
 orders: acked=001,002,003,004,005,006,007,008,009 done=001,002,003,004,005,006,007,008
 ⚑ needs-owner: unchanged — the pending clicks stay consolidated in docs/eap-closeout-walkthrough-2026-07-14.md §C (incl. OA-003), each with a bolded recommendation + VERIFY step.
-notes: heartbeat re-stamp under the ORDER 009 ack; facts below are neutral and live at stamp time.
+notes: RETIRED heartbeat — EAP autonomy wind-down 2026-07-17. This control/ message bus is deprecated (see the DEPRECATED banner at the end of this file); it is kept as history, not a live surface. Live status: docs/current-state.md; forward plan: docs/NEXT-TASKS.md.
 
 ## REPO STATE (live main shas at stamp)
 
@@ -15,11 +15,15 @@ notes: heartbeat re-stamp under the ORDER 009 ack; facts below are neutral and l
 - games `5db902a` green (810 passed @446a84e)
 - idle `25d34f1` green (1381 passed + 1 skipped @8a7275d)
 
-## ROUTINES (neutral facts)
+## ROUTINES (RETIRED — autonomy wind-down 2026-07-17)
 
-- Failsafe trig_01RwQK2cBpgvY2xc2LZPSNtQ · cron `15 1-23/2 * * *` · bound to the
-  coordinator session · coordinator-verified 04:02Z; predecessor trig_01Qctdbv…
-  verified absent 04:14Z; pacemaker chain live (15–60 min adaptive).
+- **No live routines for this seat.** The failsafe cron
+  (trig_01RwQK2cBpgvY2xc2LZPSNtQ · `15 1-23/2 * * *`, coordinator-bound) and
+  the pacemaker wake chain were EAP autonomy apparatus and are being wound
+  down. Do NOT re-arm them: the owner is recreating this project fresh and the
+  EAP goes read-only 2026-07-21. Any trigger still armed for this seat is the
+  owner's to delete; agents do not re-arm. Historical doctrine (deprecated):
+  `docs/ROUTINES.md`.
 
 ## ORDERS (fleet view at stamp)
 
@@ -41,7 +45,18 @@ notes: heartbeat re-stamp under the ORDER 009 ack; facts below are neutral and l
 - SECURITY-BEFORE-SECRETS satisfied (CSRF #42 merged 2026-07-12); six OAuth env
   vars owner-pending → docs/eap-closeout-walkthrough-2026-07-14.md §C (incl. OA-003).
 
-## NEXT-2 BATON
+## NEXT-2 BATON (RETIRED)
 
-1. Sim-verdict relay follow-up (games ORDER 008).
-2. Mirror the #142 reconcile-race fix to games/mineverse workflows.
+The wake-chain baton is retired with the autonomy wind-down. The forward plan
+for this repo now lives in `docs/NEXT-TASKS.md` (owner-driven; no wake chain).
+
+---
+
+> ## ⚠️ DEPRECATED — retired EAP-era heartbeat (2026-07-17)
+>
+> This `control/status.md` seat heartbeat is part of the retired coordinator/
+> worker message bus. The Claude Code Projects EAP goes **read-only
+> 2026-07-21**; the owner is winding down agent autonomy and **recreating this
+> project fresh**. Treat this file as history, not a live surface — do not
+> re-stamp it, act on its ⚑ needs-owner asks, or re-arm its routines. Live
+> status: `docs/current-state.md`; forward plan: `docs/NEXT-TASKS.md`.

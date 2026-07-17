@@ -1,1 +1,0 @@
-- `claude/truth-refresh` · **truth refresh: docs/current-state.md + 2026-07-14 card model-line advisory cleanup** · docs/current-state.md + .sessions/2026-07-14-*.md model lines · 2026-07-15

@@ -2,6 +2,15 @@
 
 > **Status:** `binding`
 >
+> **⚠️ DEPRECATED — retired EAP-era autonomy scaffolding (2026-07-17).** The
+> Claude Code Projects EAP goes read-only 2026-07-21 and the owner is winding
+> down agent autonomy and recreating this project fresh. This file belongs to
+> the retired coordinator/worker apparatus (the `control/` message bus,
+> wake-chain routines, the agent auto-merge doctrine) — kept as history only,
+> not a live instruction surface. Do NOT act on the orders, heartbeats,
+> routines, or merge doctrine it describes. Live status: `docs/current-state.md`;
+> forward plan: `docs/NEXT-TASKS.md`.
+>
 > Local copy for superbot-mineverse. The kit-owned work-claim convention
 > (EAP program review 2026-07-10 §6.4 — the fleet's forked claim mechanisms
 > unified on the measured winner). Order claims are different and stay on
