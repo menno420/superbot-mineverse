@@ -1010,3 +1010,102 @@ def test_ore_icon_svg_known_tier_colors_and_unknown_null():
     # Unknown / unmapped names get no icon at all (null, not empty markup).
     assert js_call("oreIconSVG", "obsidian") is None
     assert js_call("oreIconSVG", "") is None
+
+
+# --- minerAvatarSVG: base rects first, cosmetic hat layered on top -----------
+#
+# Pure (JSON hat in, markup out): five fixed base rects (helmet/face/overalls)
+# render FIRST, then `hatSVGRects(hat ? hat.pixels : null)` is appended AFTER so
+# the server-derived cosmetic hat draws ON TOP. A no-hat / junk-hat call must
+# render base-only through the same hatSVGRects validity filter — never a throw.
+# String-presence-only in tests/test_web_visuals.py before this; execute the
+# real function so the layering ORDER and the null-hat branch actually run.
+
+# The five base rects, in their shipped emission order (web/app.js :505-509).
+MINER_BASE_RECTS = [
+    '<rect x="2" y="2" width="4" height="1" fill="#f5a83c"/>',
+    '<rect x="2" y="3" width="4" height="2" fill="#e8c9a0"/>',
+    '<rect x="1" y="5" width="6" height="3" fill="#4a6fa5"/>',
+    '<rect x="2" y="8" width="1" height="2" fill="#3a3350"/>',
+    '<rect x="5" y="8" width="1" height="2" fill="#3a3350"/>',
+]
+
+
+def test_miner_avatar_svg_layers_hat_after_the_base_rects():
+    markup = js_call("minerAvatarSVG", {"pixels": [[0, 0, 2, 2, "#fff"]]})
+    # Routed through the shared shell: crispEdges + focusable, 8×10 grid.
+    assert markup.startswith(
+        '<svg viewBox="0 0 8 10" width="12" height="15" '
+        'shape-rendering="crispEdges" focusable="false">'
+    )
+    # Every base rect is present and in its shipped order.
+    positions = [markup.index(rect) for rect in MINER_BASE_RECTS]
+    for rect in MINER_BASE_RECTS:
+        assert rect in markup, rect
+    assert positions == sorted(positions)
+    # The cosmetic hat rect is present...
+    hat_rect = '<rect x="0" y="0" width="2" height="2" fill="#fff"/>'
+    assert hat_rect in markup
+    # ...and layered AFTER every base rect (drawn on top).
+    assert markup.index(hat_rect) > max(positions)
+    assert markup.count("<rect") == len(MINER_BASE_RECTS) + 1
+
+
+def test_miner_avatar_svg_renders_base_only_for_missing_or_junk_hat():
+    # null hat -> `hat ? hat.pixels : null` short-circuits to null; {} hat ->
+    # hat.pixels is undefined; a junk pixels spec is filtered to nothing by
+    # hatSVGRects (same junk shapes as test_hat_svg_rects_rejects_junk_*). All
+    # three yield the identical base-only markup, and none throws.
+    ops = [
+        {"type": "call", "fn": "minerAvatarSVG", "args": [None]},
+        {"type": "call", "fn": "minerAvatarSVG", "args": [{}]},
+        # junk pixels: non-numeric coord + junk entry -> all filtered out.
+        {"type": "call", "fn": "minerAvatarSVG",
+         "args": [{"pixels": [["a", 2, 3, 4, "#fff"], None]}]},
+    ]
+    results = run_js_ops(ops)
+    for markup in results:
+        for rect in MINER_BASE_RECTS:
+            assert rect in markup, rect
+        # No extra hat rect beyond the five base rects.
+        assert markup.count("<rect") == len(MINER_BASE_RECTS)
+    # Base-only output is byte-identical regardless of which no-hat path ran.
+    assert results[0] == results[1] == results[2]
+
+
+# --- crackedIconSVG: the ONLY crisp=false shell caller -----------------------
+#
+# Pure, no args, constant markup. It is the sole caller of
+# pixelSVGShell(..., crisp=false), so crispEdges is ABSENT here (the smooth
+# diagonal crack stroke never shipped crispEdges — keeping the bytes identical
+# is the point) while focusable="false" is still unforgeable. Presence-only in
+# tests/test_web_visuals.py before this.
+
+
+def test_cracked_icon_svg_is_the_crisp_false_smooth_stroke():
+    markup = js_call("crackedIconSVG")
+    # crisp=false proof: the ONE mark that drops crispEdges.
+    assert 'shape-rendering="crispEdges"' not in markup
+    # ...but the shared shell still stamps focusable="false".
+    assert 'focusable="false"' in markup
+    # The smooth diagonal crack stroke, exact shipped bytes.
+    assert (
+        '<polyline points="4,0 2.5,4 5.5,5.5 3,10" fill="none" '
+        'stroke="#e2543e" stroke-width="1.4"/>'
+    ) in markup
+
+
+# --- recordFlagSVG: constant pole + pennant marker ---------------------------
+#
+# Pure, no args, constant. Marker flag planted at a record-depth band: a tall
+# thin pole <rect> and a triangular pennant <polygon>, through the default
+# (crisp=true) shell. Presence-only in tests/test_web_visuals.py before this.
+
+
+def test_record_flag_svg_pole_and_pennant_bytes():
+    markup = js_call("recordFlagSVG")
+    # Default crisp=true shell -> crispEdges present.
+    assert 'shape-rendering="crispEdges"' in markup
+    # The pole rect and the pennant polygon, exact shipped bytes/colors.
+    assert '<rect x="1" y="0" width="1" height="10" fill="#a79fc0"/>' in markup
+    assert '<polygon points="2,0 8,2 2,4" fill="#e2543e"/>' in markup
