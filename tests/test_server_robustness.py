@@ -259,3 +259,120 @@ def test_missing_404_page_falls_back_to_the_stock_error(serve, tmp_path):
     assert status == 404
     assert headers["content-type"].startswith("text/html")
     assert b"404" in body
+
+
+# --- X-Content-Type-Options: nosniff on EVERY response ----------------------
+# One end_headers() choke point, so the header rides API JSON, static files,
+# 304s, and error pages alike.
+
+
+def test_nosniff_on_200_json_and_static(serve):
+    addr = serve()
+    for path in ("/api/snapshot", "/"):
+        _, headers, _ = request(addr, "GET", path)
+        assert headers["x-content-type-options"] == "nosniff", path
+
+
+def test_nosniff_on_a_304(serve):
+    addr = serve()
+    _, headers, _ = request(addr, "GET", "/api/snapshot")
+    etag = headers["etag"]
+    status, headers304, _ = request(
+        addr, "GET", "/api/snapshot", headers={"If-None-Match": etag})
+    assert status == 304
+    assert headers304["x-content-type-options"] == "nosniff"
+
+
+def test_nosniff_on_404_api_and_static(serve):
+    addr = serve()
+    for path in ("/api/nope", "/no-such-page.html"):
+        status, headers, _ = request(addr, "GET", path)
+        assert status == 404, path
+        assert headers["x-content-type-options"] == "nosniff", path
+
+
+def test_nosniff_on_a_405(serve):
+    status, headers, _ = request(serve(), "POST", "/")
+    assert status == 405
+    assert headers["x-content-type-options"] == "nosniff"
+
+
+def test_nosniff_on_a_503(serve, tmp_path):
+    # A non-existent snapshot_path draws the honest 503 — nosniff rides it too.
+    addr = serve(snapshot_path=tmp_path / "gone.json", web_root=WEB_ROOT)
+    status, headers, _ = request(addr, "GET", "/api/snapshot")
+    assert status == 503
+    assert headers["x-content-type-options"] == "nosniff"
+
+
+# --- HEAD works on the read API routes: GET headers, empty body -------------
+
+
+@pytest.mark.parametrize("path", ["/api/snapshot", "/api/views", "/api/me"])
+def test_head_on_read_api_routes_mirrors_get_headers_without_body(serve, path):
+    addr = serve()
+    gstatus, gheaders, gbody = request(addr, "GET", path)
+    hstatus, hheaders, hbody = request(addr, "HEAD", path)
+    assert gstatus == 200 and hstatus == 200
+    # Header-only: all headers (incl. Content-Length) match GET, body is empty.
+    assert hbody == b""
+    ctype = hheaders["content-type"]
+    assert ctype.startswith("application/json")
+    assert "charset=utf-8" in ctype
+    assert hheaders["content-length"] == str(len(gbody))
+    # Every header identical to GET (Date is clock-dependent — drop it).
+    gheaders.pop("date", None)
+    hheaders.pop("date", None)
+    assert hheaders == gheaders
+
+
+@pytest.mark.parametrize("path", ["/api/snapshot", "/api/views"])
+def test_head_on_cacheable_read_routes_carries_the_etag(serve, path):
+    # The committed-data routes ETag; HEAD must expose it (and content-length)
+    # so a client can revalidate without ever fetching a body.
+    status, headers, body = request(serve(), "HEAD", path)
+    assert status == 200
+    assert headers["etag"].startswith('"') and headers["etag"].endswith('"')
+    assert headers["content-length"] != "0"
+    assert body == b""
+
+
+def test_head_on_static_root_still_works(serve):
+    status, headers, body = request(serve(), "HEAD", "/")
+    assert status == 200
+    assert headers["content-type"].startswith("text/html")
+    assert body == b""
+
+
+def test_head_on_unknown_path_stays_a_404_with_no_body(serve):
+    # Extends the /no/such/tunnel regression: the inherited static HEAD still
+    # 404s unknown non-API paths, header-only.
+    status, headers, body = request(serve(), "HEAD", "/no/such/path")
+    assert status == 404
+    assert body == b""
+
+
+# --- OPTIONS: 204 + honest Allow per route class ----------------------------
+
+
+@pytest.mark.parametrize("path", ["/api/snapshot", "/api/views", "/api/me"])
+def test_options_on_read_routes_is_204_allowing_get_head_options(serve, path):
+    status, headers, body = request(serve(), "OPTIONS", path)
+    assert status == 204
+    assert headers["allow"] == "GET, HEAD, OPTIONS"
+    assert body == b""
+
+
+@pytest.mark.parametrize("path", ["/api/action", "/api/snapshot/ingest"])
+def test_options_on_post_routes_is_204_allowing_post_options(serve, path):
+    status, headers, body = request(serve(), "OPTIONS", path)
+    assert status == 204
+    assert headers["allow"] == "POST, OPTIONS"
+    assert body == b""
+
+
+def test_options_on_unknown_api_route_is_json_404(serve):
+    status, headers, body = request(serve(), "OPTIONS", "/api/nope")
+    assert status == 404
+    assert headers["content-type"] == "application/json; charset=utf-8"
+    assert json.loads(body) == {"error": "unknown API route"}
