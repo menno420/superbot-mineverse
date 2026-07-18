@@ -915,3 +915,98 @@ def test_band_tint_class_clamps_to_zero_through_three():
         for depth, _ in vectors
     ]
     assert run_js_ops(ops) == [expected for _, expected in vectors]
+
+
+# --- vaultChestSVG: stepwise fill height with clamp + div-by-zero guard -------
+#
+# bounded = clamp(level, 0..levelMax); fraction = levelMax > 0 ?
+# bounded/levelMax : 0; fillH = round(6 * fraction). The fill <rect> — the
+# ONLY #f5c842 mark in the chest — is emitted ONLY when fillH > 0. These were
+# string-presence-only in tests/test_web_visuals.py; execute the real function
+# so the clamp AND the levelMax == 0 div-by-zero guard actually run.
+
+
+def test_vault_chest_svg_fill_height_clamp_and_div_by_zero_guard():
+    def call(level, level_max):
+        return js_call("vaultChestSVG", level, level_max)
+
+    # The fill rect is the only element carrying fill="#f5c842"; its exact
+    # bytes for a given fillH are `<rect x="2" y="<bodyTop+bodyHeight-fillH-0.5>"
+    # width="8" height="<fillH>" fill="#f5c842"/>` with bodyTop=4, bodyHeight=6.
+    empty_02 = call(0, 5)      # bounded 0 -> fraction 0 -> fillH 0 -> no fill
+    full_55 = call(5, 5)       # fraction 1 -> fillH round(6)=6
+    partial_35 = call(3, 5)    # fraction 0.6 -> fillH round(3.6)=4
+    clamp_hi_95 = call(9, 5)   # bounded min(9,5)=5 -> full, same as (5,5)
+    clamp_lo_n3 = call(-3, 5)  # bounded max(0,-3)=0 -> empty, same as (0,5)
+    div0_20 = call(2, 0)       # levelMax 0: fraction short-circuits to 0
+
+    # Every output is well-formed and NEVER leaks a NaN (the div-by-zero guard
+    # is the point: 2/0 would be NaN without the levelMax > 0 branch).
+    for markup in (empty_02, full_55, partial_35, clamp_hi_95,
+                   clamp_lo_n3, div0_20):
+        assert "NaN" not in markup
+
+    # Empty cases: no fill rect at all (the #f5c842 fill mark is absent).
+    assert 'fill="#f5c842"' not in empty_02
+    assert 'fill="#f5c842"' not in clamp_lo_n3
+    assert 'fill="#f5c842"' not in div0_20   # guard yields fillH 0, not NaN
+
+    # Full case (fillH 6): y = 4 + 6 - 6 - 0.5 = 3.5.
+    assert '<rect x="2" y="3.5" width="8" height="6" fill="#f5c842"/>' in full_55
+    # level > max clamps the fill to full — byte-identical to (5,5).
+    assert clamp_hi_95 == full_55
+    # Partial (fillH 4): y = 4 + 6 - 4 - 0.5 = 5.5.
+    assert '<rect x="2" y="5.5" width="8" height="4" fill="#f5c842"/>' in partial_35
+    # level < 0 clamps the fill to empty — byte-identical to (0,5).
+    assert clamp_lo_n3 == empty_02
+
+
+# --- lanternSVG: glow step indexes length-5 arrays, clamped 0..4 -------------
+#
+# step = clamp(round(fraction * 4), 0..4); glowRadius/glowOpacity are
+# length-5 arrays indexed by step. A mis-index would emit the wrong radius
+# string or an "undefined"; assert on the exact indexed value so it fails
+# loudly. String-presence-only before this — now the round/clamp/index runs.
+
+
+def test_lantern_svg_glow_step_index_and_clamp():
+    # (fraction, step, radius_str, opacity_str)
+    vectors = [
+        (0, 0, "0.6", "0.06"),    # step 0: first array slot
+        (0.5, 2, "2.6", "0.28"),  # round(2)=2: middle slot
+        (1, 4, "4.6", "0.5"),     # round(4)=4: last slot
+        (2, 4, "4.6", "0.5"),     # round(8)=8 clamps to step 4
+        (-1, 0, "0.6", "0.06"),   # round(-4)=-4 clamps to step 0
+    ]
+    ops = [
+        {"type": "call", "fn": "lanternSVG", "args": [fraction]}
+        for fraction, _, _, _ in vectors
+    ]
+    results = run_js_ops(ops)
+    for (fraction, step, radius, opacity), markup in zip(vectors, results):
+        # No mis-index ever falls off the array end into undefined.
+        assert "undefined" not in markup, f"fraction={fraction}"
+        # The glow circle carries the exact indexed radius + opacity.
+        assert (
+            f'r="{radius}" fill="#f5c842" opacity="{opacity}"' in markup
+        ), f"fraction={fraction} step={step}"
+
+
+# --- oreIconSVG: known ore tier -> colored gem, unknown name -> null ---------
+#
+# color = ORE_TIER_COLORS[name]; unknown/unmapped names return null (item
+# names are contractually open, so they simply get no icon). String-presence-
+# only before; execute the real map lookup and the null branch.
+
+
+def test_ore_icon_svg_known_tier_colors_and_unknown_null():
+    # A known tier renders a gem polygon with that tier's exact fill color.
+    gold = js_call("oreIconSVG", "gold")
+    assert gold is not None
+    assert gold.startswith('<svg viewBox="0 0 10 10"')
+    assert 'fill="#f5c842"' in gold          # gold's ORE_TIER_COLORS value
+    diamond = js_call("oreIconSVG", "diamond")
+    assert 'fill="#7de8e0"' in diamond       # diamond's value, distinct color
+    # Unknown / unmapped names get no icon at all (null, not empty markup).
+    assert js_call("oreIconSVG", "obsidian") is None
+    assert js_call("oreIconSVG", "") is None
