@@ -453,13 +453,22 @@ class MineverseHandler(SimpleHTTPRequestHandler):
            JSON 400, v1-contract violation 400 (logged) — same validator
            the read side re-checks per request, so nothing non-conformant
            is ever persisted even transiently.
-        5. Atomic whole-document replace (``ingest.persist_snapshot``);
+        5. Freshness gate (``generated_at``-monotonic): a snapshot whose
+           ``generated_at`` is strictly OLDER than the currently-persisted
+           one is refused 409 ``stale_snapshot`` with the file left
+           byte-unchanged — replay hardening, since a signed push captured
+           up to ~300 s ago could otherwise overwrite the live read with
+           older data. Equal is idempotent-accept, newer advances; a
+           missing/corrupt/unparseable current file never blocks a valid
+           new push (first ingest included).
+        6. Atomic whole-document replace (``ingest.persist_snapshot``);
            the read routes pick the new document up on their next
            per-request fresh read. Filesystem failure is an honest 500.
 
-        Ordering is last-write-wins (single 60 s sender, no retry —
-        contract § Delivery expectations); a replay inside the skew window
-        rewrites identical bytes, so acceptance is idempotent by content.
+        Ordering is ``generated_at``-monotonic (single 60 s sender, no
+        retry — contract § Delivery expectations); a replay inside the skew
+        window rewrites identical bytes (equal ``generated_at``), so
+        acceptance stays idempotent by content.
         """
         config = self.ingest_config
         if not config.configured:
@@ -500,6 +509,22 @@ class MineverseHandler(SimpleHTTPRequestHandler):
             return
         if not self._snapshot_is_valid(snapshot):
             self._send_json(400, {"error": "snapshot failed v1 validation"})
+            return
+        incoming_at = ingest.parse_generated_at(snapshot.get("generated_at"))
+        current_at = ingest.current_generated_at(config.path)
+        if (
+            incoming_at is not None
+            and current_at is not None
+            and incoming_at < current_at
+        ):
+            # Replay hardening: a signed snapshot re-sent inside the ±300 s
+            # skew window must not overwrite the live read with OLDER data.
+            # Strictly-older generated_at is refused and the file is left
+            # byte-unchanged; equal is idempotent-accept, newer advances.
+            self._send_json(
+                409,
+                {"error": "stale_snapshot", "detail": "generated_at older than current"},
+            )
             return
         try:
             ingest.persist_snapshot(config.path, body)
