@@ -24,6 +24,23 @@
 > to merge the green head SHA. Never route a mergeable green PR to the owner
 > ([D-0002]). The forward plan lives in `docs/NEXT-TASKS.md`.
 
+## Coordinator baton (2026-07-18)
+
+Handoff facts for the successor coordinator seat:
+
+- **Seat failsafe cron stays ARMED** as the successor's dead-man bridge —
+  id `trig_01XJJ88pQaQFRSpVAviCfAZe`, name "SuperBot World failsafe wake",
+  cron `15 1-23/2 * * *`, target = the current coordinator session. On
+  successor boot, **rebind-then-delete** it (rebind the wake to the new
+  seat first, then delete the old trigger); delete outright only on an
+  explicit owner retire-this-seat order.
+- **Overnight 2026-07-17→18 chain closed:** all PRs terminal-merged across
+  the three seat repos — mineverse #120–#129, idle #151–#170, games
+  #156–#168 — leaving zero open PRs and zero other routines armed.
+- **Owner-gated queues** live in each repo's NEXT-TASKS / current-state:
+  Railway env vars, superbot #2058, and the bot-side WRITE endpoint for
+  mineverse.
+
 ## Stability baseline
 
 The staged ladder is shipped through stage (d) PREP; everything below is
