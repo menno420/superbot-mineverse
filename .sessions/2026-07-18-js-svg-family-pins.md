@@ -1,6 +1,6 @@
 # Session — 2026-07-18 — JS-exec pins for the last three unpinned pure SVG helpers
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 > **Branch:** `claude/js-svg-family-pins`
 > **Timestamp (UTC):** Sat Jul 18 2026
 
@@ -29,7 +29,31 @@ Test-only, zero runtime change — no `web/`, `server/`, or `data/` bytes move.
 
 ## What shipped
 
-_(pending — flips to complete once the exec vectors are committed and green.)_
+Three vm-executed vector tests added to `tests/test_js_logic.py` (PR #126):
+
+- `test_miner_avatar_svg_layers_hat_after_the_base_rects` — pins the shared
+  shell header (8×10 grid, crispEdges, focusable), all five base rects present
+  in shipped order, and the cosmetic hat rect present AND positioned strictly
+  after every base rect (substring `.index()`), with the total `<rect>` count
+  = base + 1.
+- `test_miner_avatar_svg_renders_base_only_for_missing_or_junk_hat` — pins that
+  `null`, `{}`, and a junk-`pixels` hat all render byte-identical base-only
+  markup (five rects, no extra hat rect) with no throw — the `hat ? hat.pixels
+  : null` short-circuit and the hatSVGRects validity filter both exercised.
+- `test_cracked_icon_svg_is_the_crisp_false_smooth_stroke` — pins
+  `shape-rendering="crispEdges"` ABSENT (the crisp=false proof) while
+  `focusable="false"` stays present, plus the exact smooth `<polyline>` stroke
+  bytes.
+- `test_record_flag_svg_pole_and_pennant_bytes` — pins crispEdges present plus
+  the pole `<rect>` and pennant `<polygon>` exact shipped bytes/colors.
+
+Source behavior matched every approximation in the order; no surprises, no
+`web/app.js` changes needed — this drains the presence-only SVG helpers to
+zero. `test_js_logic.py` alone: 54 passed. Full suite: 645 passed, 1 skipped.
+
+Born-red HOLD flipped to `complete` at end of session; the green enabler
+(`.github/workflows/auto-merge-enabler.yml`) lands PR #126 — never a manual
+merge.
 
 ## 💡 Session idea
 
