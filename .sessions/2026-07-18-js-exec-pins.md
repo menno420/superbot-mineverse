@@ -1,6 +1,6 @@
 # Session — 2026-07-18 — JS-exec pins for three pure web/app.js functions
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 > **Branch:** `claude/js-exec-pins`
 > **Timestamp (UTC):** Sat Jul 18 2026
 
