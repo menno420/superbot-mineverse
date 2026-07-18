@@ -131,6 +131,17 @@ def test_sample_source_gets_neutral_notice_not_the_stale_alarm(js):
     assert 'line.classList.add("sample");' in js
 
 
+def test_sample_notice_surfaces_the_committed_vintage(js):
+    # The neutral sample notice appends the committed sample's vintage
+    # (staleness.sample_generated_at, date-only) after the base text, so
+    # HOW OLD the demo data is stays transparent. renderStaleness touches
+    # the DOM (not js_call-pure), so this pins the served bytes. Live
+    # source never enters this branch, so its render is unchanged.
+    assert "staleness?.sample_generated_at" in js
+    assert "vintage.slice(0, 10)" in js
+    assert "· generated ${vintage}" not in js  # date-only, not full ISO
+
+
 def test_staleness_fallbacks_match_views_constants(js):
     # Drift guard: the frontend's `?? N` staleness fallbacks (header
     # staleness line + snapshotIsStale card idle check) carry the SAME
