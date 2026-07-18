@@ -97,4 +97,4 @@ env-gated conformance probe (`scripts/conformance_run.py --probe-ingest`).
   `.github/workflows/auto-merge-enabler.yml` remains **LIVE** — it arms
   GitHub-native auto-merge at open as one path that lands green `claude/*` PRs,
   not the only one. Never route a mergeable green PR to the owner (see
-  `docs/decisions.md` [D-0002]).
+  `docs/decisions.md`).
