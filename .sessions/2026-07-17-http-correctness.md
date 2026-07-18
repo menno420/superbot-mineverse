@@ -1,6 +1,6 @@
 # Session — 2026-07-17 — HTTP correctness pass
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 > **Branch:** `claude/http-correctness`
 > **Timestamp (UTC):** Fri Jul 17 2026
 
