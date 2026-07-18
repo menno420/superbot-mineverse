@@ -1,6 +1,6 @@
 # Session — 2026-07-18 — Group digits on coin/XP totals across the read surface
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 > **Branch:** `claude/thousands-separators`
 > **Timestamp (UTC):** Sat Jul 18 2026
 
@@ -25,6 +25,25 @@ untouched (and would group to themselves anyway).
 A node-`vm` test in `tests/test_js_logic.py` (house style like #124-#126)
 executes `groupDigits` over the real `web/app.js` source, reusing the
 node-absent skip guard.
+
+## ✅ What shipped
+
+`groupDigits(n)` landed beside `formatAge` / `formatEpochUTC` in `web/app.js`
+— `n.toLocaleString("en-US")` for a finite number, `String(n)` otherwise, locale
+PINNED to `en-US` for deterministic bytes. It wraps five display sites: the
+count-up leaderboard cell (both the mid-frame `groupDigits(Math.round(value*t))`
+write and the exact `finalText = groupDigits(value)` the animation settles on —
+same server integer, now grouped), the miner-card XP/coins line, the my-miner /
+share-card line, and the VS-table numeric cell (`vsValueCell`). All `?? 0`
+fallbacks and count-up timing are preserved; the change is display-only.
+
+A node-`vm` test in `tests/test_js_logic.py`
+(`test_group_digits_pins_en_us_and_passes_non_numbers_through`) executes the real
+helper over `18450→"18,450"`, `9310→"9,310"`, `999→"999"`, `0→"0"`, `14→"14"`, and
+a non-number passthrough, reusing `run_js_ops` + the node-absent skip guard. The
+existing served-bytes assertion in `tests/test_web_fun.py` was updated from
+`String(value)` to `groupDigits(value)` to match the new VS cell source. Full
+suite green: 647 passed, 1 skipped. Shipped as commit `be7a768`.
 
 ## 💡 Session idea
 
