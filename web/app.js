@@ -1796,20 +1796,26 @@ function actionButton(label, enabled, onClick) {
   return button;
 }
 
-function numberInput(placeholder) {
+function numberInput(placeholder, ariaLabel) {
   const input = document.createElement("input");
   input.type = "number";
   input.min = "1";
   input.placeholder = placeholder;
   input.className = "action-input";
+  // A placeholder is not an accessible name (WCAG 4.1.2): name the control
+  // for screen readers when a label is supplied, without disturbing layout.
+  if (ariaLabel) input.setAttribute("aria-label", ariaLabel);
   return input;
 }
 
-function textInput(placeholder) {
+function textInput(placeholder, ariaLabel) {
   const input = document.createElement("input");
   input.type = "text";
   input.placeholder = placeholder;
   input.className = "action-input";
+  // A placeholder is not an accessible name (WCAG 4.1.2): name the control
+  // for screen readers when a label is supplied, without disturbing layout.
+  if (ariaLabel) input.setAttribute("aria-label", ariaLabel);
   return input;
 }
 
@@ -1834,8 +1840,8 @@ function renderActionPanel(me, views) {
   buttons.appendChild(simple);
 
   const sellRow = el("div", "action-row");
-  const sellItem = textInput("item (e.g. stone)");
-  const sellQty = numberInput("qty");
+  const sellItem = textInput("item (e.g. stone)", "Item to sell");
+  const sellQty = numberInput("qty", "Quantity to sell");
   sellRow.append(sellItem, sellQty, actionButton("sell", enabled, () => {
     const quantity = parseInt(sellQty.value, 10);
     if (!sellItem.value || !(quantity >= 1)) {
@@ -1847,7 +1853,7 @@ function renderActionPanel(me, views) {
   buttons.appendChild(sellRow);
 
   const vaultRow = el("div", "action-row");
-  const vaultAmount = numberInput("coins");
+  const vaultAmount = numberInput("coins", "Vault amount");
   const vaultAction = (action) => () => {
     const amount = parseInt(vaultAmount.value, 10);
     if (!(amount >= 1)) {
@@ -1863,9 +1869,10 @@ function renderActionPanel(me, views) {
   buttons.appendChild(vaultRow);
 
   const equipRow = el("div", "action-row");
-  const equipItem = textInput("item (e.g. iron pickaxe)");
+  const equipItem = textInput("item (e.g. iron pickaxe)", "Item to equip");
   const equipSlot = document.createElement("select");
   equipSlot.className = "action-input";
+  equipSlot.setAttribute("aria-label", "Equipment slot");
   // Slot list is schema-derived server-side (/api/views `slots`) — the
   // dropdown can never drift from the contract's closed enum.
   for (const slot of views?.slots || []) {
