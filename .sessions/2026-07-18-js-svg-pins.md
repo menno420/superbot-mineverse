@@ -1,6 +1,6 @@
 # Session — 2026-07-18 — JS-exec pins for three pure SVG helpers in web/app.js
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 > **Branch:** `claude/js-svg-pins`
 > **Timestamp (UTC):** Sat Jul 18 2026
 
@@ -31,8 +31,28 @@ array-index branches ran in no test. Add real vm-executed vector tests to
 
 Test-only, zero runtime change — no `web/`, `server/`, or `data/` bytes move.
 
-Born-red HOLD armed by this card (Status `in-progress`); the owner flips it to
-complete after review of the merged PR.
+## What shipped
+
+Three vm-executed vector tests added to `tests/test_js_logic.py` (PR #125):
+
+- `test_vault_chest_svg_fill_height_clamp_and_div_by_zero_guard` — pins the
+  clamp, the exact fill-`<rect>` bytes at fillH 4 and 6, `level > max`/`level <
+  0` byte-equality to the full/empty cases, and the `levelMax == 0` guard
+  (`NaN` asserted absent from every output; the div0 case yields fillH 0, no
+  fill mark).
+- `test_lantern_svg_glow_step_index_and_clamp` — pins the exact indexed
+  `glowRadius`/`glowOpacity` for step 0/2/4, the `fraction > 1` clamp to step 4
+  and `fraction < 0` clamp to step 0, with `"undefined"` asserted absent.
+- `test_ore_icon_svg_known_tier_colors_and_unknown_null` — pins gold's and
+  diamond's exact fill colors and that unknown/empty names return `null`.
+
+Source behavior matched every approximation in the order; no surprises, no
+web/app.js changes needed. Full suite: 641 passed, 1 skipped. `test_js_logic.py`
+alone: 50 passed.
+
+Born-red HOLD flipped to `complete` at end of session; the green enabler
+(`.github/workflows/auto-merge-enabler.yml`) lands PR #125 — never a manual
+merge.
 
 ## 💡 Session idea
 
