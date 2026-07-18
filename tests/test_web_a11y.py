@@ -111,6 +111,26 @@ def test_minimap_and_race_ship_text_alternatives(js):
     assert "depth ${miner.depth} of ${world.max_depth}" in js  # race bars
 
 
+# --- action panel: form controls carry accessible names --------------------
+
+
+def test_action_panel_inputs_get_accessible_names(js):
+    # The signed-in write panel builds its sell/vault/equip controls via the
+    # numberInput/textInput helpers plus a bare <select>. A placeholder is not
+    # an accessible name (WCAG 4.1.2), so the helpers wire an aria-label and
+    # renderActionPanel passes a human label to every control.
+    assert 'input.setAttribute("aria-label", ariaLabel)' in js
+    assert 'equipSlot.setAttribute("aria-label", "Equipment slot")' in js
+    for label in (
+        '"Item to sell"',
+        '"Quantity to sell"',
+        '"Vault amount"',
+        '"Item to equip"',
+        '"Equipment slot"',
+    ):
+        assert label in js, f"app.js action-panel missing accessible name {label}"
+
+
 # --- CSS: focus, reduced motion, screen-reader utility, responsive ----------
 
 
