@@ -90,9 +90,11 @@ env-gated conformance probe (`scripts/conformance_run.py --probe-ingest`).
   `README.md` + `claims/`) — coordination scaffolding, kept as history only.
 - Wake-chain routines / failsafe crons (`docs/ROUTINES.md`) — do NOT re-arm;
   any trigger still armed for this seat is the owner's to delete.
-- The agent-arms-auto-merge doctrine (agents hand-arming their own merges) —
-  retired: agents do not hand-arm auto-merge or REST-merge. But
-  `.github/workflows/auto-merge-enabler.yml` itself is **LIVE, not retired** —
-  it is the mechanism that lands green `claude/*` PRs: it arms GitHub-native
-  auto-merge at open so the green head SHA merges itself. The owner never
-  reviews unmerged PRs (see `docs/decisions.md`).
+- The "agents do NOT hand-merge / do NOT hand-arm auto-merge" doctrine —
+  **retired as FALSE** (corrected 2026-07-18). With auto-mode OFF, merging
+  own/sibling green PRs is normal agent work: agents merge directly (MCP/REST),
+  arm auto-merge, or leave it for the enabler workflow.
+  `.github/workflows/auto-merge-enabler.yml` remains **LIVE** — it arms
+  GitHub-native auto-merge at open as one path that lands green `claude/*` PRs,
+  not the only one. Never route a mergeable green PR to the owner (see
+  `docs/decisions.md` [D-0002]).
