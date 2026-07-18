@@ -349,6 +349,26 @@ def test_format_epoch_utc():
     assert expected[0] == "1970-01-01 00:00 UTC"  # anchor one literally
 
 
+def test_group_digits_pins_en_us_and_passes_non_numbers_through():
+    # groupDigits shapes multi-digit coin/XP totals for display, locale PINNED
+    # to en-US so the bytes are deterministic. Numbers >= 1000 gain a comma
+    # separator; anything smaller groups to itself (no regression); non-numbers
+    # fall through String() unchanged, exactly as the old String(value) did.
+    vectors = [
+        (18450, "18,450"),   # the sample DeepDelver coin balance
+        (9310, "9,310"),
+        (999, "999"),        # below the thousands boundary — no separator
+        (0, "0"),
+        (14, "14"),          # a small stat (level) groups to itself
+        ("n/a", "n/a"),      # non-number passes through unchanged
+    ]
+    ops = [
+        {"type": "call", "fn": "groupDigits", "args": [value]}
+        for value, _ in vectors
+    ]
+    assert run_js_ops(ops) == [expected for _, expected in vectors]
+
+
 def test_share_card_file_name_sanitization():
     ops = [
         {"type": "call", "fn": "shareCardFileName", "args": [miner]}

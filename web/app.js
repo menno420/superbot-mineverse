@@ -736,6 +736,16 @@ function formatAge(seconds) {
   return `${Math.floor(seconds / 86400)}d`;
 }
 
+function groupDigits(n) {
+  // Group a numeric stat's digits for display (18450 -> "18,450"). Locale is
+  // PINNED to en-US so served bytes stay deterministic; anything that isn't a
+  // finite number passes through String() unchanged (so undefined/null-derived
+  // values render exactly as they did before). Display-only.
+  return (typeof n === "number" && Number.isFinite(n))
+    ? n.toLocaleString("en-US")
+    : String(n);
+}
+
 function renderStaleness(staleness) {
   // Age is computed HERE, against the browser clock, once per page load —
   // no live ticking. The server only ships generated_at (+ its epoch) and
@@ -986,8 +996,8 @@ function shareCardLines(miner, world) {
       `Depth ${miner.depth}/${world?.max_depth ?? "?"} — ` +
         `${biomeName(miner.depth, world?.biomes)}` +
         ` · record depth ${miner.record_depth}`,
-      `Level ${xp.level ?? "?"} · ${xp.game_total ?? 0} ${xp.game ?? "?"} XP · ` +
-        `${miner.coins ?? 0} coins`,
+      `Level ${xp.level ?? "?"} · ${groupDigits(xp.game_total ?? 0)} ${xp.game ?? "?"} XP · ` +
+        `${groupDigits(miner.coins ?? 0)} coins`,
     ],
     gear: shareCardGearLines(miner.gear),
     footer: "Mineverse — read-only mining economy viewer",
@@ -1135,8 +1145,8 @@ function renderMinerCard(miner, world, staleness) {
     el("p", "xp-line",
       // xp.game names which game the XP belongs to (contract field, "?"
       // when absent) — no more hardcoded "mining" label.
-      `Level ${xp.level ?? "?"} · ${xp.game_total ?? 0} ${xp.game ?? "?"} XP · ` +
-      `${miner.coins ?? 0} 🪙`),
+      `Level ${xp.level ?? "?"} · ${groupDigits(xp.game_total ?? 0)} ${xp.game ?? "?"} XP · ` +
+      `${groupDigits(miner.coins ?? 0)} 🪙`),
   );
   card.appendChild(energyMeter(miner.energy));
   section(card, "Gear", gearList(miner.gear, miner.suid));
@@ -1314,7 +1324,7 @@ function countUpCell(cell, value) {
   // Count a numeric cell up to the server value. ALWAYS ends by writing
   // the exact final value (no drift), and renders instantly when the
   // value isn't a plain number or the user prefers reduced motion.
-  const finalText = String(value);
+  const finalText = groupDigits(value);
   if (typeof value !== "number" || !Number.isFinite(value) ||
       prefersReducedMotion() ||
       typeof requestAnimationFrame !== "function") {
@@ -1329,7 +1339,7 @@ function countUpCell(cell, value) {
       cell.textContent = finalText; // exact final value — no drift
       return;
     }
-    cell.textContent = String(Math.round(value * t));
+    cell.textContent = groupDigits(Math.round(value * t));
     requestAnimationFrame(step);
   };
   cell.textContent = "0";
@@ -1554,7 +1564,7 @@ function vsValueCell(value, other) {
   // The real value is plain text; the bar (scaled against the larger of
   // the pair) is aria-hidden decoration on top of it.
   const td = el("td", value > other ? "vs-lead" : null);
-  td.appendChild(el("span", "vs-value", String(value)));
+  td.appendChild(el("span", "vs-value", groupDigits(value)));
   const track = decorative(el("span", "vs-track"));
   const bar = el("span", "vs-bar");
   const peak = Math.max(value, other, 1);
