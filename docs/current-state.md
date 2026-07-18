@@ -15,15 +15,14 @@
 > The Claude Code Projects EAP goes **read-only 2026-07-21**. The owner is
 > **winding down agent autonomy and recreating this project fresh.** The
 > `control/` message bus, wake-chain routines (`docs/ROUTINES.md`), and the
-> agent auto-merge doctrine are **retired** (see the deprecation banners on
-> those files). No agent should re-arm routines, act on stale
-> `control/inbox.md` orders, or hand-arm auto-merge. Agents open PRs ready
-> with green CI; green `claude/*` PRs then **land automatically** —
-> GitHub-native auto-merge, armed by
-> `.github/workflows/auto-merge-enabler.yml`, merges the green head SHA
-> itself. The owner does NOT review unmerged PRs — the owner reviews
-> already-merged PRs asynchronously ([D-0002]). The forward plan lives in
-> `docs/NEXT-TASKS.md`.
+> `control/` message bus and wake-chain routines are **retired** (see the
+> deprecation banners on those files). No agent should re-arm routines or act
+> on stale `control/inbox.md` orders. Merging, however, is **normal agent
+> work** (auto-mode OFF): agents open PRs ready with green CI and then land
+> them themselves — directly (MCP/REST merge), by arming GitHub-native
+> auto-merge, or by leaving it for `.github/workflows/auto-merge-enabler.yml`
+> to merge the green head SHA. Never route a mergeable green PR to the owner
+> ([D-0002]). The forward plan lives in `docs/NEXT-TASKS.md`.
 
 ## Stability baseline
 
