@@ -840,3 +840,78 @@ def test_retry_after_text_rejects_absent_and_junk_with_empty_string():
         ]
     ]
     assert run_js_ops(ops) == [""] * 10
+
+
+# --- vaultTierPips: filled/hollow pip strip with clamping --------------------
+
+
+def test_vault_tier_pips_fill_and_clamp():
+    # filled = "●" × clamp(level, 0..levelMax); hollow = "○" × max(0,
+    # levelMax - level). Execute the real function so the clamp math is
+    # pinned, not just the source bytes.
+    vectors = [
+        # (level, levelMax, expected)
+        (2, 5, "●●○○○"),   # normal split
+        (0, 5, "○○○○○"),   # nothing earned yet
+        (5, 5, "●●●●●"),   # level == max: all filled, no hollow
+        (7, 5, "●●●●●"),   # level > max clamps the fill to levelMax
+        # negative level clamps the FILL to 0, but hollow = max(0, levelMax -
+        # level) grows: 5 - (-3) = 8 hollow pips (the real shipped behavior).
+        (-3, 5, "○○○○○○○○"),
+        (0, 0, ""),         # max == 0 edge: no pips at all
+    ]
+    ops = [
+        {"type": "call", "fn": "vaultTierPips", "args": [level, level_max]}
+        for level, level_max, _ in vectors
+    ]
+    assert run_js_ops(ops) == [expected for _, _, expected in vectors]
+
+
+# --- snapshotIsStale: age-vs-threshold, deterministic branches only ----------
+
+
+def test_snapshot_is_stale_deterministic_branches():
+    # Only the wall-clock-INDEPENDENT branches are pinned here — the
+    # Date.now()-relative "recent → false" case is intentionally omitted so
+    # this test can never flake against the runner's clock.
+    ops = [
+        # source === "sample" short-circuits false even with an ancient epoch.
+        {"type": "call", "fn": "snapshotIsStale",
+         "args": [{"source": "sample", "generated_at_epoch": 0}]},
+        # non-number epoch reads as NOT stale (age unknown, no guess).
+        {"type": "call", "fn": "snapshotIsStale",
+         "args": [{"source": "live", "generated_at_epoch": None}]},
+        {"type": "call", "fn": "snapshotIsStale",
+         "args": [{"source": "live", "generated_at_epoch": "nope"}]},
+        # missing epoch entirely: still not-a-number -> false.
+        {"type": "call", "fn": "snapshotIsStale",
+         "args": [{"source": "live"}]},
+        # ancient epoch (1970) with a non-sample source: unambiguously stale.
+        {"type": "call", "fn": "snapshotIsStale",
+         "args": [{"source": "live", "generated_at_epoch": 0}]},
+        # custom (larger) threshold still can't save a 1970 epoch.
+        {"type": "call", "fn": "snapshotIsStale",
+         "args": [{"source": "live", "generated_at_epoch": 0,
+                   "stale_after_seconds": 100000}]},
+    ]
+    assert run_js_ops(ops) == [False, False, False, False, True, True]
+
+
+# --- bandTintClass: biome tint class with 0..3 clamp -------------------------
+
+
+def test_band_tint_class_clamps_to_zero_through_three():
+    vectors = [
+        (0, "band-depth-0"),
+        (1, "band-depth-1"),
+        (2, "band-depth-2"),
+        (3, "band-depth-3"),
+        (4, "band-depth-3"),    # deeper-than-known clamps to the deepest tint
+        (99, "band-depth-3"),
+        (-1, "band-depth-0"),   # negative clamps to the surface tint
+    ]
+    ops = [
+        {"type": "call", "fn": "bandTintClass", "args": [depth]}
+        for depth, _ in vectors
+    ]
+    assert run_js_ops(ops) == [expected for _, expected in vectors]
