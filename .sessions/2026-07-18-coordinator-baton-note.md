@@ -1,8 +1,33 @@
 # Session — 2026-07-18 — Record coordinator baton (failsafe cron + overnight chain closure)
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 > **Branch:** `claude/coordinator-baton-note`
 > **Timestamp (UTC):** Sat Jul 18 2026
+
+## ✅ What shipped
+
+`docs/current-state.md` gained one concise "Coordinator baton (2026-07-18)"
+subsection, placed after the FRESH-START banner and before "Stability
+baseline" so the top-of-file state area reads naturally; the header
+blockquote Status badge (line 3) and file structure are intact, docs-only,
+one commit (`0f66290`):
+
+- The seat failsafe cron is recorded as ARMED — id
+  `trig_01XJJ88pQaQFRSpVAviCfAZe`, name "SuperBot World failsafe wake",
+  cron `15 1-23/2 * * *`, target = current coordinator session — with the
+  rebind-then-delete-on-boot rule and the delete-only-on-owner-order caveat.
+- The overnight 2026-07-17→18 chain closure is recorded as neutral fact:
+  all PRs terminal-merged across mineverse #120–#129, idle #151–#170, games
+  #156–#168, zero open PRs, zero other routines armed.
+- The owner-gated queue pointer names Railway env vars, superbot #2058, and
+  the bot-side WRITE endpoint for mineverse.
+
+Verified pre-flip in this container: `python3 -m pytest -q` → **647 passed,
+1 skipped** (records-only diff, zero test delta); `python3 bootstrap.py
+check --strict` → exit 1, the designed born-red HOLD on this card (flipped
+by this commit), remaining advisories all pre-existing on other files (the
+`control/status.md` owner-action nudge and three 2026-07-17 sibling-card
+model-line advisories — none this session's to write). PR #131.
 
 **Scope:** the living ledger `docs/current-state.md` does not yet record two
 facts a successor coordinator needs at boot: (1) the seat failsafe cron
