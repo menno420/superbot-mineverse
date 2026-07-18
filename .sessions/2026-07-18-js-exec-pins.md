@@ -52,4 +52,4 @@ producer-lag signal exposing the gap between newest accepted `generated_at`
 and the freshest `snapshot_generated_at` promised by a write accept) is
 orthogonal to this test-only lane and remains open for a backend pickup.
 
-- **📊 Model:** Claude Opus 4.x · medium · tests-only — vm-exec pins for three pure JS fns
+- **📊 Model:** Claude Opus 4.x · medium · test writing — vm-exec pins for three pure JS fns
