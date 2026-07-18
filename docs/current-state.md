@@ -113,6 +113,17 @@ flip last.
   2026-07-17 fresh-start wind-down, the `control/inbox.md` ORDER queue is
   **retired** — do not act on it. (Supersedes the earlier
   "ORDER 009 status: new / pending ack" text.)
+- **ORDER 010 (mirror idle PR #142's reconcile-race fix) — closed N/A
+  (2026-07-18).** Idle #142 is a GitHub-Actions TOCTOU fix confined to
+  `.github/workflows/automerge-card-guard.yml`, a workflow mineverse does
+  **not** carry (its CI is exactly `auto-merge-enabler.yml` /
+  `schema-gate.yml` / `substrate-gate.yml`). Mineverse's
+  `auto-merge-enabler.yml` has no disable-auto/re-arm sequence to race — its
+  single `gh pr merge --auto` arm (line 94) is already non-fatal — and the
+  snapshot-ingest write path (`server/ingest.py:110`) is already atomic
+  (tempfile + fsync + `os.replace`). No mineverse path matches the
+  reconcile-race, so no code change is warranted; recorded here rather than
+  the retired `control/status.md` (PR #132).
 - Kit version is **v1.17.0** across tree and heartbeat — the earlier
   `control/status.md` `kit: v1.16.0` lag is resolved. `control/status.md`
   is now a deprecated, retired heartbeat (do not re-stamp it).
