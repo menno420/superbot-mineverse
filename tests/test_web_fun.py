@@ -192,7 +192,7 @@ def test_vs_stats_and_pure_helpers_are_pinned(js):
 
 
 def test_vs_bars_are_decorative_and_values_stay_text(js):
-    assert 'el("span", "vs-value", String(value))' in js
+    assert 'el("span", "vs-value", groupDigits(value))' in js
     assert 'decorative(el("span", "vs-track"))' in js
     assert "const peak = Math.max(value, other, 1);" in js
 
