@@ -1,6 +1,6 @@
 # Session — 2026-07-18 — Accessible names for the action-panel sell/vault/equip inputs
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 > **Branch:** `claude/action-panel-aria-labels`
 > **Timestamp (UTC):** Sat Jul 18 2026
 
@@ -28,6 +28,31 @@ Served-bytes test in `tests/test_web_a11y.py`, house style — assert the served
 `app.js` now wires `aria-label` on the helpers and carries the five label
 strings. No DOM harness. No `server/`, `data/`, layout, validation, or handler
 bytes move — attribute additions only.
+
+## What shipped
+
+`web/app.js` (PR #127): `numberInput` and `textInput` gained an optional
+trailing `ariaLabel` argument — when supplied they run
+`input.setAttribute("aria-label", ariaLabel)`, leaving the existing
+`placeholder` and the old one-arg signature untouched (all four call sites are
+inside `renderActionPanel`; no external callers). The equip-slot `<select>`
+gained `equipSlot.setAttribute("aria-label", "Equipment slot")`.
+`renderActionPanel` now names each control: sell item → "Item to sell", sell
+qty → "Quantity to sell", vault amount → "Vault amount", equip item →
+"Item to equip", equip slot → "Equipment slot". The diff is attribute-only —
+no layout, validation, event-handler, or logic bytes moved; every write path
+(`sendAction` calls, the `parseInt` guards, the `≥ 1` checks) is byte-identical.
+
+`tests/test_web_a11y.py`: added `test_action_panel_inputs_get_accessible_names`
+— a served-bytes assertion in the file's house style that pins the
+`input.setAttribute("aria-label", ariaLabel)` helper wiring, the equip-slot
+`aria-label`, and all five human label strings, so a regression that drops an
+accessible name goes red before it ships.
+
+Full suite: 646 passed, 1 skipped (was 645 — the one added test). Born-red HOLD
+flipped to `complete`; the green enabler
+(`.github/workflows/auto-merge-enabler.yml`) lands PR #127 — never a manual
+merge.
 
 ## 💡 Session idea
 
