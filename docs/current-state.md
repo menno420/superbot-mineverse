@@ -10,6 +10,8 @@
 > (previous stamp: `21b89a00`, 2026-07-17). PRs #119–#128 merged since that
 > stamp (through 2026-07-18); recorded under "Recently shipped" below.
 >
+> **2026-07-18 (owner live):** the 2026-07-17 FRESH-START/wind-down banner below is superseded for seat operations by the owner's live 2026-07-18 direction (most-recent-wins); the seat work loop is resumed under fm ORDER 048. control/status.md remains retired (docs/current-state.md is live truth). The 2026-07-21 EAP read-only date remains a platform fact to re-verify on the day. See control/inbox.md ORDER 011.
+>
 > ## ⚠️ FRESH-START — project being recreated (2026-07-17)
 >
 > The Claude Code Projects EAP goes **read-only 2026-07-21**. The owner is

@@ -170,3 +170,14 @@ why: the 2026-07-16 night audit read this seat THIN (fresh reboot, green) with i
 done-when: the reconcile-race fix equivalent to superbot-idle PR #142 is merged on green and control/status.md orders line notes the mirror; OR — if it does not apply — control/status.md records why and the ORDER is closed N/A.
 provenance: fleet-manager docs/owner-queue.md item 68 (OQ-THIN-LANE-DISPATCH-2026-07-16) + docs/fleet-triage.md § "2026-07-16 · night audit" @ a5b5359ea937dcc26a7a881a2b59a8ea35eb0ec4; dispatched by the Fleet Manager coordinator and authorized by the owner (menno420) live in the dispatch session, 2026-07-16.
 — Fleet Manager
+
+## ORDER 011 · 2026-07-19T07:15:50Z · status: new
+priority: routine
+owner direction (2026-07-18, live) — record correction.
+do:
+- Note that the 2026-07-17 wind-down note and any earlier pause-the-loop guidance are superseded for seat operations by the owner's live 2026-07-18 direction (most-recent-wins).
+- The seat work loop is resumed under standing mandate fm ORDER 048.
+- The Projects EAP read-only date (2026-07-21) stays a platform fact to re-verify on the day; unchanged by this order.
+why: the 2026-07-17 note predates the owner's 2026-07-18 direction; recording it keeps a later session from treating the old note as current.
+done-when: this record is merged to main and the docs/current-state supersession note references it; it then stands as a permanent record with no follow-up action.
+owner verbatim (2026-07-18, live): "most recent info wins, my message in the chat is leading, continue, do not let anything stall, if you run out of executable work start planning."
