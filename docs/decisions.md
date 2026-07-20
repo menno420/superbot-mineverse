@@ -36,7 +36,7 @@
   owner-gated.
 - corrected: Corrected 2026-07-18 (owner-directed de-wall cleanup): the
   earlier "agents do not hand-merge / do not hand-arm auto-merge or REST-merge
-  / owner never reviews unmerged PRs / ~2026-07-15 classifier denies
+  / owner never reviews unmerged PRs / ~2026-07-15 classifier refusal of
   autonomous merge arming" framing was FALSE for the auto-mode-OFF venue and
   does not carry forward. Merging own/sibling green PRs is normal agent work.
   A specific merge refusal, if ever hit, is attempt-once/venue-specific — not

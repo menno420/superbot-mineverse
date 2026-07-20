@@ -23,7 +23,10 @@
 None of these live in the repo. They are Railway host env vars the owner sets
 in the console; with all unset the app runs read-only + anonymous over the
 committed sample and the full test suite passes (degraded-by-default). Provision
-is an **owner action** — agents cannot set secrets. Set them, then re-run the
+is an **owner action**: as of 2026-07-20 these secret *values* are set only in
+the Railway owner-console (owner-gated). Agents otherwise mutate Railway
+variables, env, and deploys as normal work via the documented paths; only the
+owner-console secret values stay owner-set. Set them, then re-run the
 env-gated conformance probe (`scripts/conformance_run.py --probe-ingest`).
 
 1. **Discord OAuth sign-in** (stage b — personalizes the read view only, grants
