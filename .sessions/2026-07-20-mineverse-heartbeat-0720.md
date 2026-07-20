@@ -1,6 +1,6 @@
 # Session — 2026-07-20 — Heartbeat / truthful-records refresh (post-#139 current-bar fix)
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 > **Branch:** `claude/mineverse-heartbeat-0720`
 > **Timestamp (UTC):** Mon Jul 20 2026
 
@@ -60,4 +60,4 @@ consistent with the "do not re-stamp `control/status.md`" ledger note. This
 session builds beside both — reconciling the records they left lagging, touching
 no code.
 
-- **📊 Model:** Opus 4.8 · medium · truthful-records
+- **📊 Model:** Opus 4.8 · medium · docs-only
