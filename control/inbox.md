@@ -181,3 +181,10 @@ do:
 why: the 2026-07-17 note predates the owner's 2026-07-18 direction; recording it keeps a later session from treating the old note as current.
 done-when: this record is merged to main and the docs/current-state supersession note references it; it then stands as a permanent record with no follow-up action.
 owner verbatim (2026-07-18, live): "most recent info wins, my message in the chat is leading, continue, do not let anything stall, if you run out of executable work start planning."
+
+## ORDER 012 · 2026-07-20T13:22:07Z · status: new
+priority: P1
+do: Your substrate-kit v1.20.1 upgrade PR #138 is red on its substrate-gate: the new gate flags pre-existing false-wall findings in this repo's docs (see the PR body's finding list). Fix on the PR branch with plain additive commits: rephrase each flagged standing-limitation line as a dated past-tense fact or add a dated supersession note (never delete history; owner-verbatim lines go in the checker's allowlist if supported). Reference implementation: fleet-manager PR #390 (commit d0e16e2). Gate green means the armed auto-merge lands the upgrade.
+why: the v1.20.1 kit-upgrade wave left this repo's upgrade PR red on pre-existing repo-local doc findings the new gate flags; fleet-manager fixed the same pattern (PR #390, merged 2026-07-20T12:08Z) and its gate went green.
+done-when: PR #138's substrate-gate is green and the armed auto-merge has landed the v1.20.1 upgrade on main.
+provenance: fleet-manager ORDER routing (kit-wave sweep 2026-07-20); owner nothing-stuck directive 2026-07-19.
