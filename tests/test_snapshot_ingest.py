@@ -18,6 +18,7 @@ secrets beyond test-local strings:
   per-request fresh read (round-trip through the FLAG-1 consume seam).
 """
 
+import datetime
 import http.client
 import json
 import sys
@@ -457,3 +458,117 @@ def test_persist_snapshot_missing_directory_raises_oserror(tmp_path):
     with pytest.raises(OSError):
         ingest.persist_snapshot(tmp_path / "no-such-dir" / "s.json", b"{}")
     assert not (tmp_path / "no-such-dir").exists()
+
+
+def test_persist_snapshot_write_failure_cleans_temp_and_reraises(tmp_path):
+    # mkstemp succeeds, then the write into the "wb" temp file fails (a str
+    # payload is not bytes-like) — the except path must unlink the temp file
+    # and re-raise, leaving the target absent and the directory scratch-free.
+    # This is the mid-write fault the missing-directory test cannot reach,
+    # since that one fails at mkstemp, before the try/except cleanup block.
+    target = tmp_path / "snapshot.json"
+    with pytest.raises(TypeError):
+        ingest.persist_snapshot(target, "not-bytes")  # type: ignore[arg-type]
+    assert not target.exists()
+    assert list(tmp_path.iterdir()) == []  # the ".tmp" scratch file is gone
+
+
+def test_persist_snapshot_swallows_a_failing_cleanup_and_reraises_original(
+    tmp_path, monkeypatch
+):
+    # Double fault: the write fails AND the cleanup unlink itself raises
+    # OSError. The inner ``except OSError: pass`` must swallow the cleanup
+    # failure so the ORIGINAL write error (not the cleanup one) propagates,
+    # and os.replace never ran so the target stays absent.
+    target = tmp_path / "snapshot.json"
+
+    def boom_unlink(_path):
+        raise OSError("cleanup denied")
+
+    monkeypatch.setattr(ingest.os, "unlink", boom_unlink)
+    with pytest.raises(TypeError):
+        ingest.persist_snapshot(target, "not-bytes")  # type: ignore[arg-type]
+    assert not target.exists()
+
+
+# --- units: freshness-gate parsing (parse_generated_at) ----------------------
+
+
+def test_parse_generated_at_normalizes_trailing_z_to_utc():
+    # Python 3.10's fromisoformat rejects a trailing Z; the parser normalizes
+    # it to +00:00 first, yielding an aware UTC instant.
+    parsed = ingest.parse_generated_at("2026-07-13T02:30:00Z")
+    assert parsed == datetime.datetime(
+        2026, 7, 13, 2, 30, tzinfo=datetime.timezone.utc
+    )
+
+
+def test_parse_generated_at_reads_an_explicit_offset():
+    parsed = ingest.parse_generated_at("2026-07-13T02:30:00+00:00")
+    assert parsed == datetime.datetime(
+        2026, 7, 13, 2, 30, tzinfo=datetime.timezone.utc
+    )
+
+
+def test_parse_generated_at_pins_a_naive_instant_to_utc():
+    # No trailing Z and no offset → fromisoformat returns a naive datetime,
+    # which the parser pins to UTC so two parsed instants always compare.
+    parsed = ingest.parse_generated_at("2026-07-13T02:30:00")
+    assert parsed.tzinfo == datetime.timezone.utc
+    assert (parsed.year, parsed.hour, parsed.minute) == (2026, 2, 30)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [None, 12345, 3.14, ["2026-07-13T02:30:00Z"], {"generated_at": "x"}],
+)
+def test_parse_generated_at_non_string_is_none(value):
+    # A non-string instant is "not a comparable instant" → None (the gate
+    # treats an unparseable side as "do not block").
+    assert ingest.parse_generated_at(value) is None
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["not-a-date", "", "2026-13-99T99:99:99Z", "2026/07/13", "T02:30:00"],
+)
+def test_parse_generated_at_unparseable_string_is_none(text):
+    assert ingest.parse_generated_at(text) is None
+
+
+# --- units: current_generated_at (corrupt/missing never wedges the relay) ----
+
+
+def test_current_generated_at_reads_the_persisted_instant(tmp_path):
+    target = tmp_path / "s.json"
+    target.write_bytes(b'{"generated_at": "2026-07-13T02:30:00Z"}')
+    assert ingest.current_generated_at(target) == datetime.datetime(
+        2026, 7, 13, 2, 30, tzinfo=datetime.timezone.utc
+    )
+
+
+def test_current_generated_at_missing_file_is_none(tmp_path):
+    # No current document (first ingest) → None, so the gate never blocks.
+    assert ingest.current_generated_at(tmp_path / "absent.json") is None
+
+
+def test_current_generated_at_non_json_is_none(tmp_path):
+    target = tmp_path / "s.json"
+    target.write_bytes(b"{ not json at all")
+    assert ingest.current_generated_at(target) is None
+
+
+@pytest.mark.parametrize("blob", [b"[1, 2, 3]", b'"just-a-string"', b"42", b"null"])
+def test_current_generated_at_non_object_json_is_none(tmp_path, blob):
+    # Valid JSON that is not an object yields no comparable instant, so a
+    # newer valid push is never blocked against a non-object current file.
+    target = tmp_path / "s.json"
+    target.write_bytes(blob)
+    assert ingest.current_generated_at(target) is None
+
+
+def test_current_generated_at_object_without_generated_at_is_none(tmp_path):
+    # An object missing generated_at → unparseable → None (do-not-block).
+    target = tmp_path / "s.json"
+    target.write_bytes(b'{"miners": []}')
+    assert ingest.current_generated_at(target) is None
