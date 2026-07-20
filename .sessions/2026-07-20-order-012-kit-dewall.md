@@ -1,6 +1,6 @@
 # Session — 2026-07-20 — ORDER 012: green the substrate-gate on kit v1.20.1 upgrade PR #138
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 > **Branch:** `claude/kit-upgrade-v1.20.1`
 > **Timestamp (UTC):** Mon Jul 20 2026
 
@@ -22,6 +22,12 @@ lines are resident-owned docs outside the kit lane.
   past-fact form "~2026-07-15 classifier refusal of …", which drops the
   standing-wall trigger while the surrounding block still labels the whole
   framing FALSE / not-carried-forward.
+
+Verified green locally: `python3 bootstrap.py check --strict` → all checks
+passed (exit 0); `python3 -m pytest -q` → 647 passed, 1 skipped. The one
+remaining `check` line is the non-exit model-line advisory on the untouched
+`.sessions/2026-07-20-readiness-heartbeat.md` resident card — pre-existing,
+never exit-affecting, out of scope.
 
 **Scope:** execute inbox ORDER 012 — additive-only commits on the foreign
 kit-wave PR branch that flip its substrate-gate green by de-walling the two
