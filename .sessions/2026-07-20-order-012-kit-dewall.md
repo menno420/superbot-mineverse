@@ -24,10 +24,10 @@ lines are resident-owned docs outside the kit lane.
   framing FALSE / not-carried-forward.
 
 Verified green locally: `python3 bootstrap.py check --strict` → all checks
-passed (exit 0); `python3 -m pytest -q` → 647 passed, 1 skipped. The one
-remaining `check` line is the non-exit model-line advisory on the untouched
-`.sessions/2026-07-20-readiness-heartbeat.md` resident card — pre-existing,
-never exit-affecting, out of scope.
+passed (exit 0), incl. the CI added-card invocation; `python3 -m pytest -q`
+→ 647 passed, 1 skipped. The one remaining `check` line is the non-exit
+model-line advisory on the untouched `.sessions/2026-07-20-readiness-heartbeat.md`
+resident card — pre-existing, never exit-affecting, out of scope.
 
 **Scope:** execute inbox ORDER 012 — additive-only commits on the foreign
 kit-wave PR branch that flip its substrate-gate green by de-walling the two
@@ -55,4 +55,4 @@ re-stamped `control/status.md` neutral; solid heartbeat hygiene, though its own
 model line (`… · docs-readiness`) is the very non-PL-004 task-class token the
 gate now advises on — this card uses the taught `docs-only` class to stay clean.
 
-- **📊 Model:** Opus 4.8 · normal · docs-only — land the kit v1.20.1 upgrade doc fix (ORDER 012 false-wall de-wall on PR #138)
+- **📊 Model:** Opus 4.8 · medium · docs-only — land the kit v1.20.1 upgrade doc fix (ORDER 012 false-wall de-wall on PR #138)
