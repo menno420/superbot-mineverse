@@ -6,12 +6,15 @@
 > work always win over this file. Read it second (right after the working
 > agreement) and keep it current as the project moves.
 >
-> Truth-stamp: reconciled 2026-07-20 (UTC) against main @ `72d3d35`
-> (previous stamp: `7405fd7`, 2026-07-18). PRs #129–#134 merged since that
-> stamp — docs/control only (stamp reconcile #129, merge-doctrine de-wall
-> #130, coordinator baton #131, ORDER 010 closed N/A #132, ORDER 011 record
-> #133, heartbeat refresh #134); no product code changed. The order
-> dispositions and baton notes below are current at HEAD.
+> Truth-stamp: reconciled 2026-07-20 (UTC) against main @ `0d1e06c`
+> (previous stamp: `72d3d35`, 2026-07-20). PRs #135–#139 merged since that
+> stamp — #135 readiness (truth-stamp advance + claim prune), #136/#137
+> `control/status.md` heartbeat refreshes (card-less, capturing the
+> #180/#174/#135 merges and inventory-bridge slices 1–3 complete), and #139
+> `server/ingest.py` test-coverage 80%→100% (tests-only, ZERO production
+> behavior change). The suite bar moved 647 → **670 passed + 1 skipped** at
+> #139 (see "Recently shipped" below). The order dispositions and baton notes
+> below are current at HEAD.
 >
 > **2026-07-18 (owner live):** the 2026-07-17 FRESH-START/wind-down banner below is superseded for seat operations by the owner's live 2026-07-18 direction (most-recent-wins); the seat work loop is resumed under fm ORDER 048. control/status.md remains retired (docs/current-state.md is live truth). The 2026-07-21 EAP read-only date remains a platform fact to re-verify on the day. See control/inbox.md ORDER 011.
 >
@@ -132,6 +135,24 @@ flip last.
 - Kit version is **v1.17.0** across tree and heartbeat — the earlier
   `control/status.md` `kit: v1.16.0` lag is resolved. `control/status.md`
   is now a deprecated, retired heartbeat (do not re-stamp it).
+- **Executable-backlog baton (2026-07-20, neutral pointers — not orders).**
+  After #139 there are again **no open PRs**; the seat is boot-clean. The
+  executable backlog is thin — the remaining `docs/NEXT-TASKS.md` "Next steps"
+  items are owner/contract-gated (live READ feed = superbot #2058 + owner env
+  vars; WRITE endpoint = superbot-repo work; stage-(d) cutover = owner flag).
+  The two most-actionable AGENT-executable candidates for the next session:
+  (1) **consumer-side snapshot field-parity** (NEXT-TASKS item 5) — note it is
+  contract-touching and implies a cross-repo games-web patch bump, so scope
+  carefully / split per repo; (2) **further `server/`-module test-coverage
+  deepening** — the next-thinnest module after `ingest.py` (now 100%), e.g.
+  `app.py` (~91%) or `response_validation.py` (~93%), same tests-only pattern
+  as #139. Executable backlog is otherwise dry — open a fresh scope check
+  before assuming there is agent work.
+- **SECURITY-BEFORE-SECRETS: satisfied at HEAD.** The owner-side security PR
+  #31 merged 2026-07-12 (see "Externally pending" below); CSRF / session-state
+  cookie protection is inline-documented under `WEB_SESSION_SIGNING_KEY`
+  (`docs/NEXT-TASKS.md` §1 — the HMAC key signs the session + CSRF `state`
+  cookie). There is no separate open security PR outstanding.
 
 ## Externally pending (not agent-actionable here)
 
@@ -161,12 +182,13 @@ step; the FLAG numbering below is kept for continuity.)
 
 ## Recently shipped (newest first)
 
-- 2026-07-18 — read-surface polish + JS exec-pin sweep: coin/XP totals across the leaderboard count-up, miner cards, my-miner/share-card and VS cells now render grouped digits via one pure `groupDigits(n)` helper, `en-US` pinned, display-only (#128); the action-panel sell/vault/equip inputs gained accessible names — an `ariaLabel` threaded through the input helpers plus a named `<select>` (WCAG 4.1.2, attribute-only) (#127); and three node-`vm` exec-pin batches executed more of the real `web/app.js` pure functions in `tests/test_js_logic.py` — `vaultTierPips` / `snapshotIsStale` / `bandTintClass` (#124), the SVG helpers `vaultChestSVG` / `lanternSVG` / `oreIconSVG` (#125), and the icon family `minerAvatarSVG` / `crackedIconSVG` / `recordFlagSVG` (#126). Suite at this stamp: **647 passed + 1 skipped** (current bar).
+- 2026-07-20 — `server/ingest.py` test-coverage slice (#139): the least-covered `server/` module (80% before; every other module ≥91%) driven to **100%** with 15 new unit tests (parametrized to +23 collected) in `tests/test_snapshot_ingest.py` — covering `persist_snapshot`'s mid-write `except BaseException` temp-file cleanup arm (and its double-fault inner `except OSError: pass`), plus `parse_generated_at`'s non-string / `ValueError` / naive-datetime→UTC branches and `current_generated_at`'s non-`dict` / missing-file / no-`generated_at` returns. Tests-only, ZERO production behavior change, entirely degraded (no-env) mode. Suite **647 → 670 passed + 1 skipped** (current bar). Fleet context same day: idle #175 landed a new `vineyard` theme pack (wave 6, engine untouched, idle suite → 1642); games unchanged since #182.
+- 2026-07-18 — read-surface polish + JS exec-pin sweep: coin/XP totals across the leaderboard count-up, miner cards, my-miner/share-card and VS cells now render grouped digits via one pure `groupDigits(n)` helper, `en-US` pinned, display-only (#128); the action-panel sell/vault/equip inputs gained accessible names — an `ariaLabel` threaded through the input helpers plus a named `<select>` (WCAG 4.1.2, attribute-only) (#127); and three node-`vm` exec-pin batches executed more of the real `web/app.js` pure functions in `tests/test_js_logic.py` — `vaultTierPips` / `snapshotIsStale` / `bandTintClass` (#124), the SVG helpers `vaultChestSVG` / `lanternSVG` / `oreIconSVG` (#125), and the icon family `minerAvatarSVG` / `crackedIconSVG` / `recordFlagSVG` (#126). Suite at this stamp: **647 passed + 1 skipped** (the bar at that 2026-07-18 stamp; current bar is now **670** — see the 2026-07-20 #139 entry above).
 - 2026-07-17 — fresh-start records + server hardening: fresh-start cleanup of stale claims / docs / next-tasks (#119) and the merge-doctrine correction — green `claude/*` PRs auto-land, the owner never reviews unmerged PRs (#120); the `POST /api/snapshot/ingest` receiver now rejects a stale (older `generated_at`) snapshot as replay hardening (#121); HTTP correctness on the API routes — `X-Content-Type-Options: nosniff`, a working `HEAD`, and `OPTIONS` support (#123); and the committed-sample data vintage now surfaces in the neutral staleness notice (#122).
 - 2026-07-15 — ORDER 009 EAP-extension note landed in `control/inbox.md` (#113, manager-relayed, control-only): extension through 2026-07-21, dormancy superseded pending owner reboot review — posture detail under "In flight" above.
 - 2026-07-14 — kit upgrades ×2, canonical two-command flow both times: v1.15.0 → v1.16.0 (#110, squash `419d559`) then v1.16.0 → v1.17.0 (#112, squash `a9a6769`; dist sha256 three-way verified, live kit-owned workflows byte-identical pre/post). v1.17.0 payload: scheduled branch-sweep workflow STAGED at `.substrate/ci/branch-sweep.yml` (deliberately NOT installed — going live is `adopt --wire-enforcement`, an owner/lane call) + the `branch_sweep` knob in `substrate.config.json`. `substrate.config.json` `kit_version` = 1.17.0 is the tree's version truth.
 - 2026-07-14 — EAP close-out (ORDER 008): seat-wide project audit `docs/audits/eap-project-audit-2026-07-14.md` (#107) + owner walkthrough `docs/eap-closeout-walkthrough-2026-07-14.md` (#109) — the four pending owner clicks consolidated in walkthrough §C, each with a bolded recommendation + VERIFY step. Also 2026-07-13's night fleet-cleanup audit landed as `docs/audits/2026-07-13-fleet-cleanup-audit.md` (#90).
-- 2026-07-14 — improvement wave, 11/11 PRs merged in one night (#95 claim → #105, close-out heartbeat #106): README refresh to HEAD reality (#96); web `boot()` "Loading snapshot…" banner (#97); staleness-literal drift-guard test pinning the JS `??` fallbacks to `server/views.py` constants (#98); 8th achievement "Homesteader" — owns a home structure (#99); `staleness.source` sample|live so the committed demo shows a neutral notice, never a false STALE alarm (#100); minimap co-located miners grouped into one `{x,y,names}` point with a ×N badge (#101); one shared bounded POST-body reader for the action + ingest routes (#102); `conformance_run` opt-in `--probe-ingest` leg — unsigned 401/503 pass, 200 security-fail (#103); `pixelSVGShell` dedupe of four hand-rolled SVG shells, byte-identical output (#104); `sendAction` reads `Retry-After` on 429 → rejection line gains "retry in Ns" (#105). Suite at wave close: **610 passed + 1 skipped** (the suite bar at that 2026-07-14 wave close; current bar is **647 passed + 1 skipped** — see the 2026-07-18 entry above).
+- 2026-07-14 — improvement wave, 11/11 PRs merged in one night (#95 claim → #105, close-out heartbeat #106): README refresh to HEAD reality (#96); web `boot()` "Loading snapshot…" banner (#97); staleness-literal drift-guard test pinning the JS `??` fallbacks to `server/views.py` constants (#98); 8th achievement "Homesteader" — owns a home structure (#99); `staleness.source` sample|live so the committed demo shows a neutral notice, never a false STALE alarm (#100); minimap co-located miners grouped into one `{x,y,names}` point with a ×N badge (#101); one shared bounded POST-body reader for the action + ingest routes (#102); `conformance_run` opt-in `--probe-ingest` leg — unsigned 401/503 pass, 200 security-fail (#103); `pixelSVGShell` dedupe of four hand-rolled SVG shells, byte-identical output (#104); `sendAction` reads `Retry-After` on 429 → rejection line gains "retry in Ns" (#105). Suite at wave close: **610 passed + 1 skipped** (the suite bar at that 2026-07-14 wave close; current bar is **670 passed + 1 skipped** — see the 2026-07-20 #139 entry above).
 - 2026-07-14 — readiness-check ingest-route leg (ORDER 006 item 5): `scripts/readiness_check.py --probe-ingest` — one deliberately UNSIGNED POST to the FLAG-1 ingest route named by `MINING_SNAPSHOT_RELAY_URL` (the bot-side pusher's own env var), expecting the receive side's only honest answers: 401 `invalid_signature` (configured, signature-first — the probe can never place data) or 503 `snapshot ingest not configured` (fail-closed degraded mode); an unsigned HTTP 200 is reported as a SECURITY FAILURE and reds the check; URL unset → leg skipped, never failed (the READ relay is optional at every stage); same SET/UNSET-only value hygiene, injected-prober wiring, `docs/live-prod-cutover.md` §6 updated; covered in `tests/test_readiness.py` incl. the REAL app server in both honest modes; suite 587 passed + 1 skip.
 - 2026-07-14 — shared contract constant + field-parity audit (ORDER 006 item 4, build-direct pair from idea-engine @2e5d73f): `snapshot_contract.py` (repo root, stdlib-only, vendorable) now owns the schema-derived `REQUIRED_MINER_FIELDS`/`REQUIRED_ENVELOPE_FIELDS`/`SCHEMA_VERSION`, `tests/test_snapshot.py` imports + independently re-derives them (drift guard); the mining_snapshot.v1 vs games-web.character-sheet v1.0.1 coverage audit executed first-hand at both pins (mineverse @82b7caa, product-forge @a9c7401) and committed as `docs/findings/snapshot-field-parity-audit-2026-07-14.md` — headline: NO producer data debt; the misses are three consumer-side flavor requireds (`gear.rarity`, `skills[].xp/xp_max`, `structures[].status`) plus a 7/9 gear-slot map with `tool`/`light` homeless, so seam option (A) costs one client-side adapter + one games-web patch bump, zero v1 breaking changes; per-skill-xp reachability recorded as NOT MEASURED (superbot-repo question).
 - 2026-07-14 — FLAG-1 snapshot-ingest RECEIVE endpoint (ORDER 006 item 1): `POST /api/snapshot/ingest` (`server/ingest.py` + `server/app.py`) — HMAC-verified under the ONE canonical `server/actions.py` scheme (`X-Mineverse-Signature`/`X-Mineverse-Timestamp`, constant-time, ±300 s skew; secret: `MINING_SNAPSHOT_RELAY_SHARED_SECRET`) → v1-validated with the existing runtime validator BEFORE anything persists → atomic whole-document replace into the `MINING_SNAPSHOT_PATH` file the read routes already re-read fresh per request; fail closed (503) when secret or path is unset, 401/400/405/413/415 gauntlet otherwise; this is where superbot #2058's `MINING_SNAPSHOT_RELAY_URL` should point (~60 s cadence); suite 575 passed + 1 skip.
