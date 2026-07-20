@@ -7,7 +7,7 @@
     "soft_target_sessions": 50
   },
   "graduation_proposed": false,
-  "kit_version": "1.16.0",
+  "kit_version": "1.17.0",
   "last_compaction_session": 0,
   "mode": "guided",
   "mode_history": [],
@@ -37,7 +37,7 @@
     "docs/reading-path.md": "4e156d8525732ca2a5cea176cf6190840f23bfb2c01237c4fb60496ae5c654ec",
     "docs/repo-navigation-map.md": "b43a2d93d6e9170f2999ba8dc04788c6b677ad61d0b5a2ea72271f5509879c75",
     "docs/runtime_contracts.md": "6493734575910825ef652502cc683fe5867c93c3c06345ec76ed2e722928d9b5",
-    "docs/seat-digest.md": "37e3ed091f3786492bfb3a877ae198e25d05ad0a8b12d8d991c274cf9536b608",
+    "docs/seat-digest.md": "8ecdc403a1313823cc0ca925f8b489edba5c3cbe6c206e3678f43bde0b7d7636",
     "scripts/env-setup.sh": "cd2145129fcba288ff9399ad44146a09017d85813e282c16bcba22340b613a2c"
   },
   "project_id": "e4a11c56d846",
