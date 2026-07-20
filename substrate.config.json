@@ -52,11 +52,12 @@
   ],
   "interpreter": "/usr/bin/python3.10",
   "interpreter_for_checks": null,
-  "kit_version": "1.17.0",
+  "kit_version": "1.20.1",
   "namespace": {
     "reserved": {},
     "roots": []
   },
+  "native_gate": {},
   "orientation": {
     "boot_docs": [],
     "budget_words": 7000
