@@ -1,6 +1,6 @@
 # Session — 2026-07-20 — Readiness + heartbeat refresh (boot-clean for recreated project)
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 > **Branch:** `claude/readiness-heartbeat`
 > **Timestamp (UTC):** Mon Jul 20 2026
 
