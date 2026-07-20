@@ -6,9 +6,12 @@
 > work always win over this file. Read it second (right after the working
 > agreement) and keep it current as the project moves.
 >
-> Truth-stamp: reconciled 2026-07-18 (UTC) against main @ `7405fd7`
-> (previous stamp: `21b89a00`, 2026-07-17). PRs #119–#128 merged since that
-> stamp (through 2026-07-18); recorded under "Recently shipped" below.
+> Truth-stamp: reconciled 2026-07-20 (UTC) against main @ `72d3d35`
+> (previous stamp: `7405fd7`, 2026-07-18). PRs #129–#134 merged since that
+> stamp — docs/control only (stamp reconcile #129, merge-doctrine de-wall
+> #130, coordinator baton #131, ORDER 010 closed N/A #132, ORDER 011 record
+> #133, heartbeat refresh #134); no product code changed. The order
+> dispositions and baton notes below are current at HEAD.
 >
 > **2026-07-18 (owner live):** the 2026-07-17 FRESH-START/wind-down banner below is superseded for seat operations by the owner's live 2026-07-18 direction (most-recent-wins); the seat work loop is resumed under fm ORDER 048. control/status.md remains retired (docs/current-state.md is live truth). The 2026-07-21 EAP read-only date remains a platform fact to re-verify on the day. See control/inbox.md ORDER 011.
 >
