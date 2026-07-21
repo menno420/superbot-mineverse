@@ -6,15 +6,27 @@
 > work always win over this file. Read it second (right after the working
 > agreement) and keep it current as the project moves.
 >
-> Truth-stamp: reconciled 2026-07-20 (UTC) against main @ `0d1e06c`
-> (previous stamp: `72d3d35`, 2026-07-20). PRs #135–#139 merged since that
-> stamp — #135 readiness (truth-stamp advance + claim prune), #136/#137
-> `control/status.md` heartbeat refreshes (card-less, capturing the
-> #180/#174/#135 merges and inventory-bridge slices 1–3 complete), and #139
-> `server/ingest.py` test-coverage 80%→100% (tests-only, ZERO production
-> behavior change). The suite bar moved 647 → **670 passed + 1 skipped** at
-> #139 (see "Recently shipped" below). The order dispositions and baton notes
-> below are current at HEAD.
+> **PROJECT CLOSEOUT (fleet master):** `docs/PROJECT-CLOSEOUT.md` — the
+> fleet-wide close-out for the whole SuperBot World effort (owner + fresh-session
+> readers): what shipped with citations, priority-ordered open threads with
+> resume steps, owner walkthrough. Read it for the big picture.
+>
+> **CLOSE (2026-07-21):** the SuperBot World effort is closed out at HEAD
+> `c33eec0` (#142). Suite **682 passed + 1 skipped**; `bootstrap check --strict`
+> passes; **zero open PRs across all three repos**. The 2026-07-17 wind-down
+> banner below was superseded 2026-07-18 by live owner direction (most-recent
+> wins — this file is live truth); `control/status.md` carries the FINAL
+> HEARTBEAT (SEAT CLOSED). See `docs/PROJECT-CLOSEOUT.md` for the open-thread
+> continuation list.
+>
+> Truth-stamp: reconciled 2026-07-21 (UTC) against main @ `c33eec0` (#142);
+> suite **682 passed + 1 skipped**. Previous stamp: `0d1e06c` (2026-07-20).
+> PRs since the previous stamp: #140 truth-stamp heartbeat, #141 ORDER 012
+> substrate-gate de-wall on the kit PR, #138 substrate-kit v1.17.0→v1.20.1
+> upgrade, and #142 `server/app.py` degraded-mode + defensive-branch coverage
+> (tests-only, ZERO production behavior change). The suite bar moved
+> 670 → **682 passed + 1 skipped** at #142 (see "Recently shipped" below). The
+> order dispositions and baton notes below are current at HEAD.
 >
 > **2026-07-18 (owner live):** the 2026-07-17 FRESH-START/wind-down banner below is superseded for seat operations by the owner's live 2026-07-18 direction (most-recent-wins); the seat work loop is resumed under fm ORDER 048. control/status.md remains retired (docs/current-state.md is live truth). The 2026-07-21 EAP read-only date remains a platform fact to re-verify on the day. See control/inbox.md ORDER 011.
 >

@@ -53,6 +53,12 @@ audit — three-repo measured record: scale, walls, friction, asks) ·
 commands, OWNER ACTIONS checklist, 5-minute tour, handoff batons) — plus the root
 `CONSTITUTION.md` (the working agreement) and `.session-journal.md`.
 
+**Project closeout (fleet master):** `docs/PROJECT-CLOSEOUT.md` — the
+fleet-wide closeout for the whole SuperBot World effort, written for a
+non-coder owner AND a fresh session: what shipped (with citations), current
+true state, the priority-ordered open threads with resume steps, an owner
+walkthrough, and how to work this repo. Start there for the big picture.
+
 Recurring action? **`docs/SKILLS.md`** — the skill index — names every
 kit-shipped skill and when to reach for it; check it before improvising a
 procedure.
