@@ -1,53 +1,29 @@
-# SuperBot World seat heartbeat · 2026-07-20T04:56Z · neutral fleet roll-up (inventory-bridge-complete refresh)
-updated: 2026-07-20T04:56:06Z
-phase: post-merge heartbeat refresh — the full fishing→mining inventory bridge is now merged in games (slices 1–3: #180/#181/#182, Option B, all config-gated DEFAULT OFF). Heartbeat re-pointed to current main HEADs. Control-only; no product code, tests, or workflows touched.
+# superbot-mineverse seat heartbeat · 2026-07-21T07:30Z · neutral fleet roll-up (app.py-coverage pass)
+updated: 2026-07-21T07:30:25Z
+phase: post-PR-#142 heartbeat refresh — a contained tests-only coverage slice on server/app.py (91% -> 96%) shipped as PR #142; ZERO production behavior change, entirely degraded (no-env) mode. Control-only; no product code, workflows, or secrets touched.
 health: green
-kit: v1.17.0 · check: green (strict; pre-existing model-line advisory only) · engaged: yes
-last-shipped: games #182 — inventory bridge slice 3: read-only V043 `value` preview verb + CLI surface (Option B); suite 940 (HEAD 9326694).
-blockers: none. (Owner-pending, NOT a blocker to agent work: the six host env vars — Discord OAuth + write/ingest secrets — remain owner-set-only; app runs read-only + anonymous over the committed sample with all unset. See docs/current-state.md § "Externally pending" and docs/NEXT-TASKS.md § "Owner-gated go-live items".)
+kit: v1.20.1 (kit-wave #138 at main HEAD 7cea1b8) · check: green (strict; the substrate-gate red is the born-red session-card HOLD only, by design) · engaged: yes
+last-shipped: mineverse #142 — server/app.py degraded-mode + defensive-branch coverage (tests-only; +12 tests in tests/test_app_degraded_coverage.py). Suite 682 passed + 1 skipped at branch tip 8f8ddc8.
+blockers: none. (Owner-pending, NOT a blocker to agent work: the six host env vars — Discord OAuth + write/ingest secrets — remain owner-set-only; app runs read-only + anonymous over the committed sample with all unset. See docs/current-state.md § "Externally pending" and docs/NEXT-TASKS.md.)
 notes: neutral facts + pointers only — no orders injected (the inbox stays its writer's). Live truth: docs/current-state.md; forward plan: docs/NEXT-TASKS.md.
 
-## REPO STATE (live main shas at stamp)
+## REPO STATE (shas at stamp)
 
-- mineverse `d1908f4` green — 647 passed + 1 skipped. Readiness + heartbeat maintained; current-state truth-stamp at HEAD (PRs #135 readiness, #136 heartbeat).
-- idle `967de68` green — 1607 passed + 1 skipped. Readiness landed: current-state refreshed to HEAD + 23 terminal stale claims pruned (PR #174).
-- games `9326694` green — 940 passed. Full fishing→mining inventory bridge merged (Option B), all config-gated DEFAULT OFF behind `GAMES_INVENTORY_BRIDGE_ENABLED`: slice 1 service seam (#180), slice 2 audited `exchange` verb gated OFF (#181), slice 3 read-only V043 `value` preview verb (#182). Nothing live until the owner flips the flag.
+- mineverse main `7cea1b8` green — 670 passed + 1 skipped. PR #142 open on `claude/mineverse-app-coverage` (branch tip `8f8ddc8`, 682 passed + 1 skipped) with GitHub-native auto-merge (squash) armed; held on the born-red session-card gate until the close-out card flips complete (designed hold, not a defect).
 
-## LAST-SHIPPED / MERGED NOTABLES
+## FIELD-PARITY FINDING (NEXT-TASKS #5)
 
-- games #180 — inventory bridge slice 1: config-gated service seam (`services/inventory_bridge.py`, Option B, default-OFF).
-- games #181 — inventory bridge slice 2: audited `exchange` verb wired through the audit sink, gated OFF.
-- games #182 — inventory bridge slice 3: read-only V043 `value` preview verb + CLI surface; suite 940. Bridge slices 1–3 COMPLETE.
-- idle #174 — readiness: current-state refreshed to HEAD + 23 terminal stale claims pruned; suite 1607/1.
-- mineverse #135 — readiness: current-state stamp + heartbeat + 2 terminal claims pruned; suite 647/1.
-- mineverse #136 — heartbeat refresh capturing the #180/#174/#135 merges.
+- Consumer-side snapshot field-parity re-checked: NO producer data debt in mining_snapshot.v1. The remaining misses are consumer-side (games-web in menno420/product-forge) and remediation is an owner seam-ruling plus a games-web patch bump — out of this repo's current scope. Recorded as NOT-ACTIONABLE-HERE.
 
-## ROUTINES (per docs at stamp)
+## NEXT-2-TASKS BATON (neutral pointers — not orders)
 
-- No seat product routines armed. The coordinator failsafe cron
-  (`trig_01XJJ88pQaQFRSpVAviCfAZe` · `15 1-23/2 * * *`, coordinator-bound)
-  stays ARMED as the successor's dead-man bridge — the only armed trigger for
-  this seat (docs/current-state.md § Coordinator baton). Trigger doctrine:
-  `docs/ROUTINES.md`.
-
-## NEXT-2-TASKS BATON (per repo)
-
-- games — inventory bridge slices 1–3 COMPLETE. Next is an OWNER STEER before
-  the `GAMES_INVENTORY_BRIDGE_ENABLED` flag is flipped: should fish be sellable
-  at the mining market at all? keep the 1:1 V043 cross-game rate? Optional
-  slice-4 exists (bidirectional / promote the bridge toward a shared core per
-  the design doc) if the owner wants to keep building instead of flipping.
-- idle — readiness maintained; boot-clean for the 2026-07-21 cutover (a
-  platform fact to re-verify on the day).
-- mineverse — readiness maintained; boot-clean for the 2026-07-21 cutover;
-  forward build plan in `docs/NEXT-TASKS.md`.
+- (1) Live READ feed wiring (NEXT-TASKS #1) — blocked on owner Railway env vars + superbot #2058 draft flip (owner/bot-gated; not agent-executable here).
+- (2) Further server/app.py coverage toward ~98% — remaining uncovered lines 148/152/156, 417-418/429-430, 531-534; same tests-only additive pattern as #142/#139. Agent-executable follow-up.
 
 ---
 
-> ## Status note (2026-07-20)
+> ## Status note (2026-07-21)
 >
 > This `control/status.md` heartbeat is a control-only, neutral fleet roll-up
 > (facts + pointers, no orders — the inbox stays its writer's). Live truth
 > stays in `docs/current-state.md`; the forward plan in `docs/NEXT-TASKS.md`.
-> The Projects EAP read-only date (2026-07-21) remains a platform fact to
-> re-verify on the day.
