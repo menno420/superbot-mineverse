@@ -1,6 +1,6 @@
 # Session — 2026-07-21 — Cover server/app.py's degraded-mode + defensive branches with tests
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 > **Branch:** `claude/mineverse-app-coverage`
 > **Timestamp (UTC):** Tue Jul 21 2026
 
