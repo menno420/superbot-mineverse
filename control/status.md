@@ -1,4 +1,6 @@
 SEAT CLOSED — Tue Jul 21 18:36:31 UTC 2026
+updated: 2026-07-21T18:36:31Z
+phase: seat closed — final closeout landed (docs/PROJECT-CLOSEOUT.md fleet master); no further seat work.
 
 Final heartbeat for the superbot-mineverse seat. Neutral facts + pointers only;
 no orders (the inbox stays its writer's).
