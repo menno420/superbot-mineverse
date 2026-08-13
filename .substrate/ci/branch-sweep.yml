@@ -19,11 +19,14 @@
 # token authentication" recursion guard), so a closed-event
 # cleanup would never fire for exactly the merges that need it.
 #
-# WHY A WORKFLOW, NOT THE AGENT: agent-side branch deletion is
-# historically 403-walled in fleet sessions (capability ledger
-# OA-10 — classifier + proxy deny every delete path). This
+# WHY A WORKFLOW, NOT THE AGENT: spent branches accumulate whether
+# or not any session is running, and a sweep needs no agent
+# present. (The capability ledger's OA-10 entry once recorded
+# agent-side deletion as 403-walled; RETRACTED 2026-08-11 —
+# deletion works over the direct-credential path. The schedule
+# stands on the two rationales above, not on that wall.) This
 # workflow, running with the repo's own GITHUB_TOKEN, is the
-# sanctioned path around that wall.
+# sanctioned path for unattended cleanup.
 #
 # WHAT IT DELETES — a ref must pass EVERY rule, in order:
 #   1. matches a sweep pattern (claude/* · codex/* · bot/*);

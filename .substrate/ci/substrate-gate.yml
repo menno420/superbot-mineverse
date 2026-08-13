@@ -94,16 +94,33 @@ jobs:
         # (its real work + its session card) is on the FULL lane, so
         # it never reaches this step — by construction this fires
         # only on the pure-claim `claude/*` diff it exists to reject.
+        #
+        # The `env:` indirection is load-bearing (fm #833, Codex P1):
+        # a branch name is chosen by the PR AUTHOR and git accepts
+        # names containing shell metacharacters, so interpolating
+        # `${{ github.head_ref }}` straight into the script lets a
+        # head like `claude/";exit${IFS}0;#` close the assignment
+        # and run an early successful exit — making this very guard
+        # pass and re-opening the #451 hole it exists to close.
+        # GitHub expands `${{ }}` BEFORE bash parses the script, so
+        # quoting inside the script cannot help; the value must
+        # arrive as an environment variable, which bash never
+        # re-parses.
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_SHA: ${{ github.sha }}
         run: |
-          head_ref="${{ github.head_ref }}"
+          head_ref="$HEAD_REF"
           case "$head_ref" in
             claude/*) ;;
             *) echo "guard N/A — head '$head_ref' is not a claude/* branch (claim/* and others ride the fast lane card-less by design)."; exit 0 ;;
           esac
-          if [ -n "${{ github.base_ref }}" ]; then
-            range="origin/${{ github.base_ref }}...HEAD"
+          if [ -n "$BASE_REF" ]; then
+            range="origin/$BASE_REF...HEAD"
           else
-            range="${{ github.event.before }}..${{ github.sha }}"
+            range="$EVENT_BEFORE..$EVENT_SHA"
           fi
           changed="$(git diff --name-only "$range" 2>/dev/null || true)"
           if [ -z "$changed" ]; then
@@ -120,6 +137,23 @@ jobs:
         if: steps.lane.outputs.control_only != 'true'
         with:
           python-version: "3.x"
+      - name: repo checkers (host-owned scripts/repo_checks.sh; self-skips when absent)
+        if: steps.lane.outputs.control_only != 'true'
+        # Host-owned checkers used to be hand-added into THIS file and
+        # silently dropped at every regen: the v1.20.1→v1.20.2 upgrade
+        # dropped the step running fleet-manager's two repo checkers,
+        # leaving the gate green while running neither (fm #833). This
+        # planted extension point ends that re-apply tax — the kit owns
+        # this workflow, the HOST owns scripts/repo_checks.sh, and the
+        # regen can never drop it again. Same pattern as the pytest
+        # step below: always planted, self-skips when absent, so the
+        # step self-heals the moment the host script arrives.
+        run: |
+          if [ -f scripts/repo_checks.sh ]; then
+            bash scripts/repo_checks.sh
+          else
+            echo "no scripts/repo_checks.sh — repo checkers step skipped (self-heals when it arrives)."
+          fi
       - name: substrate gate (docs + session-log required)
         if: steps.lane.outputs.control_only != 'true'
         # Gate on the session cards THIS PR/push touches (CI flattens

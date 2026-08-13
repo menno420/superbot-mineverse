@@ -48,7 +48,9 @@ steps.
    wall; see `control/README.md`) — Withdraw stale asks; groom one idea
    forward; add one new 💡 idea you genuinely believe in; write the ⟲
    previous-session review.
-6. Verify — `python3 -m pytest -q` and `python3 bootstrap.py check --strict`.
+6. Verify — `python3 -m pytest -q` and `python3 bootstrap.py check --strict`;
+   if those are the same command, also run the repo's other boot-file gates
+   (the collision otherwise drops a gate silently).
    The only acceptable pre-flip red is the designed born-red hold naming
    this session's own card.
 7. Flip as the deliberate LAST step — flip the card badge to `complete`,
