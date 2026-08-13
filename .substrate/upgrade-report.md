@@ -45,7 +45,12 @@ This upgrade ships the venue-scoped capability ledger (grounded-skills §4.2): e
 
 ## Seat-digest refresh
 
-- seat-digest: regenerated docs/seat-digest.md (derived render — skills index + venue-filtered walls re-rendered from the current tree; venue filter preserved from the committed doc).
+- seat-digest: docs/seat-digest.md already current — nothing to refresh.
+
+## Applied (--apply-docs)
+
+- applied: docs/collaboration-model.md (template@new, hash re-recorded)
+- applied: docs/SKILLS.md (template@new, hash re-recorded)
 
 ## Template deltas for diverged docs
 
