@@ -40,7 +40,8 @@ tree, never a registry line or a PR read.
    clobber; list them verbatim in the PR body. `template-improved` applies
    only under `--apply-docs` and only to consumer-untouched docs.
 7. Verify + flip — `python3 -m pytest -q` and
-   `python3 bootstrap.py check --strict` green (own card's designed hold
+   `python3 bootstrap.py check --strict` green
+   — if those are the same command, run the repo's other boot-file gates too (own card's designed hold
    excepted); flip the card `complete`, delete the claim, push.
 8. Verify merged main afterward — TREE over registries:
    `git fetch origin main && git log -1 --oneline origin/main` and read the

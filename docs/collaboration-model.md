@@ -69,7 +69,8 @@ from memory alone.
 This model's program-wide form, and the rulings that bind every repo in the
 program, live canonically in the substrate-kit repo at
 `docs/program/rulings.md` (the [PL-NNN] register — e.g. PL-001
-decide-and-flag, PL-007 enforce-don't-exhort, PL-012 the autonomy rider) and
+decide-and-flag, PL-007 enforce-don't-exhort, PL-012 the autonomy rider,
+PL-013 inhabiting-beats-observing) and
 `docs/program/collaboration-model.md`
 (https://github.com/menno420/substrate-kit/tree/main/docs/program).
 **Cite PL-IDs — never copy ruling bodies into this repo.**

@@ -52,7 +52,7 @@
   ],
   "interpreter": "/usr/bin/python3.10",
   "interpreter_for_checks": null,
-  "kit_version": "1.20.1",
+  "kit_version": "1.21.0",
   "namespace": {
     "reserved": {},
     "roots": []

@@ -20,6 +20,7 @@ deriving the procedure from scratch.
 | Skill | When to reach for it | Capabilities | Grounds (exact commands) |
 |---|---|---|---|
 | `session-close` | Land the session — claim, born-red card first, READY PR, batched work, close-out docs, flip complete last; land on green. | `read`, `edit`, `run` | `python3 -m pytest -q`<br>`python3 bootstrap.py check --strict` |
+| `continuation-prompt` | Carry a session into a fresh one — verify state at HEAD, commit what belongs in the repo, and emit a paste-ready prompt that transfers intent without narrowing it. | `read`, `edit`, `run` | `git fetch origin main && git log -1 --oneline origin/main`<br>`python3 -m pytest -q` |
 | `upgrade-distribution` | Roll a kit release out to one adopter repo — download, sha256 three-way, banked rollback, carve-out scan, born-red PR, tree-verified merge. | `read`, `edit`, `run` | `git fetch origin main && git reset --hard origin/main`<br>`gh release download vX.Y.Z --repo menno420/substrate-kit --pattern 'bootstrap.py*' --pattern 'release.json'`<br>`sha256sum bootstrap.py.new`<br>`python3 bootstrap.py.new upgrade`<br>`python3 -m pytest -q`<br>`python3 bootstrap.py check --strict`<br>`git fetch origin main && git log -1 --oneline origin/main`<br>`git commit --allow-empty` |
 | `release` | Cut + publish a substrate-kit release — version bump PR, workflow_dispatch publish, three-way asset verification, adopter distribution wave. | `read`, `edit`, `run` | `python3 src/build_bootstrap.py`<br>`git diff --exit-code dist/bootstrap.py`<br>`python3 -m pytest tests/ -q`<br>`python3 -m ruff check src/engine/`<br>`python3 src/build_release_json.py --version X.Y.Z --verify-only`<br>`python3 dist/bootstrap.py check --strict`<br>`gh workflow run release.yml -f version=X.Y.Z`<br>`git fetch --tags && git tag -l vX.Y.Z`<br>`gh release view vX.Y.Z`<br>`python3 dist/bootstrap.py currency` |
 | `intake` | Turn a fragmented owner ask into main ideas, a restated fuller picture, a skill-index map, and structured-choice owner questions — before building (understand-and-reflect, executable). | `read` | — |
@@ -39,8 +40,28 @@ deriving the procedure from scratch.
 - **Installed (live):** `.claude/skills/<name>/SKILL.md` — invoke as
   `/<name>`.
 - **Staged (regenerated at every adopt/upgrade):** the kit state dir's
-  `skills/` tree (default `.substrate/skills/`); install with
-  `python3 bootstrap.py skills --build`.
+  `skills/` tree (default `.substrate/skills/`). `python3 bootstrap.py
+  skills --build` refreshes the STAGED tree only — **no kit command ever
+  writes the live `.claude/` tree** (this line taught that command as the
+  install until v1.21.0, and both commands exit 0 with everything staged
+  and nothing live). Installing is the host's own copy step:
+
+  ```bash
+  python3 bootstrap.py skills --build
+  mkdir -p .claude/skills
+  for d in .substrate/skills/*/; do
+    n=$(basename "$d"); mkdir -p ".claude/skills/$n"
+    cp "$d/SKILL.md" ".claude/skills/$n/SKILL.md"
+  done
+  ```
+
+  Re-run the copy after an upgrade — and **diff before you copy**: it
+  overwrites kit-named skills, including any local amendments a host has
+  layered on them (hand-authored skills under other names are untouched).
+  The loop reads the DEFAULT state dir — if this repo's
+  `substrate.config.json` sets a custom `state_dir`, substitute it for
+  `.substrate` in the loop (staging follows the configured dir; the loop
+  cannot, because this index renders before the config is read).
 - **Precedence:** a skill's declared capability **wins over the ambient
   stance** (an invoked `session-close` may write the session log even under
   a `review` stance); stances stay advisory for anything a skill has not
