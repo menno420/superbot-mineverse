@@ -44,16 +44,39 @@
 > to merge the green head SHA. Never route a mergeable green PR to the owner
 > ([D-0002]). The forward plan lives in `docs/NEXT-TASKS.md`.
 
-## Coordinator baton (2026-07-18)
+## Coordinator baton (2026-07-18) — HISTORICAL, not instructions
+
+> **⚠️ Corrected 2026-08-22.** This block hands off to a *successor coordinator
+> seat*. **There is no successor seat and none is coming** — the autonomous seat
+> programme closed 2026-07-21 and the roster was retired 2026-08-07; this repo's
+> work now happens in ordinary sessions. It is kept as the historical handoff
+> record. Its first bullet was **unsafe to follow** and is struck through and
+> corrected below; the other two are harmless facts about July.
 
 Handoff facts for the successor coordinator seat:
 
-- **Seat failsafe cron stays ARMED** as the successor's dead-man bridge —
+- ~~**Seat failsafe cron stays ARMED** as the successor's dead-man bridge —
   id `trig_01XJJ88pQaQFRSpVAviCfAZe`, name "SuperBot World failsafe wake",
   cron `15 1-23/2 * * *`, target = the current coordinator session. On
   successor boot, **rebind-then-delete** it (rebind the wake to the new
   seat first, then delete the old trigger); delete outright only on an
-  explicit owner retire-this-seat order.
+  explicit owner retire-this-seat order.~~
+
+  **DO NOT DO THIS.** Two independent reasons, either one sufficient:
+
+  1. **Never delete a trigger** — estate decision **D-0015** (fleet-manager
+     `docs/decisions.md`). It is the one call that raises an approval prompt on
+     the owner's screen in automode; the session then **stalls until he is
+     physically back to click it**, and cannot see that it is waiting. A stale
+     one-shot trigger is inert and costs nothing to leave. If a recurring one
+     genuinely misbehaves, **disable** it — `update_trigger` with
+     `enabled: false`. That is the emergency stop: no prompt, reversible.
+     If it then needs *removing*, say so in the reply and he removes it in
+     seconds.
+  2. **The trigger named above no longer exists.** `MEASURED` 2026-08-22
+     against the account's Routine list: three Routines exist and none of them
+     is `trig_01XJJ88…`. The instruction targets nothing, so following it would
+     buy the stall for no effect whatsoever.
 - **Overnight 2026-07-17→18 chain closed:** all PRs terminal-merged across
   the three seat repos — mineverse #120–#129, idle #151–#170, games
   #156–#168 — leaving zero open PRs and zero other routines armed.
